@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import {
   Animated,
   BackHandler,
+  Easing,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -48,6 +49,27 @@ type Feedback = {
 
 type Timer = ReturnType<typeof setTimeout>;
 
+type MeasuredRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type ResultFlight = {
+  id: number;
+  value: number;
+  targetIndex: number;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+};
+
+const RESULT_FLIGHT_DURATION = 360;
+const RESULT_FLIGHT_WIDTH = 70;
+const RESULT_FLIGHT_HEIGHT = 48;
+
 const CONFETTI_COLORS = [
   '#F59E0B',
   '#60A5FA',
@@ -79,6 +101,82 @@ function clearTimer(timer: MutableRefObject<Timer | null>) {
     clearTimeout(timer.current);
     timer.current = null;
   }
+}
+
+function measureViewInWindow(view: View | null): Promise<MeasuredRect | null> {
+  if (!view) return Promise.resolve(null);
+
+  return new Promise((resolve) => {
+    view.measureInWindow((x, y, width, height) => {
+      resolve(width > 0 && height > 0 ? { x, y, width, height } : null);
+    });
+  });
+}
+
+function ResultFlightBadge({
+  flight,
+  onComplete,
+}: {
+  flight: ResultFlight;
+  onComplete: (flightId: number, targetIndex: number) => void;
+}) {
+  const [progress] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    progress.setValue(0);
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: RESULT_FLIGHT_DURATION,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      if (finished) onComplete(flight.id, flight.targetIndex);
+    });
+    return () => animation.stop();
+  }, [flight.id, flight.targetIndex, onComplete, progress]);
+
+  const middleX = flight.fromX + (flight.toX - flight.fromX) * 0.56;
+  const middleY = (flight.fromY + flight.toY) / 2 - 48;
+  const translateX = progress.interpolate({
+    inputRange: [0, 0.56, 1],
+    outputRange: [flight.fromX, middleX, flight.toX],
+  });
+  const translateY = progress.interpolate({
+    inputRange: [0, 0.56, 1],
+    outputRange: [flight.fromY, middleY, flight.toY],
+  });
+  const scale = progress.interpolate({
+    inputRange: [0, 0.18, 0.78, 1],
+    outputRange: [0.72, 1.18, 0.92, 0.72],
+  });
+  const opacity = progress.interpolate({
+    inputRange: [0, 0.08, 0.82, 1],
+    outputRange: [0, 1, 1, 0],
+  });
+  const rotate = progress.interpolate({
+    inputRange: [0, 0.56, 1],
+    outputRange: ['-5deg', '2deg', '0deg'],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.resultFlight,
+        {
+          opacity,
+          transform: [{ translateX }, { translateY }, { scale }, { rotate }],
+        },
+      ]}>
+      <LinearGradient
+        colors={['#63D5B1', '#16906B']}
+        end={{ x: 1, y: 1 }}
+        start={{ x: 0, y: 0 }}
+        style={styles.resultFlightSurface}>
+        <Text style={styles.resultFlightValue}>{flight.value}</Text>
+      </LinearGradient>
+    </Animated.View>
+  );
 }
 
 function Celebration({ visible }: { visible: boolean }) {
@@ -146,13 +244,17 @@ function TargetCard({
   target,
   solved,
   hinted,
+  landed,
   large,
+  measureRef,
   width,
 }: {
   target: Target;
   solved: boolean;
   hinted: boolean;
+  landed: boolean;
   large: boolean;
+  measureRef: (view: View | null) => void;
   width: `${number}%`;
 }) {
   const operation = OPERATION_DETAILS[target.op];
@@ -160,70 +262,91 @@ function TargetCard({
 
   useEffect(() => {
     scale.stopAnimation();
-    const animation = hinted
+    const animation = landed
       ? Animated.sequence([
           Animated.timing(scale, {
-            toValue: 1.05,
-            duration: 175,
+            toValue: 1.08,
+            duration: 85,
             useNativeDriver: true,
           }),
-          Animated.delay(1450),
+          Animated.timing(scale, {
+            toValue: 0.98,
+            duration: 85,
+            useNativeDriver: true,
+          }),
           Animated.timing(scale, {
             toValue: 1,
-            duration: 175,
+            duration: 110,
             useNativeDriver: true,
           }),
         ])
-      : Animated.timing(scale, {
-          toValue: 1,
-          duration: 120,
-          useNativeDriver: true,
-        });
+      : hinted
+        ? Animated.sequence([
+            Animated.timing(scale, {
+              toValue: 1.05,
+              duration: 175,
+              useNativeDriver: true,
+            }),
+            Animated.delay(1450),
+            Animated.timing(scale, {
+              toValue: 1,
+              duration: 175,
+              useNativeDriver: true,
+            }),
+          ])
+        : Animated.timing(scale, {
+            toValue: 1,
+            duration: 120,
+            useNativeDriver: true,
+          });
     animation.start();
     return () => animation.stop();
-  }, [hinted, scale]);
+  }, [hinted, landed, scale]);
 
   return (
-    <Animated.View
-      accessibilityLabel={`${target.value} hedefi, ${target.steps} sayı`}
-      style={[
-        styles.targetCardFrame,
-        solved && styles.targetSolvedFrame,
-        hinted && styles.targetHintedFrame,
-        { width, transform: [{ scale }] },
-      ]}>
-      <LinearGradient
-        colors={
-          solved
-            ? ['rgba(218,246,232,0.98)', 'rgba(189,232,213,0.98)']
-            : ['#F8FCFB', '#DCECEC']
-        }
-        end={{ x: 1, y: 1 }}
-        start={{ x: 0, y: 0 }}
+    <View ref={measureRef} collapsable={false} style={{ width }}>
+      <Animated.View
+        accessibilityLabel={`${target.value} hedefi, ${target.steps} sayı`}
         style={[
-          styles.targetCard,
-          solved && styles.targetSolved,
-          hinted && styles.targetHinted,
+          styles.targetCardFrame,
+          solved && styles.targetSolvedFrame,
+          hinted && styles.targetHintedFrame,
+          { transform: [{ scale }] },
         ]}>
-        <Text
+        <LinearGradient
+          colors={
+            solved
+              ? ['rgba(218,246,232,0.98)', 'rgba(189,232,213,0.98)']
+              : ['#F8FCFB', '#DCECEC']
+          }
+          end={{ x: 1, y: 1 }}
+          start={{ x: 0, y: 0 }}
           style={[
-            styles.targetValue,
-            large && styles.targetValueLarge,
-            solved && styles.targetSolvedText,
+            styles.targetCard,
+            solved && styles.targetSolved,
+            hinted && styles.targetHinted,
           ]}>
-          {target.value}
-        </Text>
-        <View style={styles.targetMeta}>
-          <Text style={[styles.targetMetaText, solved && styles.targetSolvedText]}>
-            [{operation.symbol}]
+          <Text
+            style={[
+              styles.targetValue,
+              large && styles.targetValueLarge,
+              solved && styles.targetSolvedText,
+            ]}>
+            {target.value}
           </Text>
-          <Text style={[styles.targetDots, solved && styles.targetSolvedText]}>
-            {Array.from({ length: target.steps }, () => '●').join(' ')}
-          </Text>
-        </View>
-      </LinearGradient>
-      {hinted ? <View pointerEvents="none" style={styles.targetHintRing} /> : null}
-    </Animated.View>
+          <View style={styles.targetMeta}>
+            <Text style={[styles.targetMetaText, solved && styles.targetSolvedText]}>
+              [{operation.symbol}]
+            </Text>
+            <Text style={[styles.targetDots, solved && styles.targetSolvedText]}>
+              {Array.from({ length: target.steps }, () => '●').join(' ')}
+            </Text>
+          </View>
+        </LinearGradient>
+        {hinted ? <View pointerEvents="none" style={styles.targetHintRing} /> : null}
+        {landed ? <View pointerEvents="none" style={styles.targetLandingRing} /> : null}
+      </Animated.View>
+    </View>
   );
 }
 
@@ -354,11 +477,19 @@ export default function HomeScreen() {
   const [effectsEnabled, setEffectsEnabled] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
+  const [resultFlights, setResultFlights] = useState<ResultFlight[]>([]);
+  const [flyingTargets, setFlyingTargets] = useState<Set<number>>(() => new Set());
+  const [landedTarget, setLandedTarget] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const blurTarget = useRef<View>(null);
+  const resultLayerRef = useRef<View>(null);
+  const resultSourceRef = useRef<View>(null);
+  const targetCardRefs = useRef<(View | null)[]>([]);
+  const nextFlightId = useRef(1);
   const discoveredBonuses = useRef(new Set<string>());
   const feedbackTimer = useRef<Timer | null>(null);
   const hintTimer = useRef<Timer | null>(null);
+  const landingTimer = useRef<Timer | null>(null);
   const levelTimer = useRef<Timer | null>(null);
 
   const layout = getGameLayout(width, height);
@@ -424,6 +555,7 @@ export default function HomeScreen() {
     () => () => {
       clearTimer(feedbackTimer);
       clearTimer(hintTimer);
+      clearTimer(landingTimer);
       clearTimer(levelTimer);
     },
     [],
@@ -464,15 +596,77 @@ export default function HomeScreen() {
     }, duration);
   }, []);
 
+  const pulseTarget = useCallback((targetIndex: number) => {
+    clearTimer(landingTimer);
+    setLandedTarget(targetIndex);
+    landingTimer.current = setTimeout(() => {
+      setLandedTarget(null);
+      landingTimer.current = null;
+    }, 320);
+  }, []);
+
+  const revealTarget = useCallback(
+    (targetIndex: number) => {
+      setFlyingTargets((current) => {
+        if (!current.has(targetIndex)) return current;
+        const next = new Set(current);
+        next.delete(targetIndex);
+        return next;
+      });
+      pulseTarget(targetIndex);
+    },
+    [pulseTarget],
+  );
+
+  const handleResultFlightComplete = useCallback(
+    (flightId: number, targetIndex: number) => {
+      setResultFlights((current) => current.filter((flight) => flight.id !== flightId));
+      revealTarget(targetIndex);
+    },
+    [revealTarget],
+  );
+
+  const launchResultFlight = useCallback(
+    async (value: number, targetIndex: number) => {
+      const [rootRect, sourceRect, targetRect] = await Promise.all([
+        measureViewInWindow(resultLayerRef.current),
+        measureViewInWindow(resultSourceRef.current),
+        measureViewInWindow(targetCardRefs.current[targetIndex] ?? null),
+      ]);
+
+      if (!rootRect || !sourceRect || !targetRect) {
+        revealTarget(targetIndex);
+        return;
+      }
+
+      const flight: ResultFlight = {
+        id: nextFlightId.current,
+        value,
+        targetIndex,
+        fromX: sourceRect.x + sourceRect.width / 2 - rootRect.x,
+        fromY: sourceRect.y + sourceRect.height * 0.44 - rootRect.y,
+        toX: targetRect.x + targetRect.width / 2 - rootRect.x,
+        toY: targetRect.y + targetRect.height / 2 - rootRect.y,
+      };
+      nextFlightId.current += 1;
+      setResultFlights((current) => [...current, flight]);
+    },
+    [revealTarget],
+  );
+
   const startLevel = useCallback((nextLevel: number, previousTargetValues: readonly number[]) => {
     clearTimer(feedbackTimer);
     clearTimer(hintTimer);
+    clearTimer(landingTimer);
     setLevel(nextLevel);
     setLevelData(generateLevelData(nextLevel, previousTargetValues));
     setSolvedTargets(new Set());
     setFeedback(null);
     setHintIndices([]);
     setHintedTarget(null);
+    setResultFlights([]);
+    setFlyingTargets(new Set());
+    setLandedTarget(null);
     setCelebrating(false);
   }, []);
 
@@ -523,7 +717,9 @@ export default function HomeScreen() {
         setHintedTarget(null);
         const nextSolved = new Set(solvedTargets);
         nextSolved.add(targetIndex);
+        setFlyingTargets((current) => new Set(current).add(targetIndex));
         setSolvedTargets(nextSolved);
+        void launchResultFlight(calculation.result, targetIndex);
 
         if (nextSolved.size === levelData.targets.length) {
           const travelCompletion = getTravelLevelCompletion(level);
@@ -580,7 +776,15 @@ export default function HomeScreen() {
         showTimedFeedback({ text: 'Bu bonusu zaten buldun', tone: 'info' });
       }
     },
-    [level, levelData, showTimedFeedback, solvedTargets, startLevel, triggerEffect],
+    [
+      launchResultFlight,
+      level,
+      levelData,
+      showTimedFeedback,
+      solvedTargets,
+      startLevel,
+      triggerEffect,
+    ],
   );
 
   const handleHint = useCallback(() => {
@@ -755,8 +959,12 @@ export default function HomeScreen() {
                     <TargetCard
                       key={`${target.value}-${index}`}
                       hinted={hintedTarget === index}
+                      landed={landedTarget === index}
                       large={!compact}
-                      solved={solvedTargets.has(index)}
+                      measureRef={(view) => {
+                        targetCardRefs.current[index] = view;
+                      }}
+                      solved={solvedTargets.has(index) && !flyingTargets.has(index)}
                       target={target}
                       width={targetWidth}
                     />
@@ -788,7 +996,10 @@ export default function HomeScreen() {
                 )}
               </View>
 
-              <View style={styles.wheelContainer}>
+              <View
+                ref={resultSourceRef}
+                collapsable={false}
+                style={styles.wheelContainer}>
                 <NumberWheel
                   key={`${level}-${wheelSize}`}
                   hintIndices={hintIndices}
@@ -823,6 +1034,19 @@ export default function HomeScreen() {
           </ScrollView>
         </SafeAreaView>
 
+        <View
+          ref={resultLayerRef}
+          collapsable={false}
+          pointerEvents="none"
+          style={styles.resultFlightLayer}>
+          {resultFlights.map((flight) => (
+            <ResultFlightBadge
+              flight={flight}
+              key={flight.id}
+              onComplete={handleResultFlightComplete}
+            />
+          ))}
+        </View>
         <Celebration visible={celebrating} />
       </BlurTargetView>
       <PassportModal
@@ -1198,6 +1422,7 @@ const styles = StyleSheet.create({
     rowGap: 8,
   },
   targetCardFrame: {
+    width: '100%',
     position: 'relative',
     minHeight: 62,
     shadowColor: '#000000',
@@ -1219,6 +1444,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.78,
     shadowRadius: 16,
     elevation: 12,
+  },
+  targetLandingRing: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    bottom: -3,
+    left: -3,
+    borderRadius: 19,
+    borderWidth: 3,
+    borderColor: '#FFF0A8',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.86,
+    shadowRadius: 12,
+    elevation: 15,
   },
   targetCard: {
     width: '100%',
@@ -1344,6 +1584,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 0,
+  },
+  resultFlightLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 70,
+    overflow: 'hidden',
+  },
+  resultFlight: {
+    position: 'absolute',
+    left: -RESULT_FLIGHT_WIDTH / 2,
+    top: -RESULT_FLIGHT_HEIGHT / 2,
+    width: RESULT_FLIGHT_WIDTH,
+    height: RESULT_FLIGHT_HEIGHT,
+    borderRadius: RESULT_FLIGHT_HEIGHT / 2,
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.42,
+    shadowRadius: 9,
+    elevation: 16,
+  },
+  resultFlightSurface: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RESULT_FLIGHT_HEIGHT / 2,
+    borderWidth: 2,
+    borderColor: 'rgba(236,253,245,0.96)',
+  },
+  resultFlightValue: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: '900',
+    textShadowColor: 'rgba(4,47,46,0.42)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   instruction: {
     color: '#557782',

@@ -140,6 +140,14 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - Ses anahtarı sesi ve haptics efektlerini birlikte yönetir; tercih kalıcıdır.
 - Kaynaklar `npm run sounds:generate` ile, ffmpeg&apos;e ihtiyaç duymayan `scripts/generate-sounds.mjs` deterministik PCM üreticisi üzerinden yeniden üretilebilir.
 
+## Hedefe uçan sonuç animasyonu
+
+- Geçerli bir sürükleme hedeflerden biriyle ilk kez eşleştiğinde bulunan sonuç, çark alanından eşleşen hedef kartın merkezine uçmalıdır. Bonus veya daha önce çözülmüş hedef bu animasyonu başlatmaz.
+- Başlangıç ve bitiş koordinatları sabit ekran değerleriyle tahmin edilmez; çark, tam ekran uçuş katmanı ve ilgili hedef kartı `measureInWindow` ile ölçülür. Böylece farklı ekran boyları ve ScrollView konumlarında doğru karta ulaşır.
+- Rozet `360 ms` boyunca kavisli bir yörüngede ilerler; başlangıçta yaylanarak büyür, hedefe yaklaşırken küçülüp kaybolur. Hedef kartı uçuş bitmeden çözülmüş renge geçmez; iniş anında zümrüt görünümle birlikte layout&apos;u değiştirmeyen kısa `1 → 1.08 → 0.98 → 1` scale ve parlama animasyonu oynatır.
+- Uçuş katmanı `pointerEvents="none"` kullanır ve oyun dokunuşlarını engellemez. Ölçüm alınamazsa sonuç rozeti atlanır, hedef kartı iniş parlaması yine çalışır.
+- Animasyon yeni bir ses üretmez. Referans HTML&apos;deki `playSuccess()` hedef doğrulandığı anda yalnız bir kez çalar; uçuşun varışı ikinci bir başarı sesi veya pop sesi tetiklemez.
+
 ## Kullanılan native kütüphaneler
 
 - `expo-audio`: düşük gecikmeli yerel oyun efektleri.

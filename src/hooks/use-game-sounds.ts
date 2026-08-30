@@ -18,16 +18,21 @@ const PLAYER_OPTIONS = {
 
 function replay(player: AudioPlayer) {
   if (!player.isLoaded) return;
-  if (player.currentTime <= 0.001) {
-    player.play();
-    return;
-  }
 
-  // Expo Audio SDK 57'de bitmiş/kullanılmış kısa efekti baştan oynatma akışı.
-  void player
-    .seekTo(0, 0, 0)
-    .then(() => player.play())
-    .catch(() => undefined);
+  try {
+    if (player.currentTime > 0.001) {
+      // Expo Go bazı native sürümlerde seek dönüşünü void olarak köprüleyebilir.
+      // Promise.resolve iki davranışta da sesi başa sardıktan sonra güvenle oynatır.
+      const seekResult = player.seekTo(0);
+      void Promise.resolve(seekResult)
+        .then(() => player.play())
+        .catch(() => undefined);
+      return;
+    }
+    player.play();
+  } catch {
+    // Bir efekt hatası oyunun dokunma akışını kesmemelidir.
+  }
 }
 
 export function useGameSounds(enabled: boolean) {
