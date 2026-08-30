@@ -27,10 +27,9 @@ type Point = {
 type NumberWheelProps = {
   size: number;
   numbers: number[];
-  maxSelection: 2 | 3;
   hintIndices: number[];
   onPreview: (indices: number[]) => void;
-  onComplete: (indices: number[]) => void;
+  onComplete: (indices: number[], resultOrigin?: Point) => void;
   onHint: () => void;
   onShuffle: () => void;
   onNodeAdded: (selectionCount: number) => void;
@@ -39,6 +38,34 @@ type NumberWheelProps = {
 
 const SHUFFLE_DURATION = 450;
 const SHUFFLE_EASING = Easing.bezier(0.34, 1.3, 0.64, 1);
+
+function findNodesAlongSegment(
+  from: Point,
+  to: Point,
+  positions: Point[],
+  hitRadius: number,
+): number[] {
+  const deltaX = to.x - from.x;
+  const deltaY = to.y - from.y;
+  const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+
+  return positions
+    .map((position, index) => {
+      const rawProgress =
+        lengthSquared > 0
+          ? ((position.x - from.x) * deltaX + (position.y - from.y) * deltaY) /
+            lengthSquared
+          : 0;
+      const progress = Math.max(0, Math.min(1, rawProgress));
+      const nearestX = from.x + deltaX * progress;
+      const nearestY = from.y + deltaY * progress;
+      const distance = Math.hypot(position.x - nearestX, position.y - nearestY);
+      return distance <= hitRadius ? { index, progress } : null;
+    })
+    .filter((match): match is { index: number; progress: number } => match !== null)
+    .sort((left, right) => left.progress - right.progress)
+    .map((match) => match.index);
+}
 
 function HintIcon() {
   return (
@@ -117,7 +144,6 @@ function ConnectorLine({
 export function NumberWheel({
   size,
   numbers,
-  maxSelection,
   hintIndices,
   onPreview,
   onComplete,
@@ -133,6 +159,7 @@ export function NumberWheel({
   const [pointer, setPointer] = useState<Point | null>(null);
   const wheelRef = useRef<View>(null);
   const originRef = useRef<Point>({ x: 0, y: 0 });
+  const lastPointerRef = useRef<Point | null>(null);
   const selectedRef = useRef<number[]>([]);
   const slotOrderRef = useRef(slotOrder);
   const isShufflingRef = useRef(false);
@@ -222,6 +249,7 @@ export function NumberWheel({
     selectedRef.current = [];
     setSelectedIndices([]);
     setPointer(null);
+    lastPointerRef.current = null;
     onDraggingChange(false);
   };
 
@@ -234,6 +262,7 @@ export function NumberWheel({
     selectedRef.current = next;
     setSelectedIndices(next);
     setPointer(point);
+    lastPointerRef.current = point;
     onDraggingChange(true);
     onNodeAdded(next.length);
     onPreview(next);
@@ -244,19 +273,39 @@ export function NumberWheel({
     const point = movePoint(event);
     setPointer(point);
 
-    const nodeIndex = findNode(point);
+    const previousPoint = lastPointerRef.current ?? point;
+    lastPointerRef.current = point;
     const current = selectedRef.current;
-    if (nodeIndex >= 0 && !current.includes(nodeIndex) && current.length < maxSelection) {
-      const next = [...current, nodeIndex];
+    let next = current;
+
+    findNodesAlongSegment(previousPoint, point, positions, nodeSize / 2 + 10).forEach(
+      (nodeIndex) => {
+        if (next.includes(nodeIndex) || next.length >= numbers.length) return;
+        next = [...next, nodeIndex];
+        onNodeAdded(next.length);
+      },
+    );
+
+    if (next !== current) {
       selectedRef.current = next;
       setSelectedIndices(next);
-      onNodeAdded(next.length);
       onPreview(next);
     }
   };
 
   const handleRelease = () => {
-    if (selectedRef.current.length > 0) onComplete([...selectedRef.current]);
+    const completedSelection = [...selectedRef.current];
+    if (completedSelection.length > 0) {
+      const lastIndex = completedSelection[completedSelection.length - 1];
+      const lastPosition = positions[lastIndex];
+      const resultOrigin = lastPosition
+        ? {
+            x: originRef.current.x + lastPosition.x,
+            y: originRef.current.y + lastPosition.y,
+          }
+        : undefined;
+      onComplete(completedSelection, resultOrigin);
+    }
     clearGesture();
   };
 

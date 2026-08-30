@@ -5,6 +5,10 @@ export type GameSound =
   | 'select1'
   | 'select2'
   | 'select3'
+  | 'select4'
+  | 'select5'
+  | 'select6'
+  | 'select7'
   | 'hint'
   | 'success'
   | 'bonus'
@@ -48,6 +52,22 @@ export function useGameSounds(enabled: boolean) {
     require('../../assets/sounds/select-3.wav'),
     PLAYER_OPTIONS,
   );
+  const selectFourPlayer = useAudioPlayer(
+    require('../../assets/sounds/select-4.wav'),
+    PLAYER_OPTIONS,
+  );
+  const selectFivePlayer = useAudioPlayer(
+    require('../../assets/sounds/select-5.wav'),
+    PLAYER_OPTIONS,
+  );
+  const selectSixPlayer = useAudioPlayer(
+    require('../../assets/sounds/select-6.wav'),
+    PLAYER_OPTIONS,
+  );
+  const selectSevenPlayer = useAudioPlayer(
+    require('../../assets/sounds/select-7.wav'),
+    PLAYER_OPTIONS,
+  );
   const hintPlayer = useAudioPlayer(require('../../assets/sounds/hint.wav'), PLAYER_OPTIONS);
   const successPlayer = useAudioPlayer(
     require('../../assets/sounds/success.wav'),
@@ -73,20 +93,30 @@ export function useGameSounds(enabled: boolean) {
       // Referans HTML finalde yalnız konfeti gösterir; ikinci bir ses katmanı çalmaz.
       if (sound === 'levelComplete') return;
 
+      const selectionPlayers = [
+        selectOnePlayer,
+        selectTwoPlayer,
+        selectThreePlayer,
+        selectFourPlayer,
+        selectFivePlayer,
+        selectSixPlayer,
+        selectSevenPlayer,
+      ] as const;
+      const selectionIndex = sound.startsWith('select')
+        ? Number.parseInt(sound.slice('select'.length), 10) - 1
+        : -1;
       const player =
-        sound === 'select1'
-          ? selectOnePlayer
-          : sound === 'select2'
-            ? selectTwoPlayer
-            : sound === 'select3'
-              ? selectThreePlayer
-              : sound === 'hint'
-                ? hintPlayer
-                : sound === 'success'
-                  ? successPlayer
-                  : sound === 'bonus'
-                    ? bonusPlayer
-                    : shufflePlayer;
+        selectionIndex >= 0
+          ? selectionPlayers[selectionIndex]
+          : sound === 'hint'
+            ? hintPlayer
+            : sound === 'success'
+              ? successPlayer
+              : sound === 'bonus'
+                ? bonusPlayer
+                : shufflePlayer;
+
+      if (!player) return;
 
       replay(player);
     },
@@ -94,7 +124,11 @@ export function useGameSounds(enabled: boolean) {
       bonusPlayer,
       enabled,
       hintPlayer,
+      selectFivePlayer,
+      selectFourPlayer,
       selectOnePlayer,
+      selectSevenPlayer,
+      selectSixPlayer,
       selectThreePlayer,
       selectTwoPlayer,
       shufflePlayer,

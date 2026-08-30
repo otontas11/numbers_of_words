@@ -56,6 +56,11 @@ type MeasuredRect = {
   height: number;
 };
 
+type ScreenPoint = {
+  x: number;
+  y: number;
+};
+
 type ResultFlight = {
   id: number;
   value: number;
@@ -66,9 +71,18 @@ type ResultFlight = {
   toY: number;
 };
 
-const RESULT_FLIGHT_DURATION = 360;
-const RESULT_FLIGHT_WIDTH = 70;
-const RESULT_FLIGHT_HEIGHT = 48;
+const RESULT_FLIGHT_DURATION = 320;
+const RESULT_FLIGHT_WIDTH = 52;
+const RESULT_FLIGHT_HEIGHT = 52;
+const NODE_SELECTION_SOUNDS = [
+  'select1',
+  'select2',
+  'select3',
+  'select4',
+  'select5',
+  'select6',
+  'select7',
+] as const satisfies readonly GameSound[];
 
 const CONFETTI_COLORS = [
   '#F59E0B',
@@ -103,6 +117,11 @@ function clearTimer(timer: MutableRefObject<Timer | null>) {
   }
 }
 
+function getNodeSelectionSound(selectionCount: number): GameSound {
+  const index = Math.max(0, Math.min(NODE_SELECTION_SOUNDS.length - 1, selectionCount - 1));
+  return NODE_SELECTION_SOUNDS[index];
+}
+
 function measureViewInWindow(view: View | null): Promise<MeasuredRect | null> {
   if (!view) return Promise.resolve(null);
 
@@ -127,7 +146,7 @@ function ResultFlightBadge({
     const animation = Animated.timing(progress, {
       toValue: 1,
       duration: RESULT_FLIGHT_DURATION,
-      easing: Easing.out(Easing.cubic),
+      easing: Easing.bezier(0.175, 0.885, 0.32, 1),
       useNativeDriver: true,
     });
     animation.start(({ finished }) => {
@@ -147,12 +166,12 @@ function ResultFlightBadge({
     outputRange: [flight.fromY, middleY, flight.toY],
   });
   const scale = progress.interpolate({
-    inputRange: [0, 0.18, 0.78, 1],
-    outputRange: [0.72, 1.18, 0.92, 0.72],
+    inputRange: [0, 0.2, 0.8, 1],
+    outputRange: [1, 1.25, 1.02, 0.3],
   });
   const opacity = progress.interpolate({
-    inputRange: [0, 0.08, 0.82, 1],
-    outputRange: [0, 1, 1, 0],
+    inputRange: [0, 0.82, 1],
+    outputRange: [1, 1, 0],
   });
   const rotate = progress.interpolate({
     inputRange: [0, 0.56, 1],
@@ -498,8 +517,6 @@ export default function HomeScreen() {
   const targetWidth = (levelData.targets.length === 3 ? '31.6%' : '23.5%') as `${number}%`;
   const operation = OPERATION_DETAILS[levelData.op];
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
-  const maxSelection: 2 | 3 =
-    levelData.steps === 3 || levelData.targets.some((target) => target.steps === 3) ? 3 : 2;
   const levelJustCompleted =
     levelData.targets.length > 0 && solvedTargets.size === levelData.targets.length;
   const displayedProgressLevel = level + (levelJustCompleted ? 1 : 0);
@@ -614,8 +631,9 @@ export default function HomeScreen() {
         return next;
       });
       pulseTarget(targetIndex);
+      triggerEffect('success');
     },
-    [pulseTarget],
+    [pulseTarget, triggerEffect],
   );
 
   const handleResultFlightComplete = useCallback(
@@ -627,7 +645,7 @@ export default function HomeScreen() {
   );
 
   const launchResultFlight = useCallback(
-    async (value: number, targetIndex: number) => {
+    async (value: number, targetIndex: number, resultOrigin?: ScreenPoint) => {
       const [rootRect, sourceRect, targetRect] = await Promise.all([
         measureViewInWindow(resultLayerRef.current),
         measureViewInWindow(resultSourceRef.current),
@@ -643,8 +661,8 @@ export default function HomeScreen() {
         id: nextFlightId.current,
         value,
         targetIndex,
-        fromX: sourceRect.x + sourceRect.width / 2 - rootRect.x,
-        fromY: sourceRect.y + sourceRect.height * 0.44 - rootRect.y,
+        fromX: (resultOrigin?.x ?? sourceRect.x + sourceRect.width / 2) - rootRect.x,
+        fromY: (resultOrigin?.y ?? sourceRect.y + sourceRect.height * 0.44) - rootRect.y,
         toX: targetRect.x + targetRect.width / 2 - rootRect.x,
         toY: targetRect.y + targetRect.height / 2 - rootRect.y,
       };
@@ -689,7 +707,7 @@ export default function HomeScreen() {
   );
 
   const handleComplete = useCallback(
-    (indices: number[]) => {
+    (indices: number[], resultOrigin?: ScreenPoint) => {
       if (indices.length < 2) {
         setFeedback(null);
         return;
@@ -719,7 +737,7 @@ export default function HomeScreen() {
         nextSolved.add(targetIndex);
         setFlyingTargets((current) => new Set(current).add(targetIndex));
         setSolvedTargets(nextSolved);
-        void launchResultFlight(calculation.result, targetIndex);
+        void launchResultFlight(calculation.result, targetIndex, resultOrigin);
 
         if (nextSolved.size === levelData.targets.length) {
           const travelCompletion = getTravelLevelCompletion(level);
@@ -736,7 +754,6 @@ export default function HomeScreen() {
                       : `${nextDestination.location.name} açıldı`
                   }`
                 : `Puzzle ${levelData.locationLevel}/${levelData.locationLevelCount} tamamlandı • ${levelData.city}`;
-          triggerEffect('success');
           showTimedFeedback(
             { text: `Harika! ${completionMessage} 🎉`, tone: 'success' },
             1400,
@@ -751,7 +768,6 @@ export default function HomeScreen() {
             }, 1000);
           }, 400);
         } else {
-          triggerEffect('success');
           showTimedFeedback(
             { text: `Hedef bulundu: ${calculation.result} ✓`, tone: 'success' },
             1150,
@@ -1003,19 +1019,12 @@ export default function HomeScreen() {
                 <NumberWheel
                   key={`${level}-${wheelSize}`}
                   hintIndices={hintIndices}
-                  maxSelection={maxSelection}
                   numbers={levelData.numbers}
                   onComplete={handleComplete}
                   onDraggingChange={setDragging}
                   onHint={handleHint}
                   onNodeAdded={(selectionCount) =>
-                    triggerEffect(
-                      selectionCount === 1
-                        ? 'select1'
-                        : selectionCount === 2
-                          ? 'select2'
-                          : 'select3',
-                    )
+                    triggerEffect(getNodeSelectionSound(selectionCount))
                   }
                   onPreview={handlePreview}
                   onShuffle={() => {

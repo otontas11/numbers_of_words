@@ -118,6 +118,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 ## Etkileşim ve animasyon
 
 - Çeper çizgisi `5 dp` mavidir; düğüm merkezlerini kapatmaz. Başlangıç ve bitiş noktası, yön vektörü üzerinde düğümün o anki görsel yarıçapı kadar ötelenir. Native/SVG çizimi cihaz piksel yoğunluğunda otomatik netleştirilir.
+- Bir sürüklemede çarktaki tüm benzersiz düğümler sırayla seçilebilir; hedefin iki veya üç sayılık olması gesture&apos;ı erken kilitlemez. Hızlı parmak hareketinde yalnız son event noktası değil, önceki ve yeni nokta arasındaki doğru parçası da düğüm çeperlerine karşı hit-test edilir. Böylece hızlı geçilen düğüm atlanmaz ve çarktaki herhangi iki düğüm doğrudan bağlanabilir.
 - Seçili düğüm `1.25×` ölçeğe çıkar; çizgi bu büyümüş çeperde sonlanır.
 - Karıştırma mevcut düğümleri yeniden oluşturmaz. Sayı ve mantıksal indeks korunur, yalnızca sayı→yuva eşlemesi değişir.
 - Bütün düğümler eski konumlarından yeni konumlarına aynı anda `450 ms` boyunca `cubic-bezier(0.34, 1.3, 0.64, 1)` eğrisiyle kayar. Karıştır simgesi aynı sürede `360°` döner.
@@ -129,7 +130,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 
 - Kaynak HTML&apos;de indirilen bir ses asset&apos;i yoktur; `SoundEngine`, Web Audio osilatörlerini çalışma anında üretir. Native WAV&apos;lar bu dalga biçimlerinin çevrimdışı ve deterministik karşılığı olmalıdır.
 - Efektler ağdan alınmaz; `assets/sounds` altındaki mono, `44.1 kHz`, `16-bit PCM WAV` dosyaları kullanılır. WAV&apos;lara gürültü, reverb, limiter rengi veya referansta bulunmayan ek nota katılamaz.
-- `select.wav`: ilk düğüm, `420 → 588 Hz`, `80 ms` sine chirp. `select-2.wav`: ikinci düğüm, `600 → 840 Hz`. `select-3.wav`: üçüncü düğüm, `690 → 966 Hz`. Üçünde gain `0.15 → 0.01` exponential zarfıdır.
+- `select.wav`: ilk düğüm, `420 → 588 Hz`, `80 ms` sine chirp. Sonraki düğümler `select-2.wav` … `select-7.wav` ile `600 / 690 / 780 / 870 / 960 / 1050 Hz` başlangıç frekanslarına çıkar; böylece parmak ilerledikçe referanstaki yükselen kısa melodi sürer. Tümünde frekans `1.4×`, gain `0.15 → 0.01` exponential zarfıdır.
 - `hint.wav`: İpucu düğümü, `620 → 868 Hz`, aynı `80 ms` pop zarfı.
 - `shuffle.wav`: Karıştır düğümü, `360 → 504 Hz`, aynı `80 ms` pop zarfı; pembe gürültü kullanılmaz.
 - `success.wav`: her hedef çözümünde sırasıyla `523.25 / 659.25 / 783.99 / 1046.50 Hz` triangle notaları; başlangıç aralığı `70 ms`, her nota `20 ms` attack ve `250 ms` toplam zarfa sahiptir.
@@ -142,11 +143,11 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 
 ## Hedefe uçan sonuç animasyonu
 
-- Geçerli bir sürükleme hedeflerden biriyle ilk kez eşleştiğinde bulunan sonuç, çark alanından eşleşen hedef kartın merkezine uçmalıdır. Bonus veya daha önce çözülmüş hedef bu animasyonu başlatmaz.
+- Geçerli bir sürükleme hedeflerden biriyle ilk kez eşleştiğinde bulunan sonuç, son seçilen sayı düğümünün merkezinden eşleşen hedef kartın merkezine uçmalıdır. Bonus veya daha önce çözülmüş hedef bu animasyonu başlatmaz.
 - Başlangıç ve bitiş koordinatları sabit ekran değerleriyle tahmin edilmez; çark, tam ekran uçuş katmanı ve ilgili hedef kartı `measureInWindow` ile ölçülür. Böylece farklı ekran boyları ve ScrollView konumlarında doğru karta ulaşır.
-- Rozet `360 ms` boyunca kavisli bir yörüngede ilerler; başlangıçta yaylanarak büyür, hedefe yaklaşırken küçülüp kaybolur. Hedef kartı uçuş bitmeden çözülmüş renge geçmez; iniş anında zümrüt görünümle birlikte layout&apos;u değiştirmeyen kısa `1 → 1.08 → 0.98 → 1` scale ve parlama animasyonu oynatır.
+- Rozet hızlı hissedilen `320 ms` boyunca kavisli bir yörüngede ilerler; referanstaki gibi `1 → 1.25 → 1.02 → 0.3` ölçekle yaylanıp hedefte kaybolur. Hedef kartı uçuş bitmeden çözülmüş renge geçmez; iniş anında zümrüt görünümle birlikte layout&apos;u değiştirmeyen kısa `1 → 1.08 → 0.98 → 1` scale ve parlama animasyonu oynatır.
 - Uçuş katmanı `pointerEvents="none"` kullanır ve oyun dokunuşlarını engellemez. Ölçüm alınamazsa sonuç rozeti atlanır, hedef kartı iniş parlaması yine çalışır.
-- Animasyon yeni bir ses üretmez. Referans HTML&apos;deki `playSuccess()` hedef doğrulandığı anda yalnız bir kez çalar; uçuşun varışı ikinci bir başarı sesi veya pop sesi tetiklemez.
+- Referans HTML gibi `playSuccess()` yalnız bir kez ve sonuç hedefe vardığında çalar; doğrulama anında erken ya da varıştan sonra ikinci bir başarı sesi tetiklenmez.
 
 ## Kullanılan native kütüphaneler
 
