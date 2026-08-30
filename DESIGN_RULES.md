@@ -8,11 +8,16 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 - Referans SHA-256: `ec3814c4057acf9d4dbaf36aa4d7fd73f77cb7d061e3647ec12802204608abbf`
 - Yolculuk haritası referansı: `/Users/oktaytontas/Documents/android_apps/tecvid_elifba_pro/app/src/main/java/platform/tnts/tecvidogren/oyunlar/WordJourneyActivity.java`
 - Yolculuk haritası referans SHA-256: `d4d2328424e0f827070d52214ce8994cf6fc282982d86a366aa5fcae3e69e1f4`
+- Oyun ekranı görsel referansı: `/Users/oktaytontas/Documents/android_apps/tecvid_elifba_pro/app/src/main/res/layout/activity_word_path_game.xml`
+- Oyun ekranı layout SHA-256: `28db620d46a437f95720a25aa37ac6438c9bcae5cfe48da390f2e3f9a0fd66d7`
+- Çark görsel referansı: `/Users/oktaytontas/Documents/android_apps/tecvid_elifba_pro/app/src/main/java/platform/tnts/tecvidogren/oyunlar/WordWheelView.java`
+- Çark referans SHA-256: `6710a5ca16a71d1028f04f039eecc2fec622ce6f87bec73779936320bde209d7`
 - Referans oyun mantığı: `/Users/oktaytontas/Documents/android_apps/tecvid_elifba_pro/docs/harf-tecvid-yolculugu-oyun-mantigi.md`
 - Referans oyun mantığı SHA-256: `5a977715ea99caed82d7231335af66922088b3ff91f3db6304fd973b210bf857`
 - Referansın ölçü, renk, metin ve zamanlamaları korunur.
 - Ürün dokümanındaki mekanik kurallar HTML prototipiyle çelişirse ürün dokümanı üstündür. Örneğin 31. seviyeden itibaren 7 düğüm ve en az `60×60 dp` düğüm kuralı uygulanır.
 - `WordJourneyActivity` yalnız yolculuk haritasının kart, hero, zikzak rota ve geçiş görsel diline referanstır. NOW seyahat verisinin tek doğrusu `src/game/travel.ts` içindeki 14 rota/100 ülke kataloğudur.
+- `activity_word_path_game.xml` ve `WordWheelView` yalnız oyun ekranının yerleşim ve görsel diline referanstır. Android projesindeki kelime üretimi, skor, ipucu kredisi, reklam, tur ve oyun kuralları alınmaz; NOW matematik motoru ve callback akışı değiştirilemez.
 - Kullanıcının sağladığı “100 Ülkeli Dünya Turu” sırası önceki 6 ülke × 50 level prototipinin yerini tamamen alır.
 
 ## Ana oyun döngüsü
@@ -89,16 +94,21 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 ## Görsel dil ve pixel-perfect ölçüler
 
 - Yazı ailesi tüm ekranlarda `Plus Jakarta Sans` 400, 500, 600, 700 ve 800 ağırlıklarıyla yerel olarak yüklenir.
-- Ana zemin `#020617`; ana vurgu amber, sürükleme/seçim mavi, başarı emerald tonlarındadır.
-- Arka plan fotoğrafı `cover`, `%25` opaklık ve `1.05` ölçek kullanır; şehir değişimi `1000 ms` geçişlidir. Üst koyu degrade sırasıyla `%95`, `%80`, `%98` opaklıktadır.
+- Puzzle ekranı `assets/images/game-sky-background.png` görselini `cover` olarak kullanır. Bu dosya Android referansındaki sky background ile byte-byte aynıdır; üzerine yalnız yaklaşık `%3–10` koyu okunabilirlik katmanı gelir.
+- Puzzle ekranı üst HUD&apos;u güvenli alanın altında `46 dp` yüksekliğindedir; yatay marjin `12 dp`, üst marjin `8–10 dp`dir. Sol tarafta `44 dp` geri/harita kontrolü ve bonus çipi, sağda `44 dp` pasaport ile ses kontrolü bulunur.
+- Ülke/şehir şeridi HUD&apos;un `4 dp` altındadır; `106 dp` yüksekliğinde, ekranın `%94` genişliğinde ve en fazla `488 dp`dir. `28 dp` köşe, `1.5 dp` açık turkuaz kenarlık ve `#3E6472 → #263F4D` yarı saydam degrade kullanır.
+- Şeridin ilk satırı ülke/flag, aktif işlem çipi ve ülke içi `x/20` ilerlemesini gösterir. İkinci satır üç destinasyonu `✓ tamamlandı / ● aktif / ○ bekliyor` semantiğiyle sıralar. Her destinasyonun altında birbirinden bağımsız `7 dp` ilerleme çizgisi bulunur.
+- Ülke finalinde şehirlerin tamamı `✓` olur ve ilerleme çipinde `🏆` gösterilir; bu yalnız sunumdur, Country Challenge progression mantığını değiştirmez.
 - Header ve ana içerik en fazla `512 dp`, modal en fazla `448 dp` genişliğindedir. Modal yüksekliği ekranın en fazla `%85`idir.
 - Ana yatay boşluk `16 dp`; yalnızca kullanılabilir genişliği `288 dp` altına düşen çok dar ekranlarda taşmayı önlemek için küçültülebilir.
-- Hedefler `<640 dp` genişlikte 2 sütun, `≥640 dp` genişlikte 4 sütundur. Sütun ve satır aralığı `8 dp`, hedef alanı en az `90 dp`, kart yüksekliği sabit `72 dp`dir.
-- Geri bildirim yuvası `36 dp` yüksekliğinde ve dikeyde `4 dp` marjinlidir. Mesajın görünmesi çemberi veya hedefleri yerinden oynatamaz.
-- Çember `<640 dp` için `288 dp`, `≥640 dp` için `320 dp`dir; yalnızca daha dar kullanılabilir genişliğe sığmak için küçülür. Kapsayıcı yüksekliği en az `290 dp`, dikey marjı `8 dp`dir.
-- Düğüm çapı telefonda `60 dp`, geniş düzende `62 dp`dir. Düğüm merkezi çember merkezinden `çember × 0.35` yarıçaplı yörüngeye yerleşir.
-- Çember `5 dp` yarı saydam amber kenarlık ve merkezden dışa slate radyal degrade kullanır. Düğüm radyal degradenin ışık merkezi `%35/%35` konumundadır.
-- Hedef başarı durumunda kart büyümez. Arka plan hafif emerald olur, kenarlık `2 dp #10B981`, metin `#6EE7B7` ve yeşil parlama kullanılır.
+- Hedef alanı Android&apos;deki açık word-card yüzeyine uyarlanır: `#F8FCFB → #DCECEC`, `28 dp` dış köşe, `2 dp #D5EEF2` kenarlık. Üç hedef `%31.6`, dört hedef `%23.5` genişlikle tek satırda kalır; aralık `8 dp`, kart yüksekliği en az `62 dp`dir.
+- Hedef kartı varsayılan olarak krem degrade, koyu `#233540` sayı ve turkuaz metadır. Başarı durumu emerald kalır; hedef kartı ölçeklenmez ve yerleşim sıçramaz.
+- Geri bildirim yuvası `52 dp` yüksekliğinde ve dikeyde `4 dp` marjinlidir. Boş durumda referanstaki dashed selection placeholder, seçimde aynı boyutta koyu geri bildirim kartı görünür; mesaj değişmesi çarkı yerinden oynatmaz.
+- Çember geniş telefonlarda `288 dp`, tabletlerde `320 dp`dir. Dikey alan kısa olduğunda Android constraint davranışına denk olarak `208 / 224 / 252 / 272 dp` kademelerine küçülür; içerik yine dikey kaydırılabilir.
+- Düğüm çapı telefonda `60 dp`, geniş düzende `62 dp`dir. Düğüm merkezleri dış çeperden `düğüm yarıçapı + 10 dp` içerideki eşit açılı yörüngeye yerleşir; en kısa düzende yörünge yarıçapı en az `72 dp`dir.
+- Çarkın koyu dolu diski yoktur. Düğüm merkezlerinden geçen `7 dp rgba(55,83,92,0.42)` rota halkası ve `10 dp` hafif alt gölge kullanılır. Düğüm yüzeyi `#F8FCFB → #DAEBEB`, kenarı yarı saydam turkuaz ve sayısı `#233540`dır; seçili düğüm turkuaz, sayı beyazdır.
+- İpucu ve Karıştır çarkın merkezinde bulunamaz. Çarkın hemen altındaki `62 dp` aksiyon satırında İpucu solda, Karıştır sağda yer alır. Her kontrol `52×52 dp`, yuvarlak, yarı saydam koyu degrade, beyaz `22 dp` ikon ve `9 dp` etikettir.
+- Hedef başarı durumunda kart büyümez. Arka plan açık emerald olur, kenarlık `2 dp #10B981`, metin `#23785B` ve yeşil parlama kullanılır.
 - Kısa ekranlarda ana içerik dikey kaydırılabilir; yatay taşma veya kırpılma kabul edilmez. Sürükleme sırasında kaydırma kilitlenir.
 
 ## Etkileşim ve animasyon
@@ -148,6 +158,6 @@ npx expo export --platform all
 
 Seviye motoru tüm `1–2000` ana turu ve Master Tour başlangıcını tekrarlı rastgele koşularla doğrular: 14 rota, 100 benzersiz ülke, 300 destinasyon, `7+7+5+Challenge`, doğru düğüm/hedef adedi, benzersiz hedefler, çözülebilirlik, adım tutarlılığı ve ardışık hedef tekrarsızlığı.
 
-Görsel kontrol matrisi: `320×568`, `360×640`, `375×667`, `390×844`, `430×932`, `448×998` ve `768×1024 dp`. Beklenen çember çapı ilk altı telefon ölçüsünde `288 dp`, `768 dp` genişlikte `320 dp`dir.
+Görsel kontrol matrisi: `320×568`, `360×640`, `375×667`, `390×844`, `430×932`, `448×998` ve `768×1024 dp`. Beklenen çember çapları sırasıyla `208`, `224`, `224`, `288`, `288`, `288` ve `320 dp`dir.
 
 Bağlı fiziksel Android veya iOS cihazlarda açılış, kalıcı ilerleme, sürükleme, çeper çizgisi, ipucu, yaylı karıştırma, ses aç/kapat, mikro başarı, bölüm sonu konfeti ve iki modal kontrol edilir. Yol haritasındaki Günlük Bulmaca, Time Attack, PvP ve 3D pasaport mevcut sürümün kabul kapsamına dahil değildir.

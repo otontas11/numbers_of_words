@@ -29,7 +29,13 @@ import {
 } from '@/game/levels';
 import { getGameLayout } from '@/game/layout';
 import { loadGameProgress, saveGameProgress } from '@/game/progress-storage';
-import { COUNTRY_BY_ID, WORLD_COUNTRIES, getCompletedCountryCount } from '@/game/travel';
+import {
+  COUNTRY_BY_ID,
+  WORLD_COUNTRIES,
+  getCompletedCountryCount,
+  getCountryProgress,
+  getLocationProgress,
+} from '@/game/travel';
 import { useGameSounds, type GameSound } from '@/hooks/use-game-sounds';
 
 type FeedbackTone = 'live' | 'success' | 'bonus' | 'info';
@@ -51,6 +57,8 @@ const CONFETTI_COLORS = [
   '#FB7185',
   '#38BDF8',
 ] as const;
+
+const GAME_SKY_BACKGROUND = require('../../assets/images/game-sky-background.png');
 
 const CONFETTI = Array.from({ length: 120 }, (_, index) => {
   const spread = ((index * 47) % 101) / 100;
@@ -186,8 +194,8 @@ function TargetCard({
       <LinearGradient
         colors={
           solved
-            ? ['rgba(16,185,129,0.15)', 'rgba(16,185,129,0.15)']
-            : ['rgba(30,41,59,0.95)', 'rgba(15,23,42,0.98)']
+            ? ['rgba(218,246,232,0.98)', 'rgba(189,232,213,0.98)']
+            : ['#F8FCFB', '#DCECEC']
         }
         end={{ x: 1, y: 1 }}
         start={{ x: 0, y: 0 }}
@@ -250,15 +258,85 @@ function PulsingBonus({ count, compact }: { count: number; compact: boolean }) {
 
 function getFeedbackColors(tone: FeedbackTone) {
   if (tone === 'success') {
-    return { background: 'rgba(6,78,59,0.96)', border: '#10B981', text: '#A7F3D0' };
+    return { background: 'rgba(57,149,104,0.96)', border: '#D8F2E7', text: '#FFFFFF' };
   }
   if (tone === 'bonus') {
-    return { background: 'rgba(120,53,15,0.96)', border: '#F59E0B', text: '#FDE68A' };
+    return { background: 'rgba(142,103,46,0.96)', border: '#FFE196', text: '#FFF7DC' };
   }
   if (tone === 'info') {
-    return { background: 'rgba(30,41,59,0.97)', border: '#64748B', text: '#CBD5E1' };
+    return { background: 'rgba(52,87,100,0.96)', border: '#C9E8F2', text: '#EAF4F3' };
   }
-  return { background: 'rgba(15,23,42,0.97)', border: '#06B6D4', text: '#67E8F9' };
+  return { background: 'rgba(61,127,145,0.97)', border: '#D8EFF1', text: '#FFFFFF' };
+}
+
+function JourneyStrip({ level, levelData }: { level: number; levelData: LevelData }) {
+  const country = COUNTRY_BY_ID.get(levelData.countryId);
+  const operation = OPERATION_DETAILS[levelData.op];
+  const countryProgress = country ? getCountryProgress(level, country.id) : 0;
+
+  return (
+    <LinearGradient
+      colors={['rgba(62,100,114,0.94)', 'rgba(38,63,77,0.93)']}
+      end={{ x: 0, y: 1 }}
+      start={{ x: 0, y: 0 }}
+      style={styles.journeyStrip}>
+      <View style={styles.journeyTopRow}>
+        <Text numberOfLines={1} style={styles.journeyCountry}>
+          ✦ {levelData.flag} {levelData.country}
+        </Text>
+        <View style={styles.journeyOperationChip}>
+          <Text numberOfLines={1} style={styles.journeyOperationText}>
+            {operation.name.toLocaleUpperCase('tr-TR')} • {operation.symbol}
+          </Text>
+        </View>
+        <View style={styles.journeyCountChip}>
+          <Text style={styles.journeyCountText}>
+            {levelData.countryChallenge ? '🏆 ' : ''}
+            {countryProgress}/{country?.levelCount ?? 20}
+          </Text>
+        </View>
+      </View>
+
+      <View accessibilityLabel={`${levelData.country} şehir ilerlemesi`} style={styles.citySteps}>
+        {country?.locations.map((location, index) => {
+          const progress = getLocationProgress(level, country, location);
+          const completed = progress >= location.levelCount;
+          const active = !levelData.countryChallenge && levelData.locationId === location.id;
+          const marker = completed ? '✓' : active ? '●' : '○';
+          const fillWidth = `${(progress / location.levelCount) * 100}%` as `${number}%`;
+
+          return (
+            <View key={location.id} style={styles.cityStepGroup}>
+              <View style={styles.cityStepLine}>
+                <Text
+                  numberOfLines={2}
+                  style={[
+                    styles.cityStepText,
+                    completed && styles.cityStepCompleted,
+                    active && styles.cityStepActive,
+                  ]}>
+                  {marker} {location.name}
+                </Text>
+                {index < country.locations.length - 1 ? (
+                  <Text aria-hidden style={styles.cityStepArrow}>
+                    ›
+                  </Text>
+                ) : null}
+              </View>
+              <View style={styles.cityProgressTrack}>
+                <LinearGradient
+                  colors={['#58A8B9', '#A9E1E3']}
+                  end={{ x: 1, y: 0 }}
+                  start={{ x: 0, y: 0 }}
+                  style={[styles.cityProgressFill, { width: fillWidth }]}
+                />
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </LinearGradient>
+  );
 }
 
 export default function HomeScreen() {
@@ -285,10 +363,7 @@ export default function HomeScreen() {
   const layout = getGameLayout(width, height);
   const { compact, compactHeader, wheelSize } = layout;
   const playSound = useGameSounds(effectsEnabled);
-  const targetColumnCount = compact ? 2 : 4;
-  const targetWidth = (compact ? '48.7%' : '23.5%') as `${number}%`;
-  const targetSpacerCount =
-    (targetColumnCount - (levelData.targets.length % targetColumnCount)) % targetColumnCount;
+  const targetWidth = (levelData.targets.length === 3 ? '31.6%' : '23.5%') as `${number}%`;
   const operation = OPERATION_DETAILS[levelData.op];
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
   const maxSelection: 2 | 3 =
@@ -530,8 +605,6 @@ export default function HomeScreen() {
     }
   }, [effectsEnabled, playSound]);
 
-  const headerProgress = `${(levelData.locationLevel / levelData.locationLevelCount) * 100}%` as `${number}%`;
-
   if (!hydrated) return <View style={styles.screen} />;
 
   if (journeyVisible) {
@@ -565,201 +638,173 @@ export default function HomeScreen() {
     <View style={styles.screen}>
       <BlurTargetView ref={blurTarget} style={styles.screen}>
         <Image
-          cachePolicy="memory-disk"
           contentFit="cover"
-          source={{ uri: levelData.background }}
+          source={GAME_SKY_BACKGROUND}
           style={styles.backgroundImage}
-          transition={1000}
         />
         <LinearGradient
-          colors={['rgba(2,6,23,0.95)', 'rgba(2,6,23,0.8)', 'rgba(2,6,23,0.98)']}
-          locations={[0, 0.48, 1]}
+          colors={['rgba(12,22,33,0.07)', 'rgba(12,22,33,0.03)', 'rgba(12,22,33,0.10)']}
+          locations={[0, 0.5, 1]}
           pointerEvents="none"
           style={StyleSheet.absoluteFill}
         />
 
         <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
-        <View style={[styles.header, compactHeader && styles.headerCompact]}>
-          <View style={[styles.headerSide, compactHeader && styles.headerSideCompact]}>
-            <Pressable
-              accessibilityLabel="Seyahat pasaportunu aç"
-              accessibilityRole="button"
-              hitSlop={5}
-              onPress={() => setPassportVisible(true)}
-              style={({ pressed }) => [
-                styles.headerButton,
-                compactHeader && styles.headerButtonCompact,
-                pressed && styles.buttonPressed,
+          <View style={[styles.header, compactHeader && styles.headerCompact]}>
+            <View style={[styles.headerSide, compactHeader && styles.headerSideCompact]}>
+              <Pressable
+                accessibilityLabel="Dünya rotasına dön"
+                accessibilityRole="button"
+                hitSlop={5}
+                onPress={() => setJourneyVisible(true)}
+                style={({ pressed }) => [
+                  styles.skyControl,
+                  pressed && styles.buttonPressed,
+                ]}>
+                <Text style={styles.backIcon}>‹</Text>
+              </Pressable>
+
+              <PulsingBonus compact={compactHeader} count={bonusCount} />
+            </View>
+
+            <View
+              style={[
+                styles.headerSide,
+                styles.headerRight,
+                compactHeader && styles.headerSideCompact,
               ]}>
-              <Text style={styles.headerButtonText}>{compactHeader ? '📘' : '📘 Pasaport'}</Text>
-              <View style={[styles.passportCount, compactHeader && styles.passportCountCompact]}>
-                <Text
-                  style={[
-                    styles.passportCountText,
-                    compactHeader && styles.passportCountTextCompact,
-                  ]}>
-                  {passportStampCount}/{WORLD_COUNTRIES.length}
-                </Text>
-              </View>
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Dünya rotasına dön"
-              accessibilityRole="button"
-              hitSlop={5}
-              onPress={() => setJourneyVisible(true)}
-              style={({ pressed }) => [
-                styles.squareButton,
-                compactHeader && styles.squareButtonCompact,
-                pressed && styles.buttonPressed,
-              ]}>
-              <Text style={styles.squareButtonText}>🗺️</Text>
-            </Pressable>
+              <Pressable
+                accessibilityLabel="Seyahat pasaportunu aç"
+                accessibilityRole="button"
+                hitSlop={5}
+                onPress={() => setPassportVisible(true)}
+                style={({ pressed }) => [styles.skyControl, pressed && styles.buttonPressed]}>
+                <Text style={styles.skyControlIcon}>📘</Text>
+                <View style={styles.passportCount}>
+                  <Text style={styles.passportCountText}>
+                    {passportStampCount}/{WORLD_COUNTRIES.length}
+                  </Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                accessibilityLabel={
+                  effectsEnabled
+                    ? 'Ses ve dokunsal efektleri kapat'
+                    : 'Ses ve dokunsal efektleri aç'
+                }
+                accessibilityRole="button"
+                accessibilityState={{ checked: effectsEnabled }}
+                hitSlop={5}
+                onPress={handleToggleEffects}
+                style={({ pressed }) => [styles.skyControl, pressed && styles.buttonPressed]}>
+                <Text style={styles.skyControlIcon}>{effectsEnabled ? '🔊' : '🔇'}</Text>
+              </Pressable>
+            </View>
           </View>
 
-          <View style={[styles.destination, compactHeader && styles.destinationCompact]}>
-            <Text numberOfLines={1} style={styles.countryLabel}>
-              {levelData.flag} {levelData.country}
-            </Text>
-            <Text numberOfLines={1} style={styles.destinationTitle}>
-              {levelData.emoji} {levelData.city}
-            </Text>
-            <View style={[styles.progressTrack, compactHeader && styles.progressTrackCompact]}>
+          <JourneyStrip level={level} levelData={levelData} />
+
+          <ScrollView
+            automaticallyAdjustContentInsets={false}
+            bounces={false}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingHorizontal: layout.contentHorizontalPadding },
+            ]}
+            contentInsetAdjustmentBehavior="never"
+            scrollEnabled={!dragging}
+            showsVerticalScrollIndicator={false}
+            style={styles.scrollView}>
+            <View style={styles.gameContent}>
               <LinearGradient
-                colors={['#FBBF24', '#F97316', '#34D399']}
-                end={{ x: 1, y: 0 }}
+                colors={['rgba(250,253,252,0.97)', 'rgba(225,238,238,0.96)']}
+                end={{ x: 0, y: 1 }}
                 start={{ x: 0, y: 0 }}
-                style={[styles.progressFill, { width: headerProgress }]}
-              />
-            </View>
-            <Text numberOfLines={1} style={styles.levelLabel}>
-              {levelData.countryChallenge ? 'Country Challenge' : 'Puzzle'}{' '}
-              {levelData.locationLevel}/{levelData.locationLevelCount}
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.headerSide,
-              styles.headerRight,
-              compactHeader && styles.headerSideCompact,
-            ]}>
-            <PulsingBonus compact={compactHeader} count={bonusCount} />
-            <Pressable
-              accessibilityLabel={
-                effectsEnabled
-                  ? 'Ses ve dokunsal efektleri kapat'
-                  : 'Ses ve dokunsal efektleri aç'
-              }
-              accessibilityRole="button"
-              accessibilityState={{ checked: effectsEnabled }}
-              hitSlop={5}
-              onPress={handleToggleEffects}
-              style={({ pressed }) => [
-                styles.squareButton,
-                compactHeader && styles.squareButtonCompact,
-                pressed && styles.buttonPressed,
-              ]}>
-              <Text style={styles.squareButtonText}>{effectsEnabled ? '🔊' : '🔇'}</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <ScrollView
-          automaticallyAdjustContentInsets={false}
-          bounces={false}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingHorizontal: layout.contentHorizontalPadding },
-          ]}
-          contentInsetAdjustmentBehavior="never"
-          scrollEnabled={!dragging}
-          showsVerticalScrollIndicator={false}
-          style={styles.scrollView}>
-          <View style={styles.gameContent}>
-            <View style={styles.topSection}>
-              <View style={styles.operationRow}>
-                <View style={styles.operationSide}>
-                  <Text style={styles.operationLabel}>İŞLEM:</Text>
-                  <LinearGradient
-                    colors={[operation.color, operation.darkColor]}
-                    end={{ x: 1, y: 1 }}
-                    start={{ x: 0, y: 0 }}
-                    style={styles.operationBadge}>
-                    <Text style={styles.operationText}>{operation.name}</Text>
-                    <Text style={styles.operationSymbol}>({operation.symbol})</Text>
-                  </LinearGradient>
+                style={styles.topSection}>
+                <View style={styles.operationRow}>
+                  <View style={styles.operationSide}>
+                    <Text style={styles.operationLabel}>HEDEFLER</Text>
+                    <LinearGradient
+                      colors={['rgba(66,107,120,0.96)', 'rgba(52,87,100,0.96)']}
+                      end={{ x: 0, y: 1 }}
+                      start={{ x: 0, y: 0 }}
+                      style={styles.operationBadge}>
+                      <Text style={styles.operationText}>{operation.name}</Text>
+                      <Text style={styles.operationSymbol}>({operation.symbol})</Text>
+                    </LinearGradient>
+                  </View>
+                  <View style={styles.requiredBadge}>
+                    <Text style={styles.requiredLabel}>GEREKEN</Text>
+                    <Text style={styles.requiredDots}>
+                      {Array.from({ length: levelData.steps }, () => '●').join(' ')}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.requiredBadge}>
-                  <Text style={styles.requiredLabel}>Gereken:</Text>
-                  <Text style={styles.requiredDots}>
-                    {Array.from({ length: levelData.steps }, () => '●').join(' ')}
-                  </Text>
+
+                <View style={styles.targets}>
+                  {levelData.targets.map((target, index) => (
+                    <TargetCard
+                      key={`${target.value}-${index}`}
+                      hinted={hintedTarget === index}
+                      large={!compact}
+                      solved={solvedTargets.has(index)}
+                      target={target}
+                      width={targetWidth}
+                    />
+                  ))}
                 </View>
+              </LinearGradient>
+
+              <View style={styles.feedbackSlot}>
+                {feedback && feedbackColors ? (
+                  <View
+                    style={[
+                      styles.feedbackPill,
+                      {
+                        backgroundColor: feedbackColors.background,
+                        borderColor: feedbackColors.border,
+                      },
+                    ]}>
+                    <Text style={[styles.feedbackText, { color: feedbackColors.text }]}>
+                      {feedback.text}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.feedbackPlaceholder}>
+                    <Text style={styles.feedbackPlaceholderTitle}>SAYILARI BİRLEŞTİR</Text>
+                    <Text style={styles.feedbackPlaceholderText}>
+                      Hedeflerden birini oluşturacak yolu keşfet
+                    </Text>
+                  </View>
+                )}
               </View>
 
-              <View style={styles.targets}>
-                {levelData.targets.map((target, index) => (
-                  <TargetCard
-                    key={`${target.value}-${index}`}
-                    hinted={hintedTarget === index}
-                    large={!compact}
-                    solved={solvedTargets.has(index)}
-                    target={target}
-                    width={targetWidth}
-                  />
-                ))}
-                {Array.from({ length: targetSpacerCount }, (_, index) => (
-                  <View key={`target-spacer-${index}`} style={{ width: targetWidth }} />
-                ))}
+              <View style={styles.wheelContainer}>
+                <NumberWheel
+                  key={`${level}-${wheelSize}`}
+                  hintIndices={hintIndices}
+                  maxSelection={maxSelection}
+                  numbers={levelData.numbers}
+                  onComplete={handleComplete}
+                  onDraggingChange={setDragging}
+                  onHint={handleHint}
+                  onNodeAdded={() => triggerEffect('select')}
+                  onPreview={handlePreview}
+                  onShuffle={() => {
+                    setHintIndices([]);
+                    setHintedTarget(null);
+                    triggerEffect('shuffle');
+                  }}
+                  size={wheelSize}
+                />
               </View>
+
+              <Text style={styles.instruction}>
+                Parmağınla sayıları sırayla birleştir, tüm hedefleri çöz!
+              </Text>
             </View>
-
-            <View style={styles.feedbackSlot}>
-              {feedback && feedbackColors ? (
-                <View
-                  style={[
-                    styles.feedbackPill,
-                    {
-                      backgroundColor: feedbackColors.background,
-                      borderColor: feedbackColors.border,
-                    },
-                  ]}>
-                  <Text style={[styles.feedbackText, { color: feedbackColors.text }]}>
-                    {feedback.text}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
-            <View style={styles.wheelContainer}>
-              <NumberWheel
-                key={`${level}-${wheelSize}`}
-                hintIndices={hintIndices}
-                maxSelection={maxSelection}
-                numbers={levelData.numbers}
-                onComplete={handleComplete}
-                onDraggingChange={setDragging}
-                onHint={handleHint}
-                onNodeAdded={() => triggerEffect('select')}
-                onPreview={handlePreview}
-                onShuffle={() => {
-                  setHintIndices([]);
-                  setHintedTarget(null);
-                  triggerEffect('shuffle');
-                }}
-                size={wheelSize}
-              />
-            </View>
-
-            <Text style={styles.instruction}>
-              Parmağınla sayıları sırayla birleştir, tüm hedefleri çöz!
-            </Text>
-          </View>
-        </ScrollView>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Number of Wonders • Dünya Turu & Sayı Bulmacası</Text>
-        </View>
+          </ScrollView>
         </SafeAreaView>
 
         <Celebration visible={celebrating} />
@@ -777,7 +822,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#020617',
+    backgroundColor: '#73C7EE',
   },
   backgroundImage: {
     position: 'absolute',
@@ -785,8 +830,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    opacity: 0.25,
-    transform: [{ scale: 1.05 }],
   },
   safeArea: {
     flex: 1,
@@ -795,18 +838,17 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 512,
     alignSelf: 'center',
-    minHeight: 64,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    height: 46,
+    marginTop: 8,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
   },
   headerCompact: {
-    minHeight: 56,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    marginTop: 5,
+    paddingHorizontal: 10,
     gap: 4,
   },
   headerSide: {
@@ -820,163 +862,210 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     justifyContent: 'flex-end',
-    gap: 6,
+    gap: 8,
   },
-  headerButton: {
-    minHeight: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.35)',
-    backgroundColor: 'rgba(15,23,42,0.92)',
-    shadowColor: '#000000',
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  headerButtonCompact: {
-    minHeight: 34,
-    gap: 2,
-    paddingHorizontal: 6,
-    borderRadius: 14,
-  },
-  headerButtonText: {
-    color: '#FBBF24',
-    fontFamily: FONTS.bold,
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  passportCount: {
-    borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    backgroundColor: '#F59E0B',
-  },
-  passportCountCompact: {
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-  },
-  passportCountText: {
-    color: '#0F172A',
-    fontFamily: FONTS.black,
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  passportCountTextCompact: {
-    fontSize: 9,
-  },
-  squareButton: {
-    width: 40,
-    height: 40,
+  skyControl: {
+    position: 'relative',
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: 'rgba(15,23,42,0.92)',
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: 'rgba(216,239,241,0.95)',
+    backgroundColor: 'rgba(41,70,83,0.93)',
     shadowColor: '#000000',
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 5,
   },
-  squareButtonCompact: {
-    width: 34,
-    height: 34,
-    borderRadius: 14,
+  backIcon: {
+    marginTop: -3,
+    color: '#FFFFFF',
+    fontFamily: FONTS.medium,
+    fontSize: 40,
+    lineHeight: 42,
+    fontWeight: '500',
   },
-  squareButtonText: {
-    fontSize: 16,
+  skyControlIcon: {
+    fontSize: 18,
+  },
+  passportCount: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    minWidth: 34,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: 'rgba(247,252,251,0.96)',
+  },
+  passportCountText: {
+    color: '#233540',
+    fontFamily: FONTS.black,
+    fontSize: 8,
+    lineHeight: 10,
+    fontWeight: '900',
   },
   buttonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.95 }],
-  },
-  destination: {
-    maxWidth: 180,
-    flexShrink: 1,
-    alignItems: 'center',
-    minWidth: 90,
-  },
-  destinationCompact: {
-    minWidth: 78,
-    maxWidth: 108,
-  },
-  countryLabel: {
-    color: '#FBBF24',
-    fontFamily: FONTS.extraBold,
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: '900',
-    letterSpacing: 0.9,
-  },
-  destinationTitle: {
-    maxWidth: 170,
-    color: '#F8FAFC',
-    fontFamily: FONTS.black,
-    fontSize: 14,
-    lineHeight: 19,
-    fontWeight: '900',
-  },
-  progressTrack: {
-    width: 112,
-    height: 8,
-    padding: 1,
-    overflow: 'hidden',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    backgroundColor: '#020617',
-    marginTop: 2,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 999,
-  },
-  progressTrackCompact: {
-    width: 88,
-  },
-  levelLabel: {
-    color: '#22D3EE',
-    fontFamily: FONTS.extraBold,
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: '800',
-    marginTop: 1,
+    opacity: 0.76,
+    transform: [{ scale: 0.94 }],
   },
   bonusButton: {
-    height: 40,
-    minWidth: 54,
+    height: 44,
+    minWidth: 78,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.5)',
-    backgroundColor: 'rgba(15,23,42,0.92)',
-    shadowColor: '#F59E0B',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
+    paddingHorizontal: 12,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: 'rgba(201,232,242,0.88)',
+    backgroundColor: 'rgba(38,63,77,0.93)',
+    shadowColor: '#243F4A',
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
   },
   bonusButtonCompact: {
-    height: 34,
-    minWidth: 44,
-    paddingHorizontal: 6,
-    borderRadius: 14,
+    minWidth: 70,
+    paddingHorizontal: 9,
   },
   bonusStar: {
-    fontSize: 14,
+    fontSize: 19,
   },
   bonusText: {
-    color: '#FDE68A',
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  journeyStrip: {
+    width: '94%',
+    maxWidth: 488,
+    height: 106,
+    alignSelf: 'center',
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingTop: 7,
+    paddingBottom: 7,
+    overflow: 'hidden',
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: 'rgba(201,232,242,0.88)',
+    shadowColor: '#18313D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 7,
+    elevation: 7,
+  },
+  journeyTopRow: {
+    minHeight: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  journeyCountry: {
+    flex: 1,
+    color: '#FFE196',
     fontFamily: FONTS.black,
     fontSize: 12,
+    lineHeight: 15,
     fontWeight: '900',
+  },
+  journeyOperationChip: {
+    maxWidth: 116,
+    minHeight: 19,
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(202,228,231,0.44)',
+    backgroundColor: 'rgba(32,52,64,0.62)',
+  },
+  journeyOperationText: {
+    color: '#EAF4F3',
+    fontFamily: FONTS.black,
+    fontSize: 8,
+    lineHeight: 10,
+    fontWeight: '900',
+  },
+  journeyCountChip: {
+    minHeight: 19,
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F8E9BA',
+    backgroundColor: '#F3DA93',
+  },
+  journeyCountText: {
+    color: '#44342C',
+    fontFamily: FONTS.black,
+    fontSize: 9,
+    lineHeight: 11,
+    fontWeight: '900',
+  },
+  citySteps: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginTop: 5,
+    gap: 6,
+  },
+  cityStepGroup: {
+    flex: 1,
+    minWidth: 0,
+  },
+  cityStepLine: {
+    height: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cityStepText: {
+    flex: 1,
+    color: '#D0E1E2',
+    fontFamily: FONTS.medium,
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  cityStepCompleted: {
+    color: '#FFE196',
+    fontFamily: FONTS.black,
+    fontWeight: '900',
+  },
+  cityStepActive: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontWeight: '900',
+  },
+  cityStepArrow: {
+    width: 12,
+    color: '#D0E1E2',
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  cityProgressTrack: {
+    width: '100%',
+    height: 7,
+    overflow: 'hidden',
+    borderRadius: 8,
+    backgroundColor: 'rgba(110,135,144,0.72)',
+  },
+  cityProgressFill: {
+    height: '100%',
+    borderRadius: 8,
   },
   scrollView: {
     flex: 1,
@@ -984,7 +1073,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingTop: 6,
+    paddingBottom: 4,
   },
   gameContent: {
     width: '100%',
@@ -996,6 +1086,18 @@ const styles = StyleSheet.create({
   topSection: {
     width: '100%',
     alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingTop: 7,
+    paddingBottom: 10,
+    overflow: 'hidden',
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: '#D5EEF2',
+    shadowColor: '#233C48',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 5,
+    elevation: 5,
   },
   operationRow: {
     width: '100%',
@@ -1003,8 +1105,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
-    marginBottom: 8,
+    marginBottom: 7,
     gap: 8,
   },
   operationSide: {
@@ -1013,11 +1114,11 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   operationLabel: {
-    color: '#94A3B8',
+    color: '#557782',
     fontFamily: FONTS.extraBold,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 0.9,
+    letterSpacing: 0.8,
   },
   operationBadge: {
     minHeight: 30,
@@ -1029,7 +1130,7 @@ const styles = StyleSheet.create({
     gap: 5,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(232,247,247,0.9)',
     shadowColor: '#000000',
     shadowOpacity: 0.3,
     shadowRadius: 5,
@@ -1056,17 +1157,17 @@ const styles = StyleSheet.create({
     gap: 5,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#1E293B',
-    backgroundColor: 'rgba(15,23,42,0.92)',
+    borderColor: '#E0CB8B',
+    backgroundColor: 'rgba(255,244,202,0.82)',
   },
   requiredLabel: {
-    color: '#94A3B8',
+    color: '#687F87',
     fontFamily: FONTS.bold,
     fontSize: 11,
     fontWeight: '800',
   },
   requiredDots: {
-    color: '#FBBF24',
+    color: '#B98834',
     fontFamily: FONTS.black,
     fontSize: 12,
     fontWeight: '900',
@@ -1074,7 +1175,7 @@ const styles = StyleSheet.create({
   },
   targets: {
     width: '100%',
-    minHeight: 90,
+    minHeight: 62,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
@@ -1082,12 +1183,12 @@ const styles = StyleSheet.create({
   },
   targetCardFrame: {
     position: 'relative',
-    minHeight: 72,
+    minHeight: 62,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 7,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 4,
+    elevation: 3,
   },
   targetSolvedFrame: {
     shadowColor: '#10B981',
@@ -1105,7 +1206,7 @@ const styles = StyleSheet.create({
   },
   targetCard: {
     width: '100%',
-    minHeight: 72,
+    minHeight: 62,
     flex: 1,
     position: 'relative',
     alignItems: 'center',
@@ -1113,8 +1214,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(71,85,105,0.9)',
-    padding: 12,
+    borderColor: '#C6DEE2',
+    padding: 8,
   },
   targetSolved: {
     borderWidth: 2,
@@ -1134,7 +1235,7 @@ const styles = StyleSheet.create({
     borderColor: '#FBBF24',
   },
   targetValue: {
-    color: '#F8FAFC',
+    color: '#233540',
     fontFamily: FONTS.black,
     fontSize: 24,
     lineHeight: 29,
@@ -1151,36 +1252,36 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   targetMetaText: {
-    color: '#94A3B8',
+    color: '#557782',
     fontFamily: FONTS.bold,
     fontSize: 10,
     fontWeight: '800',
   },
   targetDots: {
-    color: '#94A3B8',
+    color: '#557782',
     fontFamily: FONTS.bold,
     fontSize: 10,
     fontWeight: '900',
   },
   targetSolvedText: {
-    color: '#6EE7B7',
+    color: '#23785B',
   },
   feedbackSlot: {
     width: '100%',
-    height: 36,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 4,
   },
   feedbackPill: {
-    maxWidth: '96%',
-    minHeight: 32,
-    paddingHorizontal: 20,
-    paddingVertical: 6,
+    maxWidth: '94%',
+    minHeight: 44,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 999,
-    borderWidth: 1,
+    borderRadius: 18,
+    borderWidth: 1.5,
     shadowColor: '#000000',
     shadowOpacity: 0.4,
     shadowRadius: 9,
@@ -1188,42 +1289,55 @@ const styles = StyleSheet.create({
   },
   feedbackText: {
     fontFamily: FONTS.black,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '900',
+    textAlign: 'center',
+  },
+  feedbackPlaceholder: {
+    width: '70%',
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(93,129,138,0.55)',
+    backgroundColor: 'rgba(231,239,238,0.36)',
+  },
+  feedbackPlaceholderTitle: {
+    color: '#557782',
+    fontFamily: FONTS.black,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  feedbackPlaceholderText: {
+    marginTop: 2,
+    color: '#687F87',
+    fontFamily: FONTS.bold,
+    fontSize: 8,
+    lineHeight: 10,
+    fontWeight: '700',
     textAlign: 'center',
   },
   wheelContainer: {
     width: '100%',
-    minHeight: 290,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 8,
+    marginTop: 0,
   },
   instruction: {
-    color: '#94A3B8',
+    color: '#557782',
     fontFamily: FONTS.bold,
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 10,
+    lineHeight: 14,
     textAlign: 'center',
-    fontWeight: '700',
-    marginVertical: 4,
-  },
-  footer: {
-    minHeight: 35,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(30,41,59,0.75)',
-    backgroundColor: 'rgba(2,6,23,0.88)',
-  },
-  footerText: {
-    color: '#64748B',
-    fontFamily: FONTS.medium,
-    fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '800',
+    marginTop: 1,
+    marginBottom: 3,
   },
   celebrationLayer: {
     position: 'absolute',

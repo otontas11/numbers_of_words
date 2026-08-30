@@ -1,3 +1,4 @@
+import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -8,7 +9,13 @@ import {
   Text,
   View,
 } from 'react-native';
-import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
+import Svg, {
+  Circle,
+  Defs,
+  LinearGradient as SvgLinearGradient,
+  Path,
+  Stop,
+} from 'react-native-svg';
 
 import { FONTS } from '@/constants/fonts';
 
@@ -32,7 +39,28 @@ type NumberWheelProps = {
 
 const SHUFFLE_DURATION = 450;
 const SHUFFLE_EASING = Easing.bezier(0.34, 1.3, 0.64, 1);
-const WHEEL_BORDER_WIDTH = 5;
+
+function HintIcon() {
+  return (
+    <Svg height={22} viewBox="0 0 24 24" width={22}>
+      <Path
+        d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4.35 12.48C8.48 15.14 9 16.12 9 17h6c0-.88.52-1.86 1.35-2.52A7 7 0 0 0 12 2zm-2 16v-1h4v1h-4zm5.1-5.08c-1.14.9-1.8 1.63-2.02 2.08h-2.16c-.22-.45-.88-1.18-2.02-2.08a5 5 0 1 1 6.2 0z"
+        fill="#FFFFFF"
+      />
+    </Svg>
+  );
+}
+
+function ShuffleIcon() {
+  return (
+    <Svg height={22} viewBox="0 0 24 24" width={22}>
+      <Path
+        d="M16 3h5v5l-1.8-1.8-3.55 3.55-1.4-1.4 3.55-3.55L16 3zM3 6h3.25c1.54 0 2.94.88 3.62 2.26l4.26 8.48A4.04 4.04 0 0 0 17.75 19H21v-2h-3.25c-.78 0-1.49-.44-1.84-1.14l-4.26-8.48A6.02 6.02 0 0 0 6.25 4H3v2zm5.63 8.28 1.12 2.23A6.03 6.03 0 0 1 6.25 20H3v-2h3.25c.78 0 1.49-.44 1.84-1.14l.54-1.08zm10.57 3.52L21 16v5h-5l1.8-1.8 1.4-1.4z"
+        fill="#FFFFFF"
+      />
+    </Svg>
+  );
+}
 
 function shuffledIndices(count: number): number[] {
   const result = Array.from({ length: count }, (_, index) => index);
@@ -115,9 +143,9 @@ export function NumberWheel({
   const [hintPulse] = useState(() => new Animated.Value(0));
 
   const nodeSize = size < 300 ? 60 : 62;
-  const radius = size * 0.35;
-  const innerSize = size - WHEEL_BORDER_WIDTH * 2;
+  const innerSize = size;
   const center = innerSize / 2;
+  const radius = Math.max(72, center - nodeSize / 2 - 10);
   const slots = useMemo(
     () =>
       numbers.map((_, index) => {
@@ -285,213 +313,228 @@ export function NumberWheel({
   });
 
   return (
-    <View
-      style={[styles.wheelShadow, { width: size, height: size, borderRadius: size / 2 }]}>
-      <View
-        ref={wheelRef}
-        accessibilityLabel="Sayı bağlantı çemberi"
-        onLayout={() => {
-          wheelRef.current?.measureInWindow((x, y) => {
-            originRef.current = { x, y };
-          });
-        }}
-        onMoveShouldSetResponder={() => selectedRef.current.length > 0}
-        onResponderGrant={handleGrant}
-        onResponderMove={handleMove}
-        onResponderRelease={handleRelease}
-        onResponderTerminate={clearGesture}
-        onResponderTerminationRequest={() => false}
-        onStartShouldSetResponder={(event) => findNode(grantPoint(event)) >= 0}
-        style={[styles.wheel, { borderRadius: innerSize / 2 }]}>
-        <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
-          <Defs>
-            <RadialGradient cx="50%" cy="50%" id="wheel-surface" r="70%">
-              <Stop offset="0%" stopColor="#1E293B" stopOpacity={0.92} />
-              <Stop offset="100%" stopColor="#0F172A" stopOpacity={0.98} />
-            </RadialGradient>
-          </Defs>
-          <Circle cx="50%" cy="50%" fill="url(#wheel-surface)" r="50%" />
-        </Svg>
-        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-          {selectedPoints.slice(1).map((point, index) => (
-            <ConnectorLine
-              key={`selected-${selectedIndices[index]}-${selectedIndices[index + 1]}`}
-              from={selectedPoints[index]}
-              fromRadius={selectedRadius}
-              to={point}
-              toRadius={selectedRadius}
+    <View style={[styles.wheelArea, { width: size }]}>
+      <View style={[styles.wheelShadow, { width: size, height: size }]}>
+        <View
+          ref={wheelRef}
+          accessibilityLabel="Sayı bağlantı çemberi"
+          onLayout={() => {
+            wheelRef.current?.measureInWindow((x, y) => {
+              originRef.current = { x, y };
+            });
+          }}
+          onMoveShouldSetResponder={() => selectedRef.current.length > 0}
+          onResponderGrant={handleGrant}
+          onResponderMove={handleMove}
+          onResponderRelease={handleRelease}
+          onResponderTerminate={clearGesture}
+          onResponderTerminationRequest={() => false}
+          onStartShouldSetResponder={(event) => findNode(grantPoint(event)) >= 0}
+          style={[styles.wheel, { borderRadius: innerSize / 2 }]}>
+          <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
+            <Circle
+              cx={center}
+              cy={center + 3}
+              fill="transparent"
+              r={radius}
+              stroke="rgba(0,0,0,0.10)"
+              strokeLinecap="round"
+              strokeWidth={10}
             />
-          ))}
-          {pointer && selectedPoints.length > 0 ? (
-            <ConnectorLine
-              from={selectedPoints[selectedPoints.length - 1]}
-              fromRadius={selectedRadius}
-              to={pointer}
+            <Circle
+              cx={center}
+              cy={center}
+              fill="transparent"
+              r={radius}
+              stroke="rgba(55,83,92,0.42)"
+              strokeLinecap="round"
+              strokeWidth={7}
             />
-          ) : null}
-        </View>
+          </Svg>
 
-        {numbers.map((number, index) => {
-          const selected = selectedIndices.includes(index);
-          const hinted = hintIndices.includes(index);
-          return (
-            <Animated.View
-              key={`${index}-${number}`}
-              pointerEvents="none"
-              style={[
-                styles.nodeShadow,
-                {
-                  width: nodeSize,
-                  height: nodeSize,
-                  borderRadius: nodeSize / 2,
-                  left: 0,
-                  top: 0,
-                  transform: [
-                    {
-                      translateX: Animated.subtract(
-                        animatedPositions[index].x,
-                        nodeSize / 2,
-                      ),
-                    },
-                    {
-                      translateY: Animated.subtract(
-                        animatedPositions[index].y,
-                        nodeSize / 2,
-                      ),
-                    },
-                    { scale: selected ? 1.25 : hinted ? hintScale : 1 },
-                  ],
-                },
-                selected && styles.nodeSelectedShadow,
-                hinted && styles.nodeHintedShadow,
-              ]}>
-              <View
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            {selectedPoints.slice(1).map((point, index) => (
+              <ConnectorLine
+                key={`selected-${selectedIndices[index]}-${selectedIndices[index + 1]}`}
+                from={selectedPoints[index]}
+                fromRadius={selectedRadius}
+                to={point}
+                toRadius={selectedRadius}
+              />
+            ))}
+            {pointer && selectedPoints.length > 0 ? (
+              <ConnectorLine
+                from={selectedPoints[selectedPoints.length - 1]}
+                fromRadius={selectedRadius}
+                to={pointer}
+              />
+            ) : null}
+          </View>
+
+          {numbers.map((number, index) => {
+            const selected = selectedIndices.includes(index);
+            const hinted = hintIndices.includes(index);
+            return (
+              <Animated.View
+                key={`${index}-${number}`}
+                pointerEvents="none"
                 style={[
-                  styles.node,
-                  { width: nodeSize, height: nodeSize, borderRadius: nodeSize / 2 },
-                  selected && styles.nodeSelected,
-                  hinted && styles.nodeHinted,
+                  styles.nodeShadow,
+                  {
+                    width: nodeSize,
+                    height: nodeSize,
+                    borderRadius: nodeSize / 2,
+                    left: 0,
+                    top: 0,
+                    transform: [
+                      {
+                        translateX: Animated.subtract(
+                          animatedPositions[index].x,
+                          nodeSize / 2,
+                        ),
+                      },
+                      {
+                        translateY: Animated.subtract(
+                          animatedPositions[index].y,
+                          nodeSize / 2,
+                        ),
+                      },
+                      { scale: selected ? 1.25 : hinted ? hintScale : 1 },
+                    ],
+                  },
+                  selected && styles.nodeSelectedShadow,
+                  hinted && styles.nodeHintedShadow,
                 ]}>
-                <Svg
-                  height="100%"
-                  pointerEvents="none"
-                  style={StyleSheet.absoluteFill}
-                  width="100%">
-                  <Defs>
-                    <RadialGradient
-                      cx="35%"
-                      cy="35%"
-                      id={`node-surface-${index}`}
-                      r="72%">
-                      <Stop
-                        offset="0%"
-                        stopColor={selected ? '#3B82F6' : hinted ? '#F59E0B' : '#334155'}
-                      />
-                      <Stop
-                        offset="100%"
-                        stopColor={selected ? '#1D4ED8' : hinted ? '#B45309' : '#0F172A'}
-                      />
-                    </RadialGradient>
-                  </Defs>
-                  <Circle
-                    cx="50%"
-                    cy="50%"
-                    fill={`url(#node-surface-${index})`}
-                    r="50%"
-                  />
-                </Svg>
-                <Text
+                <View
                   style={[
-                    styles.nodeText,
-                    { fontSize: size < 300 ? 20 : 24, lineHeight: size < 300 ? 25 : 30 },
-                ]}>
-                  {number}
-                </Text>
-              </View>
-            </Animated.View>
-          );
-        })}
-
-        <View style={styles.centerControls}>
-          <View style={styles.instructionPill}>
-            <Text style={styles.instructionText}>Sayıları Birleştir</Text>
-          </View>
-          <View style={styles.controlRow}>
-            <Pressable
-              accessibilityLabel="Sayıları karıştır"
-              accessibilityRole="button"
-              hitSlop={8}
-              onPress={shuffleNodes}
-              style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}>
-              <Animated.Text style={[styles.controlIcon, { transform: [{ rotate: rotationStyle }] }]}>
-                🔀
-              </Animated.Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel="İpucu göster"
-              accessibilityRole="button"
-              hitSlop={8}
-              onPress={onHint}
-              style={({ pressed }) => [
-                styles.controlButton,
-                styles.hintButton,
-                pressed && styles.controlPressed,
-              ]}>
-              <Text style={styles.controlIcon}>💡</Text>
-            </Pressable>
-          </View>
+                    styles.node,
+                    { width: nodeSize, height: nodeSize, borderRadius: nodeSize / 2 },
+                    selected && styles.nodeSelected,
+                    hinted && styles.nodeHinted,
+                  ]}>
+                  <Svg
+                    height="100%"
+                    pointerEvents="none"
+                    style={StyleSheet.absoluteFill}
+                    width="100%">
+                    <Defs>
+                      <SvgLinearGradient
+                        id={`node-surface-${index}`}
+                        x1="0%"
+                        x2="100%"
+                        y1="0%"
+                        y2="100%">
+                        <Stop offset="0%" stopColor={selected ? '#4B98AA' : '#F8FCFB'} />
+                        <Stop offset="100%" stopColor={selected ? '#316D80' : '#DAEBEB'} />
+                      </SvgLinearGradient>
+                    </Defs>
+                    <Circle
+                      cx="50%"
+                      cy="50%"
+                      fill={`url(#node-surface-${index})`}
+                      r="50%"
+                    />
+                    {!selected ? (
+                      <Circle cx="34%" cy="31%" fill="rgba(255,255,255,0.34)" r="15%" />
+                    ) : null}
+                  </Svg>
+                  <Text
+                    style={[
+                      styles.nodeText,
+                      selected && styles.nodeTextSelected,
+                      { fontSize: size < 300 ? 20 : 24, lineHeight: size < 300 ? 25 : 30 },
+                    ]}>
+                    {number}
+                  </Text>
+                </View>
+              </Animated.View>
+            );
+          })}
         </View>
+      </View>
+
+      <View style={[styles.actionRow, { width: size }]}>
+        <Pressable
+          accessibilityLabel="İpucu göster"
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={onHint}
+          style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}>
+          <ExpoLinearGradient
+            colors={['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']}
+            end={{ x: 0, y: 1 }}
+            start={{ x: 0, y: 0 }}
+            style={styles.controlSurface}>
+            <HintIcon />
+            <Text style={styles.controlLabel}>İpucu</Text>
+          </ExpoLinearGradient>
+        </Pressable>
+
+        <Pressable
+          accessibilityLabel="Sayıları karıştır"
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={shuffleNodes}
+          style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}>
+          <ExpoLinearGradient
+            colors={['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']}
+            end={{ x: 0, y: 1 }}
+            start={{ x: 0, y: 0 }}
+            style={styles.controlSurface}>
+            <Animated.View style={{ transform: [{ rotate: rotationStyle }] }}>
+              <ShuffleIcon />
+            </Animated.View>
+            <Text style={styles.controlLabel}>Karıştır</Text>
+          </ExpoLinearGradient>
+        </Pressable>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wheelArea: {
+    alignItems: 'center',
+  },
   wheelShadow: {
-    borderWidth: WHEEL_BORDER_WIDTH,
-    borderColor: 'rgba(245,158,11,0.45)',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.55,
-    shadowRadius: 22,
-    elevation: 18,
+    position: 'relative',
   },
   wheel: {
     flex: 1,
     position: 'relative',
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   connector: {
     position: 'absolute',
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#3B82F6',
-    shadowColor: '#60A5FA',
-    shadowOpacity: 0.8,
-    shadowRadius: 5,
+    backgroundColor: '#3A7A8D',
+    shadowColor: '#233C48',
+    shadowOpacity: 0.28,
+    shadowRadius: 4,
     elevation: 2,
   },
   nodeShadow: {
     position: 'absolute',
     zIndex: 3,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 9 },
-    shadowOpacity: 0.6,
-    shadowRadius: 11,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 5,
+    elevation: 6,
   },
   nodeSelectedShadow: {
-    shadowColor: '#3B82F6',
-    shadowOpacity: 0.95,
-    shadowRadius: 18,
-    elevation: 18,
+    shadowColor: '#3D7F91',
+    shadowOpacity: 0.72,
+    shadowRadius: 12,
+    elevation: 12,
   },
   nodeHintedShadow: {
     zIndex: 30,
-    shadowColor: '#F59E0B',
-    shadowOpacity: 1,
-    shadowRadius: 20,
-    elevation: 18,
+    shadowColor: '#EEC362',
+    shadowOpacity: 0.94,
+    shadowRadius: 15,
+    elevation: 14,
   },
   node: {
     position: 'relative',
@@ -499,75 +542,63 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(203,213,225,0.8)',
+    borderColor: 'rgba(92,122,130,0.76)',
   },
   nodeSelected: {
-    borderColor: '#BFDBFE',
+    borderColor: 'rgba(232,247,247,0.95)',
     borderWidth: 3,
   },
   nodeHinted: {
-    borderColor: '#FEF3C7',
-    borderWidth: 3,
+    borderColor: '#EEC362',
+    borderWidth: 4,
   },
   nodeText: {
     zIndex: 1,
-    color: '#FFFFFF',
+    color: '#233540',
     fontFamily: FONTS.black,
     fontWeight: '900',
   },
-  centerControls: {
-    position: 'absolute',
-    left: '50%',
-    top: '50%',
-    width: 152,
-    marginLeft: -76,
-    marginTop: -40,
-    zIndex: 8,
-    alignItems: 'center',
-    gap: 8,
+  nodeTextSelected: {
+    color: '#FFFFFF',
   },
-  instructionPill: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.38)',
-    backgroundColor: 'rgba(2,6,23,0.94)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  instructionText: {
-    color: '#FCD34D',
-    fontFamily: FONTS.extraBold,
-    fontWeight: '800',
-    fontSize: 11,
-  },
-  controlRow: {
+  actionRow: {
+    height: 62,
+    marginTop: 1,
+    paddingHorizontal: 2,
     flexDirection: 'row',
-    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   controlButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: '#64748B',
-    backgroundColor: 'rgba(30,41,59,0.96)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 52,
+    height: 52,
+    overflow: 'hidden',
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderColor: 'rgba(236,240,240,0.74)',
     shadowColor: '#000000',
-    shadowOpacity: 0.45,
-    shadowRadius: 7,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 8,
-  },
-  hintButton: {
-    borderColor: 'rgba(245,158,11,0.75)',
-    backgroundColor: 'rgba(120,53,15,0.5)',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    elevation: 4,
   },
   controlPressed: {
-    opacity: 0.72,
+    opacity: 0.76,
     transform: [{ scale: 0.94 }],
   },
-  controlIcon: {
-    fontSize: 18,
+  controlSurface: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+    borderRadius: 26,
+    padding: 3,
+  },
+  controlLabel: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 9,
+    lineHeight: 11,
+    fontWeight: '900',
   },
 });

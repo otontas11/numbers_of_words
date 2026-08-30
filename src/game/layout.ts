@@ -5,14 +5,27 @@ export type GameLayout = {
   wheelSize: number;
 };
 
-export function getGameLayout(windowWidth: number, _windowHeight: number): GameLayout {
-  // Tailwind's `sm` breakpoint in the reference HTML starts at 640 px.
+export function getGameLayout(windowWidth: number, windowHeight: number): GameLayout {
   const compact = windowWidth < 640;
   const compactHeader = windowWidth < 430;
   const contentHorizontalPadding = windowWidth < 320 ? 12 : 16;
   const referenceWheelSize = compact ? 288 : 320;
+  const heightBoundWheelSize =
+    windowHeight < 600
+      ? 208
+      : windowHeight < 700
+        ? 224
+        : windowHeight < 780
+          ? 252
+          : windowHeight < 830
+            ? 272
+            : referenceWheelSize;
   const wheelSize = Math.round(
-    Math.min(referenceWheelSize, Math.max(180, windowWidth - contentHorizontalPadding * 2)),
+    Math.min(
+      referenceWheelSize,
+      heightBoundWheelSize,
+      Math.max(208, windowWidth - contentHorizontalPadding * 2),
+    ),
   );
 
   return {
