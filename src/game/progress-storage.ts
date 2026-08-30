@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { findSolutionIndices, type LevelData } from '@/game/levels';
+import { findSolutionIndices, normalizeLevelData, type LevelData } from '@/game/levels';
 
 const STORAGE_KEY = '@number-of-wonders/progress-v2';
 const STORAGE_VERSION = 2;
@@ -100,7 +100,7 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
     return {
       version: STORAGE_VERSION,
       level,
-      levelData,
+      levelData: normalizeLevelData(levelData),
       solvedTargets: [...new Set(value.solvedTargets as number[])],
       bonusCount: Number(value.bonusCount),
       discoveredBonuses: [...new Set(value.discoveredBonuses as string[])],

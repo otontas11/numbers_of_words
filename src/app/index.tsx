@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import {
   Animated,
+  BackHandler,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,12 +15,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnalysisModal, PassportModal } from '@/components/game/game-modals';
+import { PassportModal } from '@/components/game/game-modals';
 import { NumberWheel } from '@/components/game/number-wheel';
+import { JourneyMap } from '@/components/journey/journey-map';
 import { FONTS } from '@/constants/fonts';
 import {
   computeResult,
-  COUNTRIES,
   findSolutionIndices,
   generateLevelData,
   OPERATION_DETAILS,
@@ -28,6 +29,7 @@ import {
 } from '@/game/levels';
 import { getGameLayout } from '@/game/layout';
 import { loadGameProgress, saveGameProgress } from '@/game/progress-storage';
+import { COUNTRY_BY_ID, WORLD_COUNTRIES, getCompletedCountryCount } from '@/game/travel';
 import { useGameSounds, type GameSound } from '@/hooks/use-game-sounds';
 
 type FeedbackTone = 'live' | 'success' | 'bonus' | 'info';
@@ -269,7 +271,7 @@ export default function HomeScreen() {
   const [hintIndices, setHintIndices] = useState<number[]>([]);
   const [hintedTarget, setHintedTarget] = useState<number | null>(null);
   const [passportVisible, setPassportVisible] = useState(false);
-  const [analysisVisible, setAnalysisVisible] = useState(false);
+  const [journeyVisible, setJourneyVisible] = useState(true);
   const [effectsEnabled, setEffectsEnabled] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
@@ -291,7 +293,7 @@ export default function HomeScreen() {
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
   const maxSelection: 2 | 3 =
     levelData.steps === 3 || levelData.targets.some((target) => target.steps === 3) ? 3 : 2;
-  const passportStampCount = Math.min(COUNTRIES.length, Math.floor((level - 1) / 50));
+  const passportStampCount = getCompletedCountryCount(level);
 
   useEffect(() => {
     let active = true;
@@ -347,6 +349,15 @@ export default function HomeScreen() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (journeyVisible) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setJourneyVisible(true);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [journeyVisible]);
 
   const triggerEffect = useCallback(
     (kind: GameSound) => {
@@ -436,15 +447,16 @@ export default function HomeScreen() {
         setSolvedTargets(nextSolved);
 
         if (nextSolved.size === levelData.targets.length) {
-          const completedCountry =
-            level % 50 === 0 && level <= COUNTRIES.length * 50
-              ? `${levelData.country} tamamlandı! Vize pulu kazanıldı`
-              : null;
-          const completionMessage = completedCountry
-            ? completedCountry
-            : levelData.cityLevel === 10
-              ? `${levelData.city} tamamlandı`
-              : `Seviye ${level} tamamlandı`;
+          const completedLocation =
+            !levelData.countryChallenge &&
+            levelData.locationLevel === levelData.locationLevelCount;
+          const completionMessage = levelData.worldTourFinal
+            ? '100/100 ülke • WORLD TOUR COMPLETED! Golden Compass ve World Explorer kazanıldı'
+            : levelData.countryChallenge
+              ? `${levelData.country} tamamlandı! Pasaport damgası ve ${COUNTRY_BY_ID.get(levelData.countryId)?.rewardLandmark ?? levelData.country} kartı kazanıldı`
+              : completedLocation
+                ? `${levelData.city} tamamlandı! Yeni destinasyon açıldı`
+                : `${levelData.city} puzzle'ı tamamlandı`;
           triggerEffect('success');
           showTimedFeedback(
             { text: `Harika! ${completionMessage} 🎉`, tone: 'success' },
@@ -454,10 +466,10 @@ export default function HomeScreen() {
           levelTimer.current = setTimeout(() => {
             setCelebrating(true);
             triggerEffect('levelComplete');
-            levelTimer.current = setTimeout(
-              () => startLevel(level + 1, levelData.targets.map((target) => target.value)),
-              1000,
-            );
+            levelTimer.current = setTimeout(() => {
+              startLevel(level + 1, levelData.targets.map((target) => target.value));
+              if (levelData.countryChallenge || completedLocation) setJourneyVisible(true);
+            }, 1000);
           }, 400);
         } else {
           triggerEffect('success');
@@ -509,9 +521,45 @@ export default function HomeScreen() {
     }, 1800);
   }, [levelData, showTimedFeedback, solvedTargets, triggerEffect]);
 
-  const headerProgress = `${levelData.cityLevel * 10}%` as `${number}%`;
+  const handleToggleEffects = useCallback(() => {
+    const nextEnabled = !effectsEnabled;
+    setEffectsEnabled(nextEnabled);
+    if (nextEnabled) {
+      playSound('select', true);
+      void Haptics.selectionAsync().catch(() => undefined);
+    }
+  }, [effectsEnabled, playSound]);
+
+  const headerProgress = `${(levelData.locationLevel / levelData.locationLevelCount) * 100}%` as `${number}%`;
 
   if (!hydrated) return <View style={styles.screen} />;
+
+  if (journeyVisible) {
+    return (
+      <View style={styles.screen}>
+        <BlurTargetView ref={blurTarget} style={styles.screen}>
+          <JourneyMap
+            bonusCount={bonusCount}
+            effectsEnabled={effectsEnabled}
+            level={level}
+            levelData={levelData}
+            onContinue={() => {
+              setJourneyVisible(false);
+              triggerEffect('select');
+            }}
+            onOpenPassport={() => setPassportVisible(true)}
+            onToggleEffects={handleToggleEffects}
+          />
+        </BlurTargetView>
+        <PassportModal
+          blurTarget={blurTarget}
+          currentLevel={level}
+          onClose={() => setPassportVisible(false)}
+          visible={passportVisible}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
@@ -550,21 +598,21 @@ export default function HomeScreen() {
                     styles.passportCountText,
                     compactHeader && styles.passportCountTextCompact,
                   ]}>
-                  {passportStampCount}/{COUNTRIES.length}
+                  {passportStampCount}/{WORLD_COUNTRIES.length}
                 </Text>
               </View>
             </Pressable>
             <Pressable
-              accessibilityLabel="Oyun tasarım analizini aç"
+              accessibilityLabel="Dünya rotasına dön"
               accessibilityRole="button"
               hitSlop={5}
-              onPress={() => setAnalysisVisible(true)}
+              onPress={() => setJourneyVisible(true)}
               style={({ pressed }) => [
                 styles.squareButton,
                 compactHeader && styles.squareButtonCompact,
                 pressed && styles.buttonPressed,
               ]}>
-              <Text style={styles.squareButtonText}>📊</Text>
+              <Text style={styles.squareButtonText}>🗺️</Text>
             </Pressable>
           </View>
 
@@ -584,7 +632,8 @@ export default function HomeScreen() {
               />
             </View>
             <Text numberOfLines={1} style={styles.levelLabel}>
-              Seviye {level} • {levelData.city} {levelData.cityLevel}/10
+              {levelData.countryChallenge ? 'Country Challenge' : 'Puzzle'}{' '}
+              {levelData.locationLevel}/{levelData.locationLevelCount}
             </Text>
           </View>
 
@@ -604,14 +653,7 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityState={{ checked: effectsEnabled }}
               hitSlop={5}
-              onPress={() => {
-                const nextEnabled = !effectsEnabled;
-                setEffectsEnabled(nextEnabled);
-                if (nextEnabled) {
-                  playSound('select', true);
-                  void Haptics.selectionAsync().catch(() => undefined);
-                }
-              }}
+              onPress={handleToggleEffects}
               style={({ pressed }) => [
                 styles.squareButton,
                 compactHeader && styles.squareButtonCompact,
@@ -727,11 +769,6 @@ export default function HomeScreen() {
         currentLevel={level}
         onClose={() => setPassportVisible(false)}
         visible={passportVisible}
-      />
-      <AnalysisModal
-        blurTarget={blurTarget}
-        onClose={() => setAnalysisVisible(false)}
-        visible={analysisVisible}
       />
     </View>
   );

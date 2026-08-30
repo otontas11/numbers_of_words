@@ -4,7 +4,13 @@ import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'reac
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { FONTS } from '@/constants/fonts';
-import { COUNTRIES } from '@/game/levels';
+import {
+  WORLD_COUNTRIES,
+  ROUTE_BY_ID,
+  getCountryProgress,
+  isCountryComplete,
+  isCountryUnlocked,
+} from '@/game/travel';
 
 type BaseModalProps = {
   visible: boolean;
@@ -94,7 +100,8 @@ export function PassportModal({
       blurTarget={blurTarget}
       footer={
         <Text style={styles.footerText}>
-          Her ülkedeki 5 şehir (50 seviye) tamamlandığında vize pulu kazanılır!
+          Her ülkenin 3 destinasyonu ve Country Challenge&apos;ı tamamlandığında pasaporta
+          vize pulu basılır. Dünya hedefi: 100/100.
         </Text>
       }
       icon="📘"
@@ -103,9 +110,11 @@ export function PassportModal({
       title="Dünya Seyahat Pasaportu"
       visible={visible}>
       <View style={styles.stampGrid}>
-        {COUNTRIES.map((country, index) => {
-          const unlocked = currentLevel > (index + 1) * 50;
-          if (unlocked) {
+        {WORLD_COUNTRIES.map((country, index) => {
+          const complete = isCountryComplete(currentLevel, country.id);
+          const available = isCountryUnlocked(currentLevel, country.id);
+          const progress = getCountryProgress(currentLevel, country.id);
+          if (complete) {
             return (
               <View key={country.country} style={[styles.stamp, styles.stampUnlocked]}>
                 <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
@@ -130,11 +139,17 @@ export function PassportModal({
           }
 
           return (
-            <View key={country.country} style={[styles.stamp, styles.stampLocked]}>
-              <Text style={styles.stampEmoji}>🔒</Text>
-              <Text style={[styles.stampCountry, styles.lockedText]}>{country.country}</Text>
-              <Text style={[styles.stampStatus, styles.lockedText]}>
-                Seviye {(index + 1) * 50} tamamlanınca açılır
+            <View
+              key={country.country}
+              style={[styles.stamp, available ? styles.stampCurrent : styles.stampLocked]}>
+              <Text style={styles.stampEmoji}>{available ? country.flag : '🔒'}</Text>
+              <Text style={[styles.stampCountry, !available && styles.lockedText]}>
+                {country.country}
+              </Text>
+              <Text style={[styles.stampStatus, !available && styles.lockedText]}>
+                {available
+                  ? `${progress}/20 • MEVCUT ÜLKE`
+                  : `ROTA ${ROUTE_BY_ID.get(country.primaryRouteId)?.order ?? '—'} • KİLİTLİ`}
               </Text>
             </View>
           );
@@ -156,7 +171,7 @@ const ANALYSIS_CARDS = [
   {
     icon: '🌍',
     title: 'Seyahat & Koleksiyon Motivasyonu',
-    body: 'Her ülkede 5 benzersiz simge şehir (şehir başına 10 seviye, ülke başına 50 seviye) gezilerek seyahat pasaportuna vizeler ve pullar işlenir.',
+    body: 'Oyuncu 14 tematik rotada 100 ülkeyi gezer. Her ülkede 3 destinasyon ve bir Country Challenge bulunur; ülke tamamlanınca pasaporta vize pulu basılır.',
     background: 'rgba(120,53,15,0.28)',
     border: 'rgba(245,158,11,0.42)',
     titleColor: '#FCD34D',
@@ -340,6 +355,11 @@ const styles = StyleSheet.create({
     borderColor: '#334155',
     backgroundColor: '#020617',
     opacity: 0.58,
+  },
+  stampCurrent: {
+    borderWidth: 2,
+    borderColor: '#D9AE45',
+    backgroundColor: '#FFF8E7',
   },
   stampEmoji: {
     fontSize: 32,

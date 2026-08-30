@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from 'node:child_process';
+import { statfs } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import process from 'node:process';
@@ -149,6 +150,61 @@ function runInteractive(command, args) {
   });
 }
 
+async function getNativeBuildSpace() {
+  const minimumGiB = Number(process.env.DEVICE_MIN_FREE_GB ?? '5');
+  const stats = await statfs(projectRoot);
+  const freeBytes = Number(stats.bavail) * Number(stats.bsize);
+  const freeGiB = freeBytes / 1024 ** 3;
+
+  if (!Number.isFinite(minimumGiB) || minimumGiB <= 0) {
+    console.error('DEVICE_MIN_FREE_GB pozitif bir sayı olmalıdır.');
+    process.exit(2);
+  }
+  return { freeGiB, minimumGiB, sufficient: freeGiB >= minimumGiB };
+}
+
+async function openAndroidWithExpoGo(target) {
+  const packageResult = runForOutput('adb', [
+    '-s',
+    target.id,
+    'shell',
+    'pm',
+    'path',
+    'host.exp.exponent',
+  ]);
+  if (packageResult.status !== 0 || !packageResult.stdout.includes('package:')) {
+    console.error(`✗ ${target.name}: Expo Go cihazda kurulu değil.`);
+    return 1;
+  }
+
+  const reverseResult = runForOutput('adb', [
+    '-s',
+    target.id,
+    'reverse',
+    `tcp:${metroPort}`,
+    `tcp:${metroPort}`,
+  ]);
+  if (reverseResult.status !== 0) {
+    console.error(
+      `✗ ${target.name}: USB Metro yönlendirmesi kurulamadı: ${reverseResult.stderr.trim()}`,
+    );
+    return 1;
+  }
+
+  return runInteractive('adb', [
+    '-s',
+    target.id,
+    'shell',
+    'am',
+    'start',
+    '-a',
+    'android.intent.action.VIEW',
+    '-d',
+    `exp://127.0.0.1:${metroPort}`,
+    'host.exp.exponent',
+  ]);
+}
+
 const androidDetection =
   requestedPlatform === 'ios' ? { devices: [], unavailableReason: null } : detectAndroidDevices();
 const iosDetection =
@@ -173,6 +229,29 @@ for (const target of targets) {
   console.log(`✓ ${target.platform.toUpperCase()}: ${target.name} (${target.id})`);
 }
 
+const buildSpace = await getNativeBuildSpace();
+const expoGoFallback =
+  !buildSpace.sufficient && targets.every((target) => target.platform === 'android');
+
+if (!buildSpace.sufficient && !expoGoFallback) {
+  console.error(
+    `\nNative derleme durduruldu: diskte ${buildSpace.freeGiB.toFixed(1)} GB boş alan var; en az ${buildSpace.minimumGiB.toFixed(1)} GB gerekli.`,
+  );
+  console.error('Bağlı iOS cihaz için Expo Go fallback otomatikleştirilemedi.');
+  process.exit(1);
+}
+
+if (expoGoFallback) {
+  console.warn(
+    `\n⚠ Native build için alan yetersiz (${buildSpace.freeGiB.toFixed(1)} GB). Fiziksel Android Expo Go ile açılacak.`,
+  );
+  console.warn(
+    `Native development build için en az ${buildSpace.minimumGiB.toFixed(1)} GB alan açıldığında aynı komut otomatik olarak Gradle build çalıştırır.`,
+  );
+} else {
+  console.log(`✓ Disk alanı: ${buildSpace.freeGiB.toFixed(1)} GB kullanılabilir.`);
+}
+
 let metroProcess = null;
 let ownsMetro = false;
 
@@ -182,7 +261,14 @@ if (await isPackagerRunning()) {
   console.log(`Metro ${metroMode} modunda ${metroPort} portunda başlatılıyor...`);
   metroProcess = spawn(
     'npx',
-    ['expo', 'start', '--dev-client', `--${metroMode}`, '--port', metroPort],
+    [
+      'expo',
+      'start',
+      expoGoFallback ? '--go' : '--dev-client',
+      `--${metroMode}`,
+      '--port',
+      metroPort,
+    ],
     {
       cwd: projectRoot,
       env: { ...process.env, EXPO_NO_TELEMETRY: '1' },
@@ -196,6 +282,16 @@ if (await isPackagerRunning()) {
 
 let failed = false;
 for (const target of targets) {
+  if (expoGoFallback) {
+    console.log(`\n${target.name} Expo Go ile açılıyor...`);
+    const exitCode = await openAndroidWithExpoGo(target);
+    if (exitCode !== 0) {
+      failed = true;
+      console.error(`✗ ${target.name} üzerinde Expo Go açılamadı (kod: ${exitCode}).`);
+    }
+    continue;
+  }
+
   console.log(`\n${target.name} için ${target.platform.toUpperCase()} derleniyor ve açılıyor...`);
   // Expo CLI SDK 57 resolves Android's --device value by the display name,
   // while iOS accepts the physical device UDID.
@@ -219,7 +315,11 @@ if (failed) {
   process.exit(1);
 }
 
-console.log('\n✓ Bağlı fiziksel cihazlar hazır.');
+console.log(
+  expoGoFallback
+    ? '\n✓ Bağlı fiziksel Android cihaz Expo Go ile hazır.'
+    : '\n✓ Bağlı fiziksel cihazlar native development build ile hazır.',
+);
 if (ownsMetro && metroProcess) {
   console.log('Metro çalışıyor; kapatmak için Ctrl+C kullanın.');
   await new Promise((resolve) => metroProcess.once('exit', resolve));

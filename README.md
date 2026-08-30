@@ -1,6 +1,6 @@
 # Number of Wonders
 
-Sayıları çember üzerinde birleştirerek hedefleri çözdüğün, şehir ve ülke rotaları açtığın Expo SDK 57 tabanlı React Native oyunudur.
+Sayıları çember üzerinde birleştirerek 14 tematik rotada 100 ülke ve 300 destinasyon açtığın Expo SDK 57 tabanlı React Native oyunudur.
 
 ## Kurulum
 
@@ -48,6 +48,7 @@ npm run devices:ios
 - iOS'ta Mac'e güven ver, Geliştirici Modu'nu aç ve Xcode imzalama hesabını hazırla.
 - İlk çalıştırmada native derleme yapılıp `com.oktaytontas.numbersofwonders` development build'i cihaza kurulur; sonraki yalnızca JavaScript/TypeScript değişikliklerinde `npm run start:dev-client` yeterlidir.
 - Metro varsayılan olarak LAN modunda `8081` portunu kullanır. Gerekirse `DEVICE_METRO_MODE=tunnel` veya `DEVICE_METRO_PORT=8082` ile değiştirilebilir.
+- Native Gradle/Xcode derlemesinden önce script en az `5 GB` boş disk alanını doğrular. Alan yetersizken yalnız fiziksel Android cihazlar otomatik olarak Expo Go ile açılır; yeterli alan oluştuğunda aynı komut yeniden native development build üretir. Bu akış `No space left on device` ile yarıda kalan ve bozuk cache bırakan derlemeleri önler.
 
 ## Kontroller
 
