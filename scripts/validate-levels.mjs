@@ -1,4 +1,9 @@
-import { findSolutionIndices, generateLevelData } from '../src/game/levels.ts';
+import {
+  computeResult,
+  findSolutionIndices,
+  generateLevelData,
+  getCombinationKey,
+} from '../src/game/levels.ts';
 import {
   TOTAL_WORLD_LEVELS,
   TOTAL_DESTINATIONS,
@@ -8,12 +13,52 @@ import {
   getTravelLevelCompletion,
   resolveTravelLevel,
 } from '../src/game/travel.ts';
+import { updateWheelSelection } from '../src/game/wheel-selection.ts';
 
 const RUN_COUNT = 5;
 const LAST_LEVEL = TOTAL_WORLD_LEVELS + 50;
 let checkedLevelCount = 0;
 
 assertTravelCatalog();
+
+// İlk Yunanistan destinasyonu Atina global 21–27 arasındadır. İlk altı puzzle
+// şehir bitiremez; yalnız 7/7 olan 27. puzzle Atina'yı tamamlar.
+for (let level = 21; level <= 26; level += 1) {
+  if (getTravelLevelCompletion(level).locationCompleted) {
+    throw new Error(`Seviye ${level}: Atina 7/7 olmadan tamamlandı sayıldı.`);
+  }
+}
+if (!getTravelLevelCompletion(27).locationCompleted) {
+  throw new Error('Seviye 27: Atina 7/7 tamamlanmadı sayıldı.');
+}
+
+const subtraction = computeResult([3, 8], '-');
+if (subtraction?.expression !== '8 − 3' || subtraction.result !== 5) {
+  throw new Error('Çıkarma sonucu büyük sayı önce olacak şekilde kanonik değil.');
+}
+const reverseDivision = computeResult([3, 12], '/');
+if (reverseDivision?.expression !== '12 ÷ 3' || reverseDivision.result !== 4) {
+  throw new Error('Bölme, tam bölünen ters sırayı bulamıyor.');
+}
+if (computeResult([3, 7], '/') !== null) {
+  throw new Error('Tam bölünmeyen ikili ondalıklı sonuç üretmemeli.');
+}
+if (getCombinationKey([3, 12], '/', 4) !== getCombinationKey([12, 3], '/', 4)) {
+  throw new Error('Ters sıradaki aynı kombinasyon tek keşif anahtarına dönüşmeli.');
+}
+
+const fullWheelSelection = updateWheelSelection([0], [0, 1, 2, 3, 4, 5], 6);
+if (fullWheelSelection.selection.join(',') !== '0,1,2,3,4,5') {
+  throw new Error('WOW seçimi çarktaki tüm benzersiz düğümlere ilerleyebilmeli.');
+}
+const rewoundSelection = updateWheelSelection(
+  fullWheelSelection.selection,
+  [5, 4, 3, 2, 1, 0],
+  6,
+);
+if (rewoundSelection.selection.join(',') !== '0') {
+  throw new Error('WOW seçimi önceki düğümlerin üzerinden geriye sarılabilmeli.');
+}
 
 for (let run = 0; run < RUN_COUNT; run += 1) {
   let previousTargetValues = [];

@@ -118,7 +118,9 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 ## Etkileşim ve animasyon
 
 - Çeper çizgisi `5 dp` mavidir; düğüm merkezlerini kapatmaz. Başlangıç ve bitiş noktası, yön vektörü üzerinde düğümün o anki görsel yarıçapı kadar ötelenir. Native/SVG çizimi cihaz piksel yoğunluğunda otomatik netleştirilir.
-- Bir sürüklemede çarktaki tüm benzersiz düğümler sırayla seçilebilir; hedefin iki veya üç sayılık olması gesture&apos;ı erken kilitlemez. Hızlı parmak hareketinde yalnız son event noktası değil, önceki ve yeni nokta arasındaki doğru parçası da düğüm çeperlerine karşı hit-test edilir. Böylece hızlı geçilen düğüm atlanmaz ve çarktaki herhangi iki düğüm doğrudan bağlanabilir.
+- Bir sürüklemede aktif hedefin 2/3 adım sayısından bağımsız olarak çarktaki tüm benzersiz düğümler sırayla seçilebilir; komşuluk zorunluluğu yoktur. Sonuç yalnız parmak bırakıldığında değerlendirilir; mevcut matematik motorunun desteklemediği uzunluktaki yol geçersiz seçim geri bildirimi verir.
+- WOW geri sarma kuralı uygulanır: parmak son seçilen düğümden yolun bir önceki düğümüne döndüğünde son düğüm seçimden çıkar. Parmak aynı yol üzerinde geriye ilerlemeyi sürdürürse tek hareket event&apos;inde dahi birden fazla düğüm sırayla sökülebilir. Yol içinde daha eski fakat bir önceki olmayan seçili düğüme atlamak döngü oluşturmaz ve yok sayılır.
+- Hızlı parmak hareketinde yalnız son event noktası değil, önceki ve yeni nokta arasındaki doğru parçası da düğüm çeperlerine karşı hit-test edilir. Böylece hızlı geçilen hedef düğüm atlanmaz; aynı segment sırası hem ileri seçim hem geriye sarma için kullanılır.
 - Seçili düğüm `1.25×` ölçeğe çıkar; çizgi bu büyümüş çeperde sonlanır.
 - Karıştırma mevcut düğümleri yeniden oluşturmaz. Sayı ve mantıksal indeks korunur, yalnızca sayı→yuva eşlemesi değişir.
 - Bütün düğümler eski konumlarından yeni konumlarına aynı anda `450 ms` boyunca `cubic-bezier(0.34, 1.3, 0.64, 1)` eğrisiyle kayar. Karıştır simgesi aynı sürede `360°` döner.
@@ -135,17 +137,20 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - `shuffle.wav`: Karıştır düğümü, `360 → 504 Hz`, aynı `80 ms` pop zarfı; pembe gürültü kullanılmaz.
 - `success.wav`: her hedef çözümünde sırasıyla `523.25 / 659.25 / 783.99 / 1046.50 Hz` triangle notaları; başlangıç aralığı `70 ms`, her nota `20 ms` attack ve `250 ms` toplam zarfa sahiptir.
 - `bonus.wav`: ilk kez bulunan Bonus Keşif için `880 → 1320 Hz`, `150 ms` sine chirp; gain `0.20 → 0.01` exponential zarfıdır.
+- Bırakılan sonuç önce yalnız çözülmemiş (açık) hedeflerle eşleştirilir. Açık hedef eşleşmesi yoksa işlem + sıralanmış operandlar + sonuç anahtarı daha önce görülmemişse `⭐ Bonus Keşif` kazanılır. Hedef çözen yollar da keşif geçmişine yazılır; aynı yolu ters sırada veya tekrar sürüklemek ikinci bonus kazandırmaz. Aynı sonuca farklı, yeni bir operand kümesiyle ulaşmak ayrı bir bonus keşiftir.
 - Kaynak HTML son hedefte `success` dışında ikinci bir ses çalmaz; `400 ms` sonra yalnız bölüm konfettisi başlar. `levelComplete` olayı makro titreşimi korur ancak ek WAV çalmaz. `level-complete.wav` yalnız eski paket uyumluluğu için geçerli PCM olarak tutulur.
 - Sesler Expo SDK 57 `expo-audio` oyuncularıyla önceden yüklenir, tekrar öncesi başa sarılır, diğer uygulama sesini kesmez ve arka planda çalmaz.
 - Mikrofon, Android kayıt izni, arka plan kayıt ve arka plan oynatma kapalıdır.
 - Ses anahtarı sesi ve haptics efektlerini birlikte yönetir; tercih kalıcıdır.
+- Sayı düğümüne dokunma ve sürükleyerek yeni sayı seçme (`select1…select7`) yalnız kısa melodik sesi çalar; titreşim üretmez. İpucu, karıştır, bonus ve bölüm sonu haptics davranışı korunur.
 - Kaynaklar `npm run sounds:generate` ile, ffmpeg&apos;e ihtiyaç duymayan `scripts/generate-sounds.mjs` deterministik PCM üreticisi üzerinden yeniden üretilebilir.
 
 ## Hedefe uçan sonuç animasyonu
 
 - Geçerli bir sürükleme hedeflerden biriyle ilk kez eşleştiğinde bulunan sonuç, son seçilen sayı düğümünün merkezinden eşleşen hedef kartın merkezine uçmalıdır. Bonus veya daha önce çözülmüş hedef bu animasyonu başlatmaz.
 - Başlangıç ve bitiş koordinatları sabit ekran değerleriyle tahmin edilmez; çark, tam ekran uçuş katmanı ve ilgili hedef kartı `measureInWindow` ile ölçülür. Böylece farklı ekran boyları ve ScrollView konumlarında doğru karta ulaşır.
-- Rozet hızlı hissedilen `320 ms` boyunca kavisli bir yörüngede ilerler; referanstaki gibi `1 → 1.25 → 1.02 → 0.3` ölçekle yaylanıp hedefte kaybolur. Hedef kartı uçuş bitmeden çözülmüş renge geçmez; iniş anında zümrüt görünümle birlikte layout&apos;u değiştirmeyen kısa `1 → 1.08 → 0.98 → 1` scale ve parlama animasyonu oynatır.
+- Rozet okunabilir `720 ms` boyunca kavisli bir yörüngede ilerler; `1 → 1.25 → 1.02 → 0.3` ölçekle yaylanıp hedefte kaybolur. Hedef kartı uçuş bitmeden çözülmüş renge geçmez; iniş anında zümrüt görünümle birlikte layout&apos;u değiştirmeyen kısa `1 → 1.08 → 0.98 → 1` scale animasyonu oynatır. Kartın dış çerçevesi de aynı yuvarlak köşeyi kullanır ve üstüne ayrıca dikdörtgen/kare ring katmanı çizilmez.
+- Son hedef uçuşunda bölüm konfettisi rozet hedefe varmadan başlamaz; varıştan `100 ms` sonra tetiklenir. Böylece hedefe giden sonuç ve kart eşleşmesi makro animasyon tarafından örtülmez.
 - Uçuş katmanı `pointerEvents="none"` kullanır ve oyun dokunuşlarını engellemez. Ölçüm alınamazsa sonuç rozeti atlanır, hedef kartı iniş parlaması yine çalışır.
 - Referans HTML gibi `playSuccess()` yalnız bir kez ve sonuç hedefe vardığında çalar; doğrulama anında erken ya da varıştan sonra ikinci bir başarı sesi tetiklenmez.
 

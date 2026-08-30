@@ -18,6 +18,7 @@ import Svg, {
 } from 'react-native-svg';
 
 import { FONTS } from '@/constants/fonts';
+import { updateWheelSelection } from '@/game/wheel-selection';
 
 type Point = {
   x: number;
@@ -276,20 +277,17 @@ export function NumberWheel({
     const previousPoint = lastPointerRef.current ?? point;
     lastPointerRef.current = point;
     const current = selectedRef.current;
-    let next = current;
-
-    findNodesAlongSegment(previousPoint, point, positions, nodeSize / 2 + 10).forEach(
-      (nodeIndex) => {
-        if (next.includes(nodeIndex) || next.length >= numbers.length) return;
-        next = [...next, nodeIndex];
-        onNodeAdded(next.length);
-      },
+    const update = updateWheelSelection(
+      current,
+      findNodesAlongSegment(previousPoint, point, positions, nodeSize / 2 + 10),
+      numbers.length,
     );
+    update.addedSelectionCounts.forEach(onNodeAdded);
 
-    if (next !== current) {
-      selectedRef.current = next;
-      setSelectedIndices(next);
-      onPreview(next);
+    if (update.changed) {
+      selectedRef.current = update.selection;
+      setSelectedIndices(update.selection);
+      onPreview(update.selection);
     }
   };
 

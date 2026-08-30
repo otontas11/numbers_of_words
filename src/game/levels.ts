@@ -315,12 +315,18 @@ export function computeResult(values: number[], op: Operation): Calculation | nu
     const [left, right] = values;
     if (op === '+') return { expression: `${left} ${symbol} ${right}`, result: left + right };
     if (op === '-') {
-      return { expression: `${left} ${symbol} ${right}`, result: Math.abs(left - right) };
+      const larger = Math.max(left, right);
+      const smaller = Math.min(left, right);
+      return { expression: `${larger} ${symbol} ${smaller}`, result: larger - smaller };
     }
     if (op === '*') return { expression: `${left} ${symbol} ${right}`, result: left * right };
-    if (right !== 0) {
+    if (right !== 0 && left % right === 0) {
       return { expression: `${left} ${symbol} ${right}`, result: left / right };
     }
+    if (left !== 0 && right % left === 0) {
+      return { expression: `${right} ${symbol} ${left}`, result: right / left };
+    }
+    return null;
   }
 
   if (values.length === 3 && op === '+') {
@@ -332,6 +338,19 @@ export function computeResult(values: number[], op: Operation): Calculation | nu
   }
 
   return null;
+}
+
+/**
+ * Aynı düğüm kümesini farklı sırada sürüklemek aynı keşiftir. İşlem ve sonuç
+ * anahtarda tutulduğu için aynı operandların farklı işlemdeki kullanımı ayrıdır.
+ */
+export function getCombinationKey(
+  values: readonly number[],
+  op: Operation,
+  result: number,
+): string {
+  const canonicalOperands = [...values].sort((left, right) => left - right).join(',');
+  return `${op}:${canonicalOperands}=${result}`;
 }
 
 export function findSolutionIndices(

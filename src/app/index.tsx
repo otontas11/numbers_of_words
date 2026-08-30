@@ -24,6 +24,7 @@ import {
   computeResult,
   findSolutionIndices,
   generateLevelData,
+  getCombinationKey,
   OPERATION_DETAILS,
   type LevelData,
   type Target,
@@ -71,9 +72,10 @@ type ResultFlight = {
   toY: number;
 };
 
-const RESULT_FLIGHT_DURATION = 320;
+const RESULT_FLIGHT_DURATION = 720;
 const RESULT_FLIGHT_WIDTH = 52;
 const RESULT_FLIGHT_HEIGHT = 52;
+const LEVEL_CELEBRATION_DELAY = RESULT_FLIGHT_DURATION + 100;
 const NODE_SELECTION_SOUNDS = [
   'select1',
   'select2',
@@ -363,7 +365,6 @@ function TargetCard({
           </View>
         </LinearGradient>
         {hinted ? <View pointerEvents="none" style={styles.targetHintRing} /> : null}
-        {landed ? <View pointerEvents="none" style={styles.targetLandingRing} /> : null}
       </Animated.View>
     </View>
   );
@@ -519,7 +520,7 @@ export default function HomeScreen() {
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
   const levelJustCompleted =
     levelData.targets.length > 0 && solvedTargets.size === levelData.targets.length;
-  const displayedProgressLevel = level + (levelJustCompleted ? 1 : 0);
+  const displayedProgressLevel = levelData.level + (levelJustCompleted ? 1 : 0);
   const passportStampCount = getCompletedCountryCount(displayedProgressLevel);
 
   useEffect(() => {
@@ -591,6 +592,9 @@ export default function HomeScreen() {
     (kind: GameSound) => {
       playSound(kind);
       if (!effectsEnabled) return;
+      // Sayıların yükselen seçim melodisi korunur; düğümden düğüme sürüklerken
+      // tekrarlayan titreşim üretilmez.
+      if (kind.startsWith('select')) return;
       const effect =
         kind === 'levelComplete'
           ? Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
@@ -720,19 +724,21 @@ export default function HomeScreen() {
         return;
       }
 
+      const combinationKey = getCombinationKey(values, levelData.op, calculation.result);
       const targetIndex = levelData.targets.findIndex(
-        (target) => target.value === calculation.result && target.steps === indices.length,
+        (target, index) =>
+          !solvedTargets.has(index) &&
+          target.value === calculation.result &&
+          target.steps === indices.length,
       );
 
       if (targetIndex >= 0) {
-        if (solvedTargets.has(targetIndex)) {
-          showTimedFeedback({ text: 'Bu hedefi zaten keşfettin ✓', tone: 'info' });
-          return;
-        }
-
         clearTimer(hintTimer);
         setHintIndices([]);
         setHintedTarget(null);
+        // Hedefi çözen yol da keşfedilmiş bir kombinasyondur; aynı yol daha
+        // sonra açık hedef yokken tekrar bonus kazandıramaz.
+        discoveredBonuses.current.add(combinationKey);
         const nextSolved = new Set(solvedTargets);
         nextSolved.add(targetIndex);
         setFlyingTargets((current) => new Set(current).add(targetIndex));
@@ -740,7 +746,11 @@ export default function HomeScreen() {
         void launchResultFlight(calculation.result, targetIndex, resultOrigin);
 
         if (nextSolved.size === levelData.targets.length) {
-          const travelCompletion = getTravelLevelCompletion(level);
+          // Mesaj ve seyahat sınırı, paralel UI state'inden değil gerçekten çözülen
+          // puzzle'ın kendi level kimliğinden hesaplanır. Böylece örneğin Atina 1/7,
+          // gecikmiş bir state güncellemesi yüzünden 7/7 gibi değerlendirilemez.
+          const completedPuzzleLevel = levelData.level;
+          const travelCompletion = getTravelLevelCompletion(completedPuzzleLevel);
           const completedLocation = travelCompletion.locationCompleted;
           const nextDestination = travelCompletion.nextDestination;
           const completionMessage = travelCompletion.worldTourCompleted
@@ -756,17 +766,20 @@ export default function HomeScreen() {
                 : `Puzzle ${levelData.locationLevel}/${levelData.locationLevelCount} tamamlandı • ${levelData.city}`;
           showTimedFeedback(
             { text: `Harika! ${completionMessage} 🎉`, tone: 'success' },
-            1400,
+            LEVEL_CELEBRATION_DELAY + 1100,
           );
           clearTimer(levelTimer);
           levelTimer.current = setTimeout(() => {
             setCelebrating(true);
             triggerEffect('levelComplete');
             levelTimer.current = setTimeout(() => {
-              startLevel(level + 1, levelData.targets.map((target) => target.value));
+              startLevel(
+                completedPuzzleLevel + 1,
+                levelData.targets.map((target) => target.value),
+              );
               if (levelData.countryChallenge || completedLocation) setJourneyVisible(true);
             }, 1000);
-          }, 400);
+          }, LEVEL_CELEBRATION_DELAY);
         } else {
           showTimedFeedback(
             { text: `Hedef bulundu: ${calculation.result} ✓`, tone: 'success' },
@@ -776,9 +789,8 @@ export default function HomeScreen() {
         return;
       }
 
-      const bonusKey = `${calculation.expression}=${calculation.result}`;
-      if (!discoveredBonuses.current.has(bonusKey)) {
-        discoveredBonuses.current.add(bonusKey);
+      if (!discoveredBonuses.current.has(combinationKey)) {
+        discoveredBonuses.current.add(combinationKey);
         setBonusCount((count) => count + 1);
         triggerEffect('bonus');
         showTimedFeedback(
@@ -789,12 +801,11 @@ export default function HomeScreen() {
           1450,
         );
       } else {
-        showTimedFeedback({ text: 'Bu bonusu zaten buldun', tone: 'info' });
+        showTimedFeedback({ text: 'Bu kombinasyonu zaten keşfettin', tone: 'info' });
       }
     },
     [
       launchResultFlight,
-      level,
       levelData,
       showTimedFeedback,
       solvedTargets,
@@ -1434,6 +1445,7 @@ const styles = StyleSheet.create({
     width: '100%',
     position: 'relative',
     minHeight: 62,
+    borderRadius: 16,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.14,
@@ -1453,21 +1465,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.78,
     shadowRadius: 16,
     elevation: 12,
-  },
-  targetLandingRing: {
-    position: 'absolute',
-    top: -3,
-    right: -3,
-    bottom: -3,
-    left: -3,
-    borderRadius: 19,
-    borderWidth: 3,
-    borderColor: '#FFF0A8',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.86,
-    shadowRadius: 12,
-    elevation: 15,
   },
   targetCard: {
     width: '100%',
