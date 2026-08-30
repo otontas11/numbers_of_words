@@ -5,6 +5,7 @@ import {
   TRAVEL_ROUTES,
   WORLD_COUNTRIES,
   assertTravelCatalog,
+  getTravelLevelCompletion,
   resolveTravelLevel,
 } from '../src/game/travel.ts';
 
@@ -56,6 +57,15 @@ for (let run = 0; run < RUN_COUNT; run += 1) {
     }
     if (data.countryChallenge !== (data.countryLevel === 20)) {
       throw new Error(`Seviye ${level}: Country Challenge konumu hatalı.`);
+    }
+
+    const completion = getTravelLevelCompletion(level);
+    const expectedLocationCompletion = [7, 14, 19].includes(data.countryLevel);
+    if (completion.locationCompleted !== expectedLocationCompletion) {
+      throw new Error(`Seviye ${level}: destinasyon tamamlama sınırı hatalı.`);
+    }
+    if (completion.countryCompleted !== (data.countryLevel === 20)) {
+      throw new Error(`Seviye ${level}: ülke tamamlama sınırı hatalı.`);
     }
 
     previousTargetValues = targetValues;

@@ -35,6 +35,7 @@ import {
   getCompletedCountryCount,
   getCountryProgress,
   getLocationProgress,
+  getTravelLevelCompletion,
 } from '@/game/travel';
 import { useGameSounds, type GameSound } from '@/hooks/use-game-sounds';
 
@@ -368,7 +369,10 @@ export default function HomeScreen() {
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
   const maxSelection: 2 | 3 =
     levelData.steps === 3 || levelData.targets.some((target) => target.steps === 3) ? 3 : 2;
-  const passportStampCount = getCompletedCountryCount(level);
+  const levelJustCompleted =
+    levelData.targets.length > 0 && solvedTargets.size === levelData.targets.length;
+  const displayedProgressLevel = level + (levelJustCompleted ? 1 : 0);
+  const passportStampCount = getCompletedCountryCount(displayedProgressLevel);
 
   useEffect(() => {
     let active = true;
@@ -522,16 +526,20 @@ export default function HomeScreen() {
         setSolvedTargets(nextSolved);
 
         if (nextSolved.size === levelData.targets.length) {
-          const completedLocation =
-            !levelData.countryChallenge &&
-            levelData.locationLevel === levelData.locationLevelCount;
-          const completionMessage = levelData.worldTourFinal
+          const travelCompletion = getTravelLevelCompletion(level);
+          const completedLocation = travelCompletion.locationCompleted;
+          const nextDestination = travelCompletion.nextDestination;
+          const completionMessage = travelCompletion.worldTourCompleted
             ? '100/100 ülke • WORLD TOUR COMPLETED! Golden Compass ve World Explorer kazanıldı'
-            : levelData.countryChallenge
+            : travelCompletion.countryCompleted
               ? `${levelData.country} tamamlandı! Pasaport damgası ve ${COUNTRY_BY_ID.get(levelData.countryId)?.rewardLandmark ?? levelData.country} kartı kazanıldı`
               : completedLocation
-                ? `${levelData.city} tamamlandı! Yeni destinasyon açıldı`
-                : `${levelData.city} puzzle'ı tamamlandı`;
+                ? `${levelData.city} tamamlandı! ${
+                    nextDestination.countryChallenge
+                      ? `${levelData.country} Challenge açıldı`
+                      : `${nextDestination.location.name} açıldı`
+                  }`
+                : `Puzzle ${levelData.locationLevel}/${levelData.locationLevelCount} tamamlandı • ${levelData.city}`;
           triggerEffect('success');
           showTimedFeedback(
             { text: `Harika! ${completionMessage} 🎉`, tone: 'success' },
@@ -587,7 +595,7 @@ export default function HomeScreen() {
     clearTimer(hintTimer);
     setHintIndices(solution);
     setHintedTarget(targetIndex);
-    triggerEffect('select');
+    triggerEffect('hint');
     showTimedFeedback({ text: 'Parlayan sayıları sırayla birleştir', tone: 'bonus' }, 1700);
     hintTimer.current = setTimeout(() => {
       setHintIndices([]);
@@ -600,7 +608,7 @@ export default function HomeScreen() {
     const nextEnabled = !effectsEnabled;
     setEffectsEnabled(nextEnabled);
     if (nextEnabled) {
-      playSound('select', true);
+      playSound('select1', true);
       void Haptics.selectionAsync().catch(() => undefined);
     }
   }, [effectsEnabled, playSound]);
@@ -618,7 +626,7 @@ export default function HomeScreen() {
             levelData={levelData}
             onContinue={() => {
               setJourneyVisible(false);
-              triggerEffect('select');
+              triggerEffect('select1');
             }}
             onOpenPassport={() => setPassportVisible(true)}
             onToggleEffects={handleToggleEffects}
@@ -626,7 +634,7 @@ export default function HomeScreen() {
         </BlurTargetView>
         <PassportModal
           blurTarget={blurTarget}
-          currentLevel={level}
+          currentLevel={displayedProgressLevel}
           onClose={() => setPassportVisible(false)}
           visible={passportVisible}
         />
@@ -703,7 +711,7 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <JourneyStrip level={level} levelData={levelData} />
+          <JourneyStrip level={displayedProgressLevel} levelData={levelData} />
 
           <ScrollView
             automaticallyAdjustContentInsets={false}
@@ -789,7 +797,15 @@ export default function HomeScreen() {
                   onComplete={handleComplete}
                   onDraggingChange={setDragging}
                   onHint={handleHint}
-                  onNodeAdded={() => triggerEffect('select')}
+                  onNodeAdded={(selectionCount) =>
+                    triggerEffect(
+                      selectionCount === 1
+                        ? 'select1'
+                        : selectionCount === 2
+                          ? 'select2'
+                          : 'select3',
+                    )
+                  }
                   onPreview={handlePreview}
                   onShuffle={() => {
                     setHintIndices([]);
@@ -811,7 +827,7 @@ export default function HomeScreen() {
       </BlurTargetView>
       <PassportModal
         blurTarget={blurTarget}
-        currentLevel={level}
+        currentLevel={displayedProgressLevel}
         onClose={() => setPassportVisible(false)}
         visible={passportVisible}
       />

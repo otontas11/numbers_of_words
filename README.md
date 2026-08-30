@@ -2,6 +2,8 @@
 
 Sayıları çember üzerinde birleştirerek 14 tematik rotada 100 ülke ve 300 destinasyon açtığın Expo SDK 57 tabanlı React Native oyunudur.
 
+Ana ekrandaki **Oyuna Devam Et** kartı kayıtlı puzzle'ı tek dokunuşla açar. Rota ve ülke ekranları keşif için kalır; şehirler ayrı bir seçim ekranı yerine ülke kartlarında gösterilir.
+
 ## Kurulum
 
 ```bash
@@ -68,7 +70,7 @@ Sürüm ayrıntıları için [Expo SDK 57 belgelerine](https://docs.expo.dev/ver
 
 Mevcut sayı matrisi, çözülmüş hedefler, seviye, Bonus Keşif geçmişi ve ses/haptics tercihi cihazda kalıcı tutulur.
 
-Beş oyun efekti `assets/sounds` altında yerel WAV dosyaları olarak paketlenir. Dosyaları üretim tanımından yeniden oluşturmak için:
+Oyun efektleri `assets/sounds` altında yerel WAV dosyaları olarak paketlenir. Dosyaları üretim tanımından yeniden oluşturmak için:
 
 ```bash
 npm run sounds:generate

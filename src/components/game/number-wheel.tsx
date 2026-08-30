@@ -33,7 +33,7 @@ type NumberWheelProps = {
   onComplete: (indices: number[]) => void;
   onHint: () => void;
   onShuffle: () => void;
-  onNodeAdded: () => void;
+  onNodeAdded: (selectionCount: number) => void;
   onDraggingChange: (dragging: boolean) => void;
 };
 
@@ -235,7 +235,7 @@ export function NumberWheel({
     setSelectedIndices(next);
     setPointer(point);
     onDraggingChange(true);
-    onNodeAdded();
+    onNodeAdded(next.length);
     onPreview(next);
   };
 
@@ -250,7 +250,7 @@ export function NumberWheel({
       const next = [...current, nodeIndex];
       selectedRef.current = next;
       setSelectedIndices(next);
-      onNodeAdded();
+      onNodeAdded(next.length);
       onPreview(next);
     }
   };

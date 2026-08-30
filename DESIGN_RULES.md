@@ -26,9 +26,10 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 2. Sayıları parmağıyla sırayla birleştirerek zihinsel yatırım yapar.
 3. Tek hedef bulunduğunda kart yalnızca emerald durumuna geçer; ekran düzeni değişmez ve konfeti gösterilmez.
 4. Hedef olmayan geçerli bir işlem ilk kez keşfedilirse Bonus Keşif sayacı artar.
-5. Tüm hedefler bitince makro ödül olarak konfeti, bölüm tamamlama sesi ve seviye geçişi çalışır.
+5. Tüm hedefler bitince makro ödül olarak konfeti, güçlü başarı titreşimi ve seviye geçişi çalışır; son hedefin normal başarı akorunun üstüne ikinci bir ses bindirilmez.
 6. Her ülkede ilk iki destinasyon 7&apos;şer, üçüncü destinasyon 5 puzzle içerir; 20. puzzle Country Challenge&apos;dır.
 7. Country Challenge tamamlanınca vize pulu ve landmark kazanılır, seyahat haritası açılır ve sıradaki ülkeye ulaşım bağlantısı gösterilir.
+8. Normal seviye geri bildirimi `Puzzle x/y tamamlandı • Şehir` biçimindedir. `Şehir tamamlandı` yalnız katalogda bir sonraki puzzle başka destinasyona geçtiğinde; ülke tamamlandı mesajı yalnız Country Challenge çözüldüğünde gösterilir.
 
 ## Seviye ve matematik motoru
 
@@ -76,20 +77,23 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 ## Yolculuk haritası ve giriş akışı
 
 - Uygulama açıldığında ilk ekran doğrudan sayı çarkı değil, `WordJourneyActivity` görsel diline uyarlanmış Dünya haritasıdır.
+- Hero altındaki `OYUNA DEVAM ET` kartı, oyuncunun bulunduğu harita katmanından bağımsız olarak kayıtlı aktif puzzle&apos;ı **tek dokunuşla** açar. Günlük oyun akışında rota veya ülke seçimi zorunlu değildir.
+- Rota ve ülke listeleri progression engeli değil, keşif/navigasyon yüzeyidir. Oyuncu isterse dünya rotalarını inceler; hızlı oturumda doğrudan `OYUNA DEVAM ET` kullanır.
 - Zoom 1/Dünya aynı anda yalnız 14 tematik rotayı gösterir; 100 ülke pini gösterilmez. Mevcut rota parlak, tamamlanan rota altın, kilitli rota soluktur.
 - Dünya hero&apos;sunda `assets/images/world-tour-map.png` kullanılır: yaklaşık doğru kıta yerleşimi, politik sınır ve metin içermeyen 3D/illustrated arazi, altın seyahat izi ve koyu okunabilir UI alanı korunur.
 - Zoom 2/Rota yalnız seçili rotanın coğrafi seyahat sırasındaki 7–8 ülkesini ve aralarındaki ulaşım bağlantılarını gösterir.
-- Zoom 3/Ülke üç destinasyon ile Country Challenge düğümünü gösterir. Zoom 4 puzzle ekranıdır; yalnız aktif destinasyon mevcut kayıtlı puzzle&apos;ı açar.
-- Dünya → rota → ülke → puzzle geçişi kademelidir. Geri kontrolü bir üst zoom katmanına, oyun içindeki harita düğmesi Dünya katmanına götürür.
-- Üst hero alanı aktif şehrin görselini kullanır; hero yüksekliği güvenli alan hariç `268 dp`dir. Alttaki koyu scrim başlık ve rota bilgisini her görselde okunur tutar.
-- Devam kartı hero üzerine `16 dp` biner, yatayda `16 dp` boşluk bırakır, `18 dp` köşe yarıçapı kullanır ve aktif katmanın ilerlemesini gösterir.
+- Ayrı bir şehir/destinasyon seçim katmanı bulunmaz. Destinasyonlar progression verisi ve görsel keşif bilgisi olarak korunur; oyuncuya ek seçim adımı çıkarmaz.
+- Aktif ülke kartına dokunmak da doğrudan kayıtlı puzzle&apos;ı açar. Tamamlanmış veya kilitli ülke kartları kayıtlı seviyeyi değiştirmez.
+- Dünya → rota geçişi keşif içindir; puzzle&apos;a erişim `OYUNA DEVAM ET` veya aktif ülke kartı üzerinden gerçekleşir. Geri kontrolü rota katmanından Dünya&apos;ya, oyun içindeki harita düğmesi de Dünya katmanına götürür.
+- Üst hero alanı Dünya katmanında dünya haritasını, Rota katmanında seçili rota görselini kullanır; hero yüksekliği güvenli alan hariç `268 dp`dir. Alttaki koyu scrim başlık ve rota bilgisini her görselde okunur tutar.
+- Devam kartı hero üzerine `16 dp` biner, yatayda `16 dp` boşluk bırakır ve `18 dp` köşe yarıçapı kullanır. Başlık `OYUNA DEVAM ET`; alt satır aktif ülke, destinasyon ve destinasyon içi puzzle ilerlemesidir. Kartın ilerleme çizgisi aktif ülkenin `x/20` durumunu gösterir.
 - Rota ve ülke kartları `24/54 dp` ile `54/24 dp` dönüşümlü yatay marjinlerle zikzak yerleşir. Kartlar en fazla `50 ms` aralıkla, `360 ms` sürede ve alttan `22 dp` kayarak açılır.
 - Ülkeler arasındaki bağlantı alanı `56 dp` yüksekliğindedir; ortadaki ulaşım/mesafe çipi rota verisinden okunur.
-- Her ülke kartı sıra/durum, ülke adı, üç destinasyon rotası, `5 dp` ilerleme çubuğu ve üç destinasyon + Challenge düğümünü gösterir.
-- Kilitli karta basmak kaydı veya aktif puzzle&apos;ı değiştirmez. Tamamlanan rota/ülke incelenebilir ancak yalnız `CURRENT` ülke/destinasyon oyunu açabilir.
-- Oyun ekranındaki harita düğmesi rotaya geri döner; Android sistem geri tuşu da oyun ekranındayken aynı davranışı kullanır.
+- Her ülke kartı sıra/durum, ülke adı, üç şehir/lokasyonu ayrı ve okunabilir bilgi çipleriyle, `5 dp` ilerleme çubuğunu ve üç destinasyon + Challenge ilerleme rayını gösterir. Bu şehir çipleri seçim kontrolü değildir.
+- Kilitli karta basmak kaydı veya aktif puzzle&apos;ı değiştirmez. Tamamlanan rota/ülke incelenebilir ancak yalnız `CURRENT` ülke kartı oyunu açabilir.
+- Oyun ekranındaki harita düğmesi Dünya haritasına geri döner; Android sistem geri tuşu da oyun ekranındayken aynı davranışı kullanır.
 - Harita yüzeyi sıcak parşömen gradyanıdır: `#FBF7EE → #F3E7D3 → #E7D3B4`. Devam kartı `#FFF9E9`, ana koyu kontrol `#2D394B`, altın vurgu `#F4D37B`, ana metin `#49382E`dir.
-- Harita içeriği en fazla `512 dp` genişliktedir ve büyük ekranlarda ortalanır. Dar ekranlarda yatay taşma kabul edilmez; tüm rota dikey kaydırılır ve aktif ülke ilk açılışta görünür bölgeye alınır.
+- Harita içeriği en fazla `512 dp` genişliktedir ve büyük ekranlarda ortalanır. Dar ekranlarda yatay taşma kabul edilmez; bütün rota tek bir dikey kaydırma yüzeyinde kalır.
 
 ## Görsel dil ve pixel-perfect ölçüler
 
@@ -123,16 +127,18 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 
 ## Ses ve dokunsal geri bildirim
 
-- Efektler ağdan alınmaz; `assets/sounds` altındaki mono, `44.1 kHz`, `16-bit PCM WAV` dosyaları kullanılır.
-- `select.wav`: düğüm seçimi ve ipucu.
-- `success.wav`: tek hedef çözümü; hafif başarı titreşimiyle çalışır, konfeti üretmez.
-- `bonus.wav`: yeni Bonus Keşif.
-- `shuffle.wav`: karıştırma.
-- `level-complete.wav`: bütün hedefler tamamlandıktan sonra makro ödül.
+- Kaynak HTML&apos;de indirilen bir ses asset&apos;i yoktur; `SoundEngine`, Web Audio osilatörlerini çalışma anında üretir. Native WAV&apos;lar bu dalga biçimlerinin çevrimdışı ve deterministik karşılığı olmalıdır.
+- Efektler ağdan alınmaz; `assets/sounds` altındaki mono, `44.1 kHz`, `16-bit PCM WAV` dosyaları kullanılır. WAV&apos;lara gürültü, reverb, limiter rengi veya referansta bulunmayan ek nota katılamaz.
+- `select.wav`: ilk düğüm, `420 → 588 Hz`, `80 ms` sine chirp. `select-2.wav`: ikinci düğüm, `600 → 840 Hz`. `select-3.wav`: üçüncü düğüm, `690 → 966 Hz`. Üçünde gain `0.15 → 0.01` exponential zarfıdır.
+- `hint.wav`: İpucu düğümü, `620 → 868 Hz`, aynı `80 ms` pop zarfı.
+- `shuffle.wav`: Karıştır düğümü, `360 → 504 Hz`, aynı `80 ms` pop zarfı; pembe gürültü kullanılmaz.
+- `success.wav`: her hedef çözümünde sırasıyla `523.25 / 659.25 / 783.99 / 1046.50 Hz` triangle notaları; başlangıç aralığı `70 ms`, her nota `20 ms` attack ve `250 ms` toplam zarfa sahiptir.
+- `bonus.wav`: ilk kez bulunan Bonus Keşif için `880 → 1320 Hz`, `150 ms` sine chirp; gain `0.20 → 0.01` exponential zarfıdır.
+- Kaynak HTML son hedefte `success` dışında ikinci bir ses çalmaz; `400 ms` sonra yalnız bölüm konfettisi başlar. `levelComplete` olayı makro titreşimi korur ancak ek WAV çalmaz. `level-complete.wav` yalnız eski paket uyumluluğu için geçerli PCM olarak tutulur.
 - Sesler Expo SDK 57 `expo-audio` oyuncularıyla önceden yüklenir, tekrar öncesi başa sarılır, diğer uygulama sesini kesmez ve arka planda çalmaz.
 - Mikrofon, Android kayıt izni, arka plan kayıt ve arka plan oynatma kapalıdır.
 - Ses anahtarı sesi ve haptics efektlerini birlikte yönetir; tercih kalıcıdır.
-- Kaynaklar `npm run sounds:generate` ile yeniden üretilebilir.
+- Kaynaklar `npm run sounds:generate` ile, ffmpeg&apos;e ihtiyaç duymayan `scripts/generate-sounds.mjs` deterministik PCM üreticisi üzerinden yeniden üretilebilir.
 
 ## Kullanılan native kütüphaneler
 
