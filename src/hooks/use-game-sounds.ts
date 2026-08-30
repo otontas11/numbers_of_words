@@ -41,7 +41,7 @@ function replay(player: AudioPlayer) {
 
 export function useGameSounds(enabled: boolean) {
   const selectOnePlayer = useAudioPlayer(
-    require('../../assets/sounds/select.wav'),
+    require('../../assets/sounds/pop_select.wav'),
     PLAYER_OPTIONS,
   );
   const selectTwoPlayer = useAudioPlayer(
@@ -68,14 +68,17 @@ export function useGameSounds(enabled: boolean) {
     require('../../assets/sounds/select-7.wav'),
     PLAYER_OPTIONS,
   );
-  const hintPlayer = useAudioPlayer(require('../../assets/sounds/hint.wav'), PLAYER_OPTIONS);
+  const hintPlayer = useAudioPlayer(
+    require('../../assets/sounds/pop_hint.wav'),
+    PLAYER_OPTIONS,
+  );
   const successPlayer = useAudioPlayer(
     require('../../assets/sounds/success.wav'),
     PLAYER_OPTIONS,
   );
   const bonusPlayer = useAudioPlayer(require('../../assets/sounds/bonus.wav'), PLAYER_OPTIONS);
   const shufflePlayer = useAudioPlayer(
-    require('../../assets/sounds/shuffle.wav'),
+    require('../../assets/sounds/pop_shuffle.wav'),
     PLAYER_OPTIONS,
   );
 

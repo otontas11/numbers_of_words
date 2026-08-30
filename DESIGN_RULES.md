@@ -132,9 +132,9 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 
 - Kaynak HTML&apos;de indirilen bir ses asset&apos;i yoktur; `SoundEngine`, Web Audio osilatörlerini çalışma anında üretir. Native WAV&apos;lar bu dalga biçimlerinin çevrimdışı ve deterministik karşılığı olmalıdır.
 - Efektler ağdan alınmaz; `assets/sounds` altındaki mono, `44.1 kHz`, `16-bit PCM WAV` dosyaları kullanılır. WAV&apos;lara gürültü, reverb, limiter rengi veya referansta bulunmayan ek nota katılamaz.
-- `select.wav`: ilk düğüm, `420 → 588 Hz`, `80 ms` sine chirp. Sonraki düğümler `select-2.wav` … `select-7.wav` ile `600 / 690 / 780 / 870 / 960 / 1050 Hz` başlangıç frekanslarına çıkar; böylece parmak ilerledikçe referanstaki yükselen kısa melodi sürer. Tümünde frekans `1.4×`, gain `0.15 → 0.01` exponential zarfıdır.
-- `hint.wav`: İpucu düğümü, `620 → 868 Hz`, aynı `80 ms` pop zarfı.
-- `shuffle.wav`: Karıştır düğümü, `360 → 504 Hz`, aynı `80 ms` pop zarfı; pembe gürültü kullanılmaz.
+- `pop_select.wav`: ilk düğüm, `420 → 588 Hz`, `80 ms` sine chirp. Sonraki düğümler `select-2.wav` … `select-7.wav` ile `600 / 690 / 780 / 870 / 960 / 1050 Hz` başlangıç frekanslarına çıkar; böylece parmak ilerledikçe referanstaki yükselen kısa melodi sürer. Tümünde frekans `1.4×`, gain `0.15 → 0.01` exponential zarfıdır.
+- `pop_hint.wav`: İpucu düğümü, `620 → 868 Hz`, aynı `80 ms` pop zarfı.
+- `pop_shuffle.wav`: Karıştır düğümü, `360 → 504 Hz`, aynı `80 ms` pop zarfı; pembe gürültü kullanılmaz.
 - `success.wav`: her hedef çözümünde sırasıyla `523.25 / 659.25 / 783.99 / 1046.50 Hz` triangle notaları; başlangıç aralığı `70 ms`, her nota `20 ms` attack ve `250 ms` toplam zarfa sahiptir.
 - `bonus.wav`: ilk kez bulunan Bonus Keşif için `880 → 1320 Hz`, `150 ms` sine chirp; gain `0.20 → 0.01` exponential zarfıdır.
 - Bırakılan sonuç önce yalnız çözülmemiş (açık) hedeflerle eşleştirilir. Açık hedef eşleşmesi yoksa işlem + sıralanmış operandlar + sonuç anahtarı daha önce görülmemişse `⭐ Bonus Keşif` kazanılır. Hedef çözen yollar da keşif geçmişine yazılır; aynı yolu ters sırada veya tekrar sürüklemek ikinci bonus kazandırmaz. Aynı sonuca farklı, yeni bir operand kümesiyle ulaşmak ayrı bir bonus keşiftir.
