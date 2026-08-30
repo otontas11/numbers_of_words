@@ -1,4 +1,9 @@
-import { setAudioModeAsync, useAudioPlayer, type AudioPlayer } from 'expo-audio';
+import {
+  setAudioModeAsync,
+  setIsAudioActiveAsync,
+  useAudioPlayer,
+  type AudioPlayer,
+} from 'expo-audio';
 import { useCallback, useEffect } from 'react';
 
 export type GameSound =
@@ -21,16 +26,25 @@ const PLAYER_OPTIONS = {
 } as const;
 
 function replay(player: AudioPlayer) {
-  if (!player.isLoaded) return;
-
   try {
+    // `AudioPlayer.isLoaded` Android'de yalnız STATE_READY için true döner.
+    // Kısa bir efekt bittiğinde ExoPlayer STATE_ENDED durumuna geçer; eski
+    // erken dönüş bu yüzden aynı sesi sonraki seçimlerde tamamen susturuyordu.
+    // `play()` yükleme sürerken playWhenReady davranışı gösterdiğinden burada
+    // hazır olmayan ilk dokunuşu da düşürmemeliyiz.
+    player.volume = 1;
     if (player.currentTime > 0.001) {
-      // Expo Go bazı native sürümlerde seek dönüşünü void olarak köprüleyebilir.
-      // Promise.resolve iki davranışta da sesi başa sardıktan sonra güvenle oynatır.
       const seekResult = player.seekTo(0);
       void Promise.resolve(seekResult)
         .then(() => player.play())
-        .catch(() => undefined);
+        .catch(() => {
+          // Seek köprüsü hata verse bile bir sonraki native play denemesini yap.
+          try {
+            player.play();
+          } catch {
+            // Bir efekt hatası oyunun dokunma akışını kesmemelidir.
+          }
+        });
       return;
     }
     player.play();
@@ -83,11 +97,16 @@ export function useGameSounds(enabled: boolean) {
   );
 
   useEffect(() => {
-    void setAudioModeAsync({
-      interruptionMode: 'mixWithOthers',
-      playsInSilentMode: true,
-      shouldPlayInBackground: false,
-    }).catch(() => undefined);
+    void (async () => {
+      await setAudioModeAsync({
+        interruptionMode: 'mixWithOthers',
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+      });
+      // Fast Refresh veya native lifecycle sonrasında kapanmış olabilecek ses
+      // oturumunu oyun tekrar öne geldiğinde kesin olarak etkinleştir.
+      await setIsAudioActiveAsync(true);
+    })().catch(() => undefined);
   }, []);
 
   return useCallback(

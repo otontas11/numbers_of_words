@@ -47,14 +47,17 @@ if (getCombinationKey([3, 12], '/', 4) !== getCombinationKey([12, 3], '/', 4)) {
   throw new Error('Ters sıradaki aynı kombinasyon tek keşif anahtarına dönüşmeli.');
 }
 
-const fullWheelSelection = updateWheelSelection([0], [0, 1, 2, 3, 4, 5], 6);
-if (fullWheelSelection.selection.join(',') !== '0,1,2,3,4,5') {
+const fullWheelSelection = updateWheelSelection([0], [0, 1, 2, 3, 4, 5, 6], 7);
+if (fullWheelSelection.selection.join(',') !== '0,1,2,3,4,5,6') {
   throw new Error('WOW seçimi çarktaki tüm benzersiz düğümlere ilerleyebilmeli.');
+}
+if (fullWheelSelection.addedSelectionCounts.join(',') !== '2,3,4,5,6,7') {
+  throw new Error('Her yeni WOW düğümü kendi yükselen seçim sesi olayını üretmeli.');
 }
 const rewoundSelection = updateWheelSelection(
   fullWheelSelection.selection,
-  [5, 4, 3, 2, 1, 0],
-  6,
+  [6, 5, 4, 3, 2, 1, 0],
+  7,
 );
 if (rewoundSelection.selection.join(',') !== '0') {
   throw new Error('WOW seçimi önceki düğümlerin üzerinden geriye sarılabilmeli.');
