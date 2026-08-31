@@ -1,24 +1,41 @@
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
-import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import {
+  Animated as RNAnimated,
   Easing,
-  GestureResponderEvent,
   Pressable,
+  type StyleProp,
   StyleSheet,
   Text,
   View,
+  type ViewStyle,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Reanimated, {
+  runOnJS,
+  type SharedValue,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import Svg, {
   Circle,
   Defs,
   LinearGradient as SvgLinearGradient,
+  Line,
   Path,
   Stop,
 } from 'react-native-svg';
 
 import { FONTS } from '@/constants/fonts';
-import { updateWheelSelection } from '@/game/wheel-selection';
 
 type Point = {
   x: number;
@@ -39,6 +56,7 @@ type NumberWheelProps = {
 
 const SHUFFLE_DURATION = 450;
 const SHUFFLE_EASING = Easing.bezier(0.34, 1.3, 0.64, 1);
+const AnimatedSvgLine = Reanimated.createAnimatedComponent(Line);
 
 function findNodesAlongSegment(
   from: Point,
@@ -46,26 +64,87 @@ function findNodesAlongSegment(
   positions: Point[],
   hitRadius: number,
 ): number[] {
+  'worklet';
   const deltaX = to.x - from.x;
   const deltaY = to.y - from.y;
   const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+  const matches: { index: number; progress: number }[] = [];
 
-  return positions
-    .map((position, index) => {
-      const rawProgress =
-        lengthSquared > 0
-          ? ((position.x - from.x) * deltaX + (position.y - from.y) * deltaY) /
-            lengthSquared
-          : 0;
-      const progress = Math.max(0, Math.min(1, rawProgress));
-      const nearestX = from.x + deltaX * progress;
-      const nearestY = from.y + deltaY * progress;
-      const distance = Math.hypot(position.x - nearestX, position.y - nearestY);
-      return distance <= hitRadius ? { index, progress } : null;
-    })
-    .filter((match): match is { index: number; progress: number } => match !== null)
-    .sort((left, right) => left.progress - right.progress)
-    .map((match) => match.index);
+  for (let index = 0; index < positions.length; index += 1) {
+    const position = positions[index];
+    const rawProgress =
+      lengthSquared > 0
+        ? ((position.x - from.x) * deltaX + (position.y - from.y) * deltaY) /
+          lengthSquared
+        : 0;
+    const progress = Math.max(0, Math.min(1, rawProgress));
+    const nearestX = from.x + deltaX * progress;
+    const nearestY = from.y + deltaY * progress;
+    const distanceX = position.x - nearestX;
+    const distanceY = position.y - nearestY;
+    if (distanceX * distanceX + distanceY * distanceY <= hitRadius * hitRadius) {
+      matches.push({ index, progress });
+    }
+  }
+
+  matches.sort((left, right) => left.progress - right.progress);
+  return matches.map((match) => match.index);
+}
+
+function findNodeAtPoint(
+  point: Point,
+  positions: Point[],
+  hitRadius: number,
+): number {
+  'worklet';
+  const hitRadiusSquared = hitRadius * hitRadius;
+  for (let index = 0; index < positions.length; index += 1) {
+    const position = positions[index];
+    const distanceX = position.x - point.x;
+    const distanceY = position.y - point.y;
+    if (distanceX * distanceX + distanceY * distanceY <= hitRadiusSquared) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function updateSelectionOnUI(
+  currentSelection: number[],
+  traversedNodeIndices: number[],
+  nodeCount: number,
+) {
+  'worklet';
+  let selection = [...currentSelection];
+  const addedSelectionCounts: number[] = [];
+  let changed = false;
+
+  traversedNodeIndices.forEach((nodeIndex) => {
+    const lastIndex = selection[selection.length - 1];
+    if (nodeIndex === lastIndex) return;
+
+    const previousIndex = selection[selection.length - 2];
+    if (selection.length > 1 && nodeIndex === previousIndex) {
+      selection = selection.slice(0, -1);
+      changed = true;
+      return;
+    }
+
+    if (
+      nodeIndex < 0 ||
+      nodeIndex >= nodeCount ||
+      selection.includes(nodeIndex) ||
+      selection.length >= nodeCount
+    ) {
+      return;
+    }
+
+    selection = [...selection, nodeIndex];
+    addedSelectionCounts.push(selection.length);
+    changed = true;
+  });
+
+  return { selection, addedSelectionCounts, changed };
 }
 
 function HintIcon() {
@@ -142,6 +221,92 @@ function ConnectorLine({
   );
 }
 
+function ActiveConnectorLine({
+  active,
+  anchorX,
+  anchorY,
+  pointerX,
+  pointerY,
+  fromRadius,
+}: {
+  active: SharedValue<boolean>;
+  anchorX: SharedValue<number>;
+  anchorY: SharedValue<number>;
+  pointerX: SharedValue<number>;
+  pointerY: SharedValue<number>;
+  fromRadius: number;
+}) {
+  const animatedProps = useAnimatedProps(() => {
+    const deltaX = pointerX.value - anchorX.value;
+    const deltaY = pointerY.value - anchorY.value;
+    const centerDistance = Math.hypot(deltaX, deltaY);
+    const length = centerDistance - fromRadius;
+
+    if (!active.value || length < 2 || centerDistance === 0) {
+      return {
+        opacity: 0,
+        x1: anchorX.value,
+        y1: anchorY.value,
+        x2: anchorX.value,
+        y2: anchorY.value,
+      };
+    }
+
+    const unitX = deltaX / centerDistance;
+    const unitY = deltaY / centerDistance;
+    const startX = anchorX.value + unitX * fromRadius;
+    const startY = anchorY.value + unitY * fromRadius;
+    const endX = pointerX.value;
+    const endY = pointerY.value;
+
+    return { opacity: 1, x1: startX, y1: startY, x2: endX, y2: endY };
+  }, [fromRadius]);
+
+  return (
+    <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
+      <AnimatedSvgLine
+        animatedProps={animatedProps}
+        stroke="rgba(35,60,72,0.28)"
+        strokeLinecap="round"
+        strokeWidth={9}
+      />
+      <AnimatedSvgLine
+        animatedProps={animatedProps}
+        stroke="#3A7A8D"
+        strokeLinecap="round"
+        strokeWidth={5}
+      />
+    </Svg>
+  );
+}
+
+function SpringSelectionSurface({
+  children,
+  selected,
+  style,
+}: {
+  children: ReactNode;
+  selected: boolean;
+  style: StyleProp<ViewStyle>;
+}) {
+  const scale = useSharedValue(selected ? 1.25 : 1);
+
+  useEffect(() => {
+    scale.value = withSpring(selected ? 1.25 : 1, {
+      damping: 23,
+      stiffness: 420,
+      mass: 0.5,
+      overshootClamping: false,
+    });
+  }, [scale, selected]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return <Reanimated.View style={[style, animatedStyle]}>{children}</Reanimated.View>;
+}
+
 export function NumberWheel({
   size,
   numbers,
@@ -157,20 +322,35 @@ export function NumberWheel({
     Array.from({ length: numbers.length }, (_, index) => index),
   );
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
-  const [pointer, setPointer] = useState<Point | null>(null);
   const wheelRef = useRef<View>(null);
   const originRef = useRef<Point>({ x: 0, y: 0 });
-  const lastPointerRef = useRef<Point | null>(null);
-  const selectedRef = useRef<number[]>([]);
   const slotOrderRef = useRef(slotOrder);
-  const isShufflingRef = useRef(false);
-  const shuffleAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
-  const hintAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const shuffleAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
+  const hintAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
   const rotationTurnsRef = useRef(0);
-  const [rotation] = useState(() => new Animated.Value(0));
-  const [hintPulse] = useState(() => new Animated.Value(0));
+  const [rotation] = useState(() => new RNAnimated.Value(0));
+  const [hintPulse] = useState(() => new RNAnimated.Value(0));
+  const activePointer = useSharedValue(false);
+  const pointerX = useSharedValue(0);
+  const pointerY = useSharedValue(0);
+  const anchorX = useSharedValue(0);
+  const anchorY = useSharedValue(0);
+  const lastPointerX = useSharedValue(0);
+  const lastPointerY = useSharedValue(0);
+  const gestureAccepted = useSharedValue(false);
+  const selectionOnUI = useSharedValue<number[]>([]);
+  const shufflingOnUI = useSharedValue(false);
+  const callbacksRef = useRef({
+    onComplete,
+    onDraggingChange,
+    onNodeAdded,
+    onPreview,
+  });
 
   const nodeSize = size < 300 ? 60 : 62;
+  // Android WordWheelView ile aynı 1.18× yarıçap: kolay yakalanır, komşu düğüme
+  // gereksiz yapışma üretmez. Hızlı hareketler ayrıca segment boyunca taranır.
+  const hitRadius = (nodeSize / 2) * 1.18;
   const innerSize = size;
   const center = innerSize / 2;
   const radius = Math.max(72, center - nodeSize / 2 - 10);
@@ -186,12 +366,21 @@ export function NumberWheel({
     [center, numbers, radius],
   );
   const [animatedPositions] = useState(() =>
-    slots.map((slot) => new Animated.ValueXY({ x: slot.x, y: slot.y })),
+    slots.map((slot) => new RNAnimated.ValueXY({ x: slot.x, y: slot.y })),
   );
   const positions = useMemo(
     () => numbers.map((_, numberIndex) => slots[slotOrder[numberIndex] ?? numberIndex]),
     [numbers, slotOrder, slots],
   );
+  const positionsRef = useRef(positions);
+
+  useEffect(() => {
+    callbacksRef.current = { onComplete, onDraggingChange, onNodeAdded, onPreview };
+  }, [onComplete, onDraggingChange, onNodeAdded, onPreview]);
+
+  useEffect(() => {
+    positionsRef.current = positions;
+  }, [positions]);
 
   useEffect(
     () => () => {
@@ -206,106 +395,156 @@ export function NumberWheel({
     hintPulse.setValue(0);
     if (hintIndices.length === 0) return;
 
-    const animation = Animated.sequence([
-      Animated.timing(hintPulse, { toValue: 1, duration: 375, useNativeDriver: true }),
-      Animated.timing(hintPulse, { toValue: 0, duration: 375, useNativeDriver: true }),
-      Animated.timing(hintPulse, { toValue: 1, duration: 375, useNativeDriver: true }),
-      Animated.timing(hintPulse, { toValue: 0, duration: 375, useNativeDriver: true }),
+    const animation = RNAnimated.sequence([
+      RNAnimated.timing(hintPulse, { toValue: 1, duration: 375, useNativeDriver: true }),
+      RNAnimated.timing(hintPulse, { toValue: 0, duration: 375, useNativeDriver: true }),
+      RNAnimated.timing(hintPulse, { toValue: 1, duration: 375, useNativeDriver: true }),
+      RNAnimated.timing(hintPulse, { toValue: 0, duration: 375, useNativeDriver: true }),
     ]);
     hintAnimationRef.current = animation;
     animation.start();
     return () => animation.stop();
   }, [hintIndices, hintPulse]);
 
-  const findNode = (point: Point) => {
-    if (isShufflingRef.current) return -1;
-    return positions.findIndex(
-      (position) =>
-        Math.hypot(position.x - point.x, position.y - point.y) <= nodeSize / 2 + 9,
-    );
-  };
-
-  const grantPoint = (event: GestureResponderEvent): Point => {
-    const { locationX, locationY, pageX, pageY } = event.nativeEvent;
-    if (
-      Number.isFinite(pageX) &&
-      Number.isFinite(pageY) &&
-      Number.isFinite(locationX) &&
-      Number.isFinite(locationY)
-    ) {
-      originRef.current = { x: pageX - locationX, y: pageY - locationY };
-    }
-    return { x: locationX, y: locationY };
-  };
-
-  const movePoint = (event: GestureResponderEvent): Point => {
-    const { locationX, locationY, pageX, pageY } = event.nativeEvent;
-    if (Number.isFinite(pageX) && Number.isFinite(pageY)) {
-      return { x: pageX - originRef.current.x, y: pageY - originRef.current.y };
-    }
-    return { x: locationX, y: locationY };
-  };
-
-  const clearGesture = () => {
-    selectedRef.current = [];
-    setSelectedIndices([]);
-    setPointer(null);
-    lastPointerRef.current = null;
-    onDraggingChange(false);
-  };
-
-  const handleGrant = (event: GestureResponderEvent) => {
-    const point = grantPoint(event);
-    const nodeIndex = findNode(point);
-    if (nodeIndex < 0) return;
-
+  const beginSelection = useCallback((nodeIndex: number) => {
     const next = [nodeIndex];
-    selectedRef.current = next;
     setSelectedIndices(next);
-    setPointer(point);
-    lastPointerRef.current = point;
-    onDraggingChange(true);
-    onNodeAdded(next.length);
-    onPreview(next);
-  };
+    callbacksRef.current.onDraggingChange(true);
+    callbacksRef.current.onNodeAdded(1);
+    callbacksRef.current.onPreview(next);
+  }, []);
 
-  const handleMove = (event: GestureResponderEvent) => {
-    if (selectedRef.current.length === 0) return;
-    const point = movePoint(event);
-    setPointer(point);
+  const syncSelection = useCallback(
+    (next: number[], addedSelectionCounts: number[]) => {
+      setSelectedIndices(next);
+      addedSelectionCounts.forEach(callbacksRef.current.onNodeAdded);
+      callbacksRef.current.onPreview(next);
+    },
+    [],
+  );
 
-    const previousPoint = lastPointerRef.current ?? point;
-    lastPointerRef.current = point;
-    const current = selectedRef.current;
-    const update = updateWheelSelection(
-      current,
-      findNodesAlongSegment(previousPoint, point, positions, nodeSize / 2 + 10),
-      numbers.length,
-    );
-    update.addedSelectionCounts.forEach(onNodeAdded);
-
-    if (update.changed) {
-      selectedRef.current = update.selection;
-      setSelectedIndices(update.selection);
-      onPreview(update.selection);
-    }
-  };
-
-  const handleRelease = () => {
-    const completedSelection = [...selectedRef.current];
-    if (completedSelection.length > 0) {
+  const finishSelection = useCallback((completedSelection: number[], shouldComplete: boolean) => {
+    if (shouldComplete && completedSelection.length > 0) {
       const lastIndex = completedSelection[completedSelection.length - 1];
-      const lastPosition = positions[lastIndex];
+      const lastPosition = positionsRef.current[lastIndex];
       const resultOrigin = lastPosition
         ? {
             x: originRef.current.x + lastPosition.x,
             y: originRef.current.y + lastPosition.y,
           }
         : undefined;
-      onComplete(completedSelection, resultOrigin);
+      callbacksRef.current.onComplete(completedSelection, resultOrigin);
     }
-    clearGesture();
-  };
+
+    setSelectedIndices([]);
+    callbacksRef.current.onDraggingChange(false);
+  }, []);
+
+  /*
+   * RNGH worklet callbacks intentionally read and update Reanimated SharedValues.
+   * React's generic ref/immutability lint rules cannot model UI-thread SharedValues.
+   */
+  /* eslint-disable react-hooks/immutability, react-hooks/refs */
+  const gesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .manualActivation(true)
+        .maxPointers(1)
+        .shouldCancelWhenOutside(false)
+        .onTouchesDown((event, stateManager) => {
+          'worklet';
+          const touch = event.changedTouches[0] ?? event.allTouches[0];
+          if (!touch || shufflingOnUI.value || gestureAccepted.value) {
+            stateManager.fail();
+            return;
+          }
+
+          const point = { x: touch.x, y: touch.y };
+          const nodeIndex = findNodeAtPoint(point, positions, hitRadius);
+          if (nodeIndex < 0) {
+            stateManager.fail();
+            return;
+          }
+
+          const nodePosition = positions[nodeIndex];
+          gestureAccepted.value = true;
+          selectionOnUI.value = [nodeIndex];
+          pointerX.value = point.x;
+          pointerY.value = point.y;
+          lastPointerX.value = point.x;
+          lastPointerY.value = point.y;
+          anchorX.value = nodePosition.x;
+          anchorY.value = nodePosition.y;
+          activePointer.value = true;
+          stateManager.activate();
+          runOnJS(beginSelection)(nodeIndex);
+        })
+        .onUpdate((event) => {
+          'worklet';
+          if (!gestureAccepted.value) return;
+
+          const point = { x: event.x, y: event.y };
+          pointerX.value = point.x;
+          pointerY.value = point.y;
+          const previousPoint = {
+            x: lastPointerX.value,
+            y: lastPointerY.value,
+          };
+          lastPointerX.value = point.x;
+          lastPointerY.value = point.y;
+
+          const update = updateSelectionOnUI(
+            selectionOnUI.value,
+            findNodesAlongSegment(previousPoint, point, positions, hitRadius),
+            numbers.length,
+          );
+          if (!update.changed) return;
+
+          selectionOnUI.value = update.selection;
+          const lastIndex = update.selection[update.selection.length - 1];
+          const lastPosition = positions[lastIndex];
+          anchorX.value = lastPosition.x;
+          anchorY.value = lastPosition.y;
+          runOnJS(syncSelection)(update.selection, update.addedSelectionCounts);
+        })
+        .onEnd(() => {
+          'worklet';
+          if (!gestureAccepted.value) return;
+          const completedSelection = [...selectionOnUI.value];
+          gestureAccepted.value = false;
+          activePointer.value = false;
+          selectionOnUI.value = [];
+          runOnJS(finishSelection)(completedSelection, true);
+        })
+        .onFinalize(() => {
+          'worklet';
+          if (!gestureAccepted.value) return;
+          const cancelledSelection = [...selectionOnUI.value];
+          gestureAccepted.value = false;
+          activePointer.value = false;
+          selectionOnUI.value = [];
+          runOnJS(finishSelection)(cancelledSelection, false);
+        }),
+    [
+      activePointer,
+      anchorX,
+      anchorY,
+      beginSelection,
+      finishSelection,
+      gestureAccepted,
+      lastPointerX,
+      lastPointerY,
+      hitRadius,
+      numbers.length,
+      pointerX,
+      pointerY,
+      positions,
+      selectionOnUI,
+      shufflingOnUI,
+      syncSelection,
+    ],
+  );
+  /* eslint-enable react-hooks/immutability, react-hooks/refs */
 
   const shuffleNodes = () => {
     let next = shuffledIndices(numbers.length);
@@ -319,18 +558,20 @@ export function NumberWheel({
     slotOrderRef.current = next;
     setSlotOrder(next);
     rotationTurnsRef.current += 1;
-    isShufflingRef.current = true;
+    // Reanimated SharedValue; this update is consumed by the UI-thread gesture.
+    // eslint-disable-next-line react-hooks/immutability
+    shufflingOnUI.value = true;
 
-    const animation = Animated.parallel([
+    const animation = RNAnimated.parallel([
       ...animatedPositions.map((position, numberIndex) =>
-        Animated.timing(position, {
+        RNAnimated.timing(position, {
           toValue: slots[next[numberIndex] ?? numberIndex],
           duration: SHUFFLE_DURATION,
           easing: SHUFFLE_EASING,
           useNativeDriver: true,
         }),
       ),
-      Animated.timing(rotation, {
+      RNAnimated.timing(rotation, {
         toValue: rotationTurnsRef.current,
         duration: SHUFFLE_DURATION,
         easing: SHUFFLE_EASING,
@@ -341,7 +582,7 @@ export function NumberWheel({
     animation.start(() => {
       if (shuffleAnimationRef.current === animation) {
         shuffleAnimationRef.current = null;
-        isShufflingRef.current = false;
+        shufflingOnUI.value = false;
       }
     });
     onShuffle();
@@ -360,24 +601,18 @@ export function NumberWheel({
   });
 
   return (
-    <View style={[styles.wheelArea, { width: size }]}>
-      <View style={[styles.wheelShadow, { width: size, height: size }]}>
-        <View
-          ref={wheelRef}
-          accessibilityLabel="Sayı bağlantı çemberi"
-          onLayout={() => {
-            wheelRef.current?.measureInWindow((x, y) => {
-              originRef.current = { x, y };
-            });
-          }}
-          onMoveShouldSetResponder={() => selectedRef.current.length > 0}
-          onResponderGrant={handleGrant}
-          onResponderMove={handleMove}
-          onResponderRelease={handleRelease}
-          onResponderTerminate={clearGesture}
-          onResponderTerminationRequest={() => false}
-          onStartShouldSetResponder={(event) => findNode(grantPoint(event)) >= 0}
-          style={[styles.wheel, { borderRadius: innerSize / 2 }]}>
+    <View style={[styles.wheelArea, { width: size }]}> 
+      <View style={[styles.wheelShadow, { width: size, height: size }]}> 
+        <GestureDetector gesture={gesture}>
+          <View
+            ref={wheelRef}
+            accessibilityLabel="Sayı bağlantı çemberi"
+            onLayout={() => {
+              wheelRef.current?.measureInWindow((x, y) => {
+                originRef.current = { x, y };
+              });
+            }}
+            style={[styles.wheel, { borderRadius: innerSize / 2 }]}> 
           <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
             <Circle
               cx={center}
@@ -409,24 +644,25 @@ export function NumberWheel({
                 toRadius={selectedRadius}
               />
             ))}
-            {pointer && selectedPoints.length > 0 ? (
-              <ConnectorLine
-                from={selectedPoints[selectedPoints.length - 1]}
-                fromRadius={selectedRadius}
-                to={pointer}
-              />
-            ) : null}
+            <ActiveConnectorLine
+              active={activePointer}
+              anchorX={anchorX}
+              anchorY={anchorY}
+              fromRadius={selectedRadius}
+              pointerX={pointerX}
+              pointerY={pointerY}
+            />
           </View>
 
           {numbers.map((number, index) => {
             const selected = selectedIndices.includes(index);
             const hinted = hintIndices.includes(index);
             return (
-              <Animated.View
+              <RNAnimated.View
                 key={`${index}-${number}`}
                 pointerEvents="none"
                 style={[
-                  styles.nodeShadow,
+                  styles.nodePosition,
                   {
                     width: nodeSize,
                     height: nodeSize,
@@ -435,69 +671,82 @@ export function NumberWheel({
                     top: 0,
                     transform: [
                       {
-                        translateX: Animated.subtract(
+                        translateX: RNAnimated.subtract(
                           animatedPositions[index].x,
                           nodeSize / 2,
                         ),
                       },
                       {
-                        translateY: Animated.subtract(
+                        translateY: RNAnimated.subtract(
                           animatedPositions[index].y,
                           nodeSize / 2,
                         ),
                       },
-                      { scale: selected ? 1.25 : hinted ? hintScale : 1 },
+                      { scale: !selected && hinted ? hintScale : 1 },
                     ],
                   },
-                  selected && styles.nodeSelectedShadow,
-                  hinted && styles.nodeHintedShadow,
+                  selected && styles.nodeSelectedLayer,
+                  hinted && styles.nodeHintedLayer,
                 ]}>
-                <View
+                <SpringSelectionSurface
+                  selected={selected}
                   style={[
-                    styles.node,
+                    styles.nodeShadow,
                     { width: nodeSize, height: nodeSize, borderRadius: nodeSize / 2 },
-                    selected && styles.nodeSelected,
-                    hinted && styles.nodeHinted,
+                    selected && styles.nodeSelectedShadow,
+                    hinted && styles.nodeHintedShadow,
                   ]}>
-                  <Svg
-                    height="100%"
-                    pointerEvents="none"
-                    style={StyleSheet.absoluteFill}
-                    width="100%">
-                    <Defs>
-                      <SvgLinearGradient
-                        id={`node-surface-${index}`}
-                        x1="0%"
-                        x2="100%"
-                        y1="0%"
-                        y2="100%">
-                        <Stop offset="0%" stopColor={selected ? '#4B98AA' : '#F8FCFB'} />
-                        <Stop offset="100%" stopColor={selected ? '#316D80' : '#DAEBEB'} />
-                      </SvgLinearGradient>
-                    </Defs>
-                    <Circle
-                      cx="50%"
-                      cy="50%"
-                      fill={`url(#node-surface-${index})`}
-                      r="50%"
-                    />
-                    {!selected ? (
-                      <Circle cx="34%" cy="31%" fill="rgba(255,255,255,0.34)" r="15%" />
-                    ) : null}
-                  </Svg>
-                  <Text
+                  <View
                     style={[
-                      styles.nodeText,
-                      selected && styles.nodeTextSelected,
-                      { fontSize: size < 300 ? 20 : 24, lineHeight: size < 300 ? 25 : 30 },
+                      styles.node,
+                      { width: nodeSize, height: nodeSize, borderRadius: nodeSize / 2 },
+                      selected && styles.nodeSelected,
+                      hinted && styles.nodeHinted,
                     ]}>
-                    {number}
-                  </Text>
-                </View>
-              </Animated.View>
+                    <Svg
+                      height="100%"
+                      pointerEvents="none"
+                      style={StyleSheet.absoluteFill}
+                      width="100%">
+                      <Defs>
+                        <SvgLinearGradient
+                          id={`node-surface-${index}`}
+                          x1="0%"
+                          x2="100%"
+                          y1="0%"
+                          y2="100%">
+                          <Stop offset="0%" stopColor={selected ? '#4B98AA' : '#F8FCFB'} />
+                          <Stop offset="100%" stopColor={selected ? '#316D80' : '#DAEBEB'} />
+                        </SvgLinearGradient>
+                      </Defs>
+                      <Circle
+                        cx="50%"
+                        cy="50%"
+                        fill={`url(#node-surface-${index})`}
+                        r="50%"
+                      />
+                      {!selected ? (
+                        <Circle cx="34%" cy="31%" fill="rgba(255,255,255,0.34)" r="15%" />
+                      ) : null}
+                    </Svg>
+                    <Text
+                      style={[
+                        styles.nodeText,
+                        selected && styles.nodeTextSelected,
+                        {
+                          fontSize: size < 300 ? 20 : 24,
+                          lineHeight: size < 300 ? 25 : 30,
+                        },
+                      ]}>
+                      {number}
+                    </Text>
+                  </View>
+                </SpringSelectionSurface>
+              </RNAnimated.View>
             );
           })}
-        </View>
+          </View>
+        </GestureDetector>
       </View>
 
       <View style={[styles.actionRow, { width: size }]}>
@@ -528,9 +777,9 @@ export function NumberWheel({
             end={{ x: 0, y: 1 }}
             start={{ x: 0, y: 0 }}
             style={styles.controlSurface}>
-            <Animated.View style={{ transform: [{ rotate: rotationStyle }] }}>
+            <RNAnimated.View style={{ transform: [{ rotate: rotationStyle }] }}>
               <ShuffleIcon />
-            </Animated.View>
+            </RNAnimated.View>
             <Text style={styles.controlLabel}>Karıştır</Text>
           </ExpoLinearGradient>
         </Pressable>
@@ -561,14 +810,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  nodeShadow: {
+  nodePosition: {
     position: 'absolute',
     zIndex: 3,
+  },
+  nodeShadow: {
+    position: 'relative',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.22,
     shadowRadius: 5,
     elevation: 6,
+  },
+  nodeSelectedLayer: {
+    zIndex: 20,
+  },
+  nodeHintedLayer: {
+    zIndex: 30,
   },
   nodeSelectedShadow: {
     shadowColor: '#3D7F91',

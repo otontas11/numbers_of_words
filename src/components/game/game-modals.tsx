@@ -8,8 +8,10 @@ import {
   WORLD_COUNTRIES,
   ROUTE_BY_ID,
   getCountryProgress,
+  getTravelLevelCompletion,
   isCountryComplete,
   isCountryUnlocked,
+  resolveTravelLevel,
 } from '@/game/travel';
 
 type BaseModalProps = {
@@ -155,6 +157,110 @@ export function PassportModal({
           );
         })}
       </View>
+    </GameModal>
+  );
+}
+
+export function CountryCompletionModal({
+  completedLevel,
+  blurTarget,
+  onContinue,
+}: {
+  completedLevel: number | null;
+  blurTarget: RefObject<View | null>;
+  onContinue: () => void;
+}) {
+  if (completedLevel === null) return null;
+
+  const destination = resolveTravelLevel(completedLevel);
+  const completion = getTravelLevelCompletion(completedLevel);
+  const country = destination.country;
+  const nextCountry = completion.nextDestination.country;
+  const worldTourCompleted = completion.worldTourCompleted;
+
+  return (
+    <GameModal
+      blurTarget={blurTarget}
+      footer={
+        <Pressable
+          accessibilityLabel={
+            worldTourCompleted
+              ? 'Master World Tour turuna geç'
+              : `${nextCountry.country} ülkesine geç`
+          }
+          accessibilityRole="button"
+          onPress={onContinue}
+          style={({ pressed }) => [styles.countryContinueButton, pressed && styles.pressed]}>
+          <Text style={styles.countryContinueText}>
+            {worldTourCompleted
+              ? 'MASTER WORLD TOUR’A GEÇ'
+              : `${nextCountry.flag} ${nextCountry.country}’A GEÇ`}
+          </Text>
+        </Pressable>
+      }
+      icon={worldTourCompleted ? '🌍' : country.flag}
+      onClose={onContinue}
+      subtitle={
+        worldTourCompleted
+          ? '100 / 100 ülke keşfedildi'
+          : '20 / 20 puzzle • Pasaport damgası kazanıldı'
+      }
+      title={worldTourCompleted ? 'WORLD TOUR COMPLETED' : `${country.country} Tamamlandı!`}
+      visible>
+      <View style={styles.countryCompleteHero}>
+        <Text style={styles.countryCompleteFlag}>{country.flag}</Text>
+        <Text style={styles.countryCompleteName}>{country.country}</Text>
+        <View style={styles.countryCompleteProgress}>
+          <Text style={styles.countryCompleteProgressText}>20 / 20 ✓</Text>
+        </View>
+      </View>
+
+      <View style={styles.completedLocations}>
+        {country.locations.map((location) => (
+          <View key={location.id} style={styles.completedLocationRow}>
+            <Text style={styles.completedLocationIcon}>✓</Text>
+            <Text style={styles.completedLocationName}>
+              {location.emoji} {location.name}
+            </Text>
+          </View>
+        ))}
+        <View style={styles.completedLocationRow}>
+          <Text style={styles.completedLocationIcon}>✓</Text>
+          <Text style={styles.completedLocationName}>🏆 {country.country} Challenge</Text>
+        </View>
+      </View>
+
+      <View style={styles.countryRewards}>
+        <View style={styles.countryRewardCard}>
+          <Text style={styles.countryRewardIcon}>📘</Text>
+          <Text style={styles.countryRewardTitle}>Pasaport Damgası</Text>
+        </View>
+        <View style={styles.countryRewardCard}>
+          <Text style={styles.countryRewardIcon}>🗺️</Text>
+          <Text numberOfLines={2} style={styles.countryRewardTitle}>
+            {country.rewardLandmark}
+          </Text>
+        </View>
+      </View>
+
+      {!worldTourCompleted ? (
+        <View style={styles.nextCountryCard}>
+          <Text style={styles.nextCountryLabel}>YENİ ÜLKE AÇILDI</Text>
+          <Text style={styles.nextCountryName}>
+            {country.flag} {country.country}　→　{nextCountry.flag} {nextCountry.country}
+          </Text>
+          <Text style={styles.nextCountryDestination}>
+            İlk durak: {completion.nextDestination.location.emoji}{' '}
+            {completion.nextDestination.location.name}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.nextCountryCard}>
+          <Text style={styles.nextCountryLabel}>ÖZEL ÖDÜLLER</Text>
+          <Text style={styles.nextCountryName}>Golden Compass • World Explorer</Text>
+          <Text style={styles.nextCountryDestination}>Dünya haritasının tamamı aydınlandı.</Text>
+        </View>
+      )}
     </GameModal>
   );
 }
@@ -329,6 +435,142 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 17,
     fontWeight: '600',
+  },
+  countryCompleteHero: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#D9AE45',
+    backgroundColor: '#FFF8E7',
+  },
+  countryCompleteFlag: {
+    fontSize: 46,
+  },
+  countryCompleteName: {
+    marginTop: 4,
+    color: '#49382E',
+    fontFamily: FONTS.black,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  countryCompleteProgress: {
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#2E8B68',
+  },
+  countryCompleteProgressText: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  completedLocations: {
+    marginTop: 14,
+    gap: 7,
+  },
+  completedLocationRow: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(94,211,168,0.35)',
+    backgroundColor: 'rgba(26,89,68,0.24)',
+  },
+  completedLocationIcon: {
+    width: 24,
+    color: '#6EE7B7',
+    fontFamily: FONTS.black,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  completedLocationName: {
+    flex: 1,
+    color: '#E6F8F0',
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  countryRewards: {
+    marginTop: 14,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  countryRewardCard: {
+    minHeight: 78,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 9,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(245,190,73,0.46)',
+    backgroundColor: 'rgba(120,74,18,0.25)',
+  },
+  countryRewardIcon: {
+    fontSize: 24,
+  },
+  countryRewardTitle: {
+    marginTop: 4,
+    color: '#FFE5A4',
+    fontFamily: FONTS.extraBold,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  nextCountryCard: {
+    marginTop: 14,
+    alignItems: 'center',
+    padding: 13,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#4B7887',
+    backgroundColor: 'rgba(47,91,105,0.35)',
+  },
+  nextCountryLabel: {
+    color: '#9FE2EA',
+    fontFamily: FONTS.black,
+    fontSize: 9,
+    letterSpacing: 1.1,
+    fontWeight: '900',
+  },
+  nextCountryName: {
+    marginTop: 5,
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 13,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  nextCountryDestination: {
+    marginTop: 4,
+    color: '#B9CED4',
+    fontFamily: FONTS.semibold,
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  countryContinueButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#FFF1B9',
+    backgroundColor: '#D9A62E',
+  },
+  countryContinueText: {
+    color: '#2E261F',
+    fontFamily: FONTS.black,
+    fontSize: 12,
+    fontWeight: '900',
+    textAlign: 'center',
   },
   stampGrid: {
     flexDirection: 'row',

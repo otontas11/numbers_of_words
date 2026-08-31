@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PassportModal } from '@/components/game/game-modals';
+import { CountryCompletionModal, PassportModal } from '@/components/game/game-modals';
 import { NumberWheel } from '@/components/game/number-wheel';
 import { MainMenu, ProfileScreen } from '@/components/home/main-menu';
 import { SettingsModal } from '@/components/home/settings-modal';
@@ -76,6 +76,13 @@ type ResultFlight = {
   fromY: number;
   toX: number;
   toY: number;
+};
+
+type DestinationTransitionState = {
+  completedEmoji: string;
+  completedName: string;
+  nextEmoji: string;
+  nextName: string;
 };
 
 const RESULT_FLIGHT_DURATION = 720;
@@ -276,6 +283,66 @@ function Celebration({ visible }: { visible: boolean }) {
   );
 }
 
+function DestinationTransition({
+  transition,
+}: {
+  transition: DestinationTransitionState | null;
+}) {
+  const [progress] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (!transition) return;
+    progress.setValue(0);
+    const animation = Animated.spring(progress, {
+      toValue: 1,
+      damping: 11,
+      stiffness: 180,
+      mass: 0.7,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [progress, transition]);
+
+  if (!transition) return null;
+
+  return (
+    <View pointerEvents="none" style={styles.destinationTransitionLayer}>
+      <Animated.View
+        style={[
+          styles.destinationTransitionCard,
+          {
+            opacity: progress,
+            transform: [
+              {
+                translateY: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [22, 0],
+                }),
+              },
+              {
+                scale: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                }),
+              },
+            ],
+          },
+        ]}>
+        <Text style={styles.destinationTransitionEyebrow}>DESTİNASYON TAMAMLANDI</Text>
+        <Text style={styles.destinationTransitionTitle}>
+          ✓ {transition.completedEmoji} {transition.completedName}
+        </Text>
+        <View style={styles.destinationTransitionDivider} />
+        <Text style={styles.destinationTransitionNext}>YENİ DESTİNASYON AÇILDI</Text>
+        <Text style={styles.destinationTransitionNextName}>
+          {transition.nextEmoji} {transition.nextName} →
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
 function TargetCard({
   target,
   solved,
@@ -456,8 +523,8 @@ function PulsingGems({ count, compact }: { count: number; compact: boolean }) {
   useEffect(() => {
     const animation = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1000, useNativeDriver: false }),
-        Animated.timing(pulse, { toValue: 0, duration: 1000, useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1000, useNativeDriver: true }),
       ]),
     );
     animation.start();
@@ -471,8 +538,11 @@ function PulsingGems({ count, compact }: { count: number; compact: boolean }) {
         styles.bonusButton,
         compact && styles.bonusButtonCompact,
         {
-          shadowOpacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.75] }),
-          shadowRadius: pulse.interpolate({ inputRange: [0, 1], outputRange: [6, 14] }),
+          transform: [
+            {
+              scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.045] }),
+            },
+          ],
         },
       ]}>
       <Text style={styles.bonusStar}>💎</Text>
@@ -583,6 +653,9 @@ export default function HomeScreen() {
   const [musicVolume, setMusicVolume] = useState(0.5);
   const [dragging, setDragging] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
+  const [destinationTransition, setDestinationTransition] =
+    useState<DestinationTransitionState | null>(null);
+  const [countryCompletionLevel, setCountryCompletionLevel] = useState<number | null>(null);
   const [resultFlights, setResultFlights] = useState<ResultFlight[]>([]);
   const [flyingTargets, setFlyingTargets] = useState<Set<number>>(() => new Set());
   const [bonusFlying, setBonusFlying] = useState(false);
@@ -625,8 +698,11 @@ export default function HomeScreen() {
           restoredSolved.size,
           saved.levelData,
         );
-        const restoredLevel = restoredLevelComplete ? saved.level + 1 : saved.level;
-        const restoredLevelData = restoredLevelComplete
+        const restoredCountryCompletion =
+          restoredLevelComplete && getTravelLevelCompletion(saved.level).countryCompleted;
+        const restoredLevel =
+          restoredLevelComplete && !restoredCountryCompletion ? saved.level + 1 : saved.level;
+        const restoredLevelData = restoredLevelComplete && !restoredCountryCompletion
           ? generateLevelData(
               restoredLevel,
               saved.levelData.targets.map((target) => target.value),
@@ -635,8 +711,13 @@ export default function HomeScreen() {
 
         setLevel(restoredLevel);
         setLevelData(restoredLevelData);
-        setSolvedTargets(restoredLevelComplete ? new Set() : restoredSolved);
-        setBonusSolved(restoredLevelComplete ? false : saved.bonusSolved);
+        setSolvedTargets(
+          restoredLevelComplete && !restoredCountryCompletion ? new Set() : restoredSolved,
+        );
+        setBonusSolved(
+          restoredLevelComplete && !restoredCountryCompletion ? false : saved.bonusSolved,
+        );
+        setCountryCompletionLevel(restoredCountryCompletion ? saved.level : null);
         setBonusCount(saved.bonusCount);
         setGemCount(saved.gemCount);
         setEffectsEnabled(saved.effectsEnabled);
@@ -695,7 +776,8 @@ export default function HomeScreen() {
     if (
       activeScreen === 'home' ||
       passportVisible ||
-      settingsVisible
+      settingsVisible ||
+      countryCompletionLevel !== null
     ) {
       return;
     }
@@ -704,7 +786,7 @@ export default function HomeScreen() {
       return true;
     });
     return () => subscription.remove();
-  }, [activeScreen, passportVisible, settingsVisible]);
+  }, [activeScreen, countryCompletionLevel, passportVisible, settingsVisible]);
 
   const triggerEffect = useCallback(
     (kind: GameSound) => {
@@ -819,6 +901,8 @@ export default function HomeScreen() {
     setFlyingTargets(new Set());
     setLandedTarget(null);
     setCelebrating(false);
+    setDestinationTransition(null);
+    setCountryCompletionLevel(null);
   }, []);
 
   const handlePreview = useCallback(
@@ -902,12 +986,29 @@ export default function HomeScreen() {
           levelTimer.current = setTimeout(() => {
             setCelebrating(true);
             triggerEffect('levelComplete');
+
+            if (completedLocation) {
+              setDestinationTransition({
+                completedEmoji: levelData.emoji,
+                completedName: levelData.city,
+                nextEmoji: nextDestination.location.emoji,
+                nextName: nextDestination.countryChallenge
+                  ? `${levelData.country} Challenge`
+                  : nextDestination.location.name,
+              });
+            }
+
             levelTimer.current = setTimeout(() => {
+              if (travelCompletion.countryCompleted) {
+                setCountryCompletionLevel(completedPuzzleLevel);
+                return;
+              }
+
               startLevel(
                 completedPuzzleLevel + 1,
                 levelData.targets.map((target) => target.value),
               );
-            }, 1000);
+            }, completedLocation ? 1600 : 1000);
           }, LEVEL_CELEBRATION_DELAY);
         } else {
           showTimedFeedback(
@@ -1008,6 +1109,27 @@ export default function HomeScreen() {
     triggerEffect('select1');
   }, [triggerEffect]);
 
+  const continueAfterCountryCompletion = useCallback(() => {
+    if (countryCompletionLevel === null) return;
+
+    const completion = getTravelLevelCompletion(countryCompletionLevel);
+    const previousTargetValues =
+      levelData.level === countryCompletionLevel
+        ? levelData.targets.map((target) => target.value)
+        : [];
+    startLevel(completion.nextDestination.globalLevel, previousTargetValues);
+    setActiveScreen('game');
+    showTimedFeedback(
+      {
+        text: completion.worldTourCompleted
+          ? '🌍 Master World Tour başladı!'
+          : `${completion.nextDestination.country.flag} ${completion.nextDestination.country.country} açıldı • ${completion.nextDestination.location.name}`,
+        tone: 'success',
+      },
+      1800,
+    );
+  }, [countryCompletionLevel, levelData, showTimedFeedback, startLevel]);
+
   if (!hydrated) return <View style={styles.screen} />;
 
   const overlays = (
@@ -1028,6 +1150,11 @@ export default function HomeScreen() {
         onMusicChange={setMusicEnabled}
         onMusicVolumeChange={setMusicVolume}
         visible={settingsVisible}
+      />
+      <CountryCompletionModal
+        blurTarget={blurTarget}
+        completedLevel={countryCompletionLevel}
+        onContinue={continueAfterCountryCompletion}
       />
     </>
   );
@@ -1292,6 +1419,7 @@ export default function HomeScreen() {
           ))}
         </View>
         <Celebration visible={celebrating} />
+        <DestinationTransition transition={destinationTransition} />
       </BlurTargetView>
       {overlays}
     </View>
@@ -1944,6 +2072,72 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 1,
     marginBottom: 3,
+  },
+  destinationTransitionLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+  },
+  destinationTransitionCard: {
+    width: '100%',
+    maxWidth: 360,
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#FFE49A',
+    backgroundColor: 'rgba(36,61,73,0.97)',
+    shadowColor: '#0B1F29',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.42,
+    shadowRadius: 16,
+    elevation: 18,
+  },
+  destinationTransitionEyebrow: {
+    color: '#9FE2EA',
+    fontFamily: FONTS.black,
+    fontSize: 9,
+    letterSpacing: 1.2,
+    fontWeight: '900',
+  },
+  destinationTransitionTitle: {
+    marginTop: 6,
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 19,
+    lineHeight: 24,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  destinationTransitionDivider: {
+    width: 74,
+    height: 2,
+    marginVertical: 11,
+    borderRadius: 999,
+    backgroundColor: '#D9AE45',
+  },
+  destinationTransitionNext: {
+    color: '#FFE49A',
+    fontFamily: FONTS.black,
+    fontSize: 9,
+    letterSpacing: 1,
+    fontWeight: '900',
+  },
+  destinationTransitionNextName: {
+    marginTop: 5,
+    color: '#D8EFF1',
+    fontFamily: FONTS.extraBold,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   celebrationLayer: {
     position: 'absolute',

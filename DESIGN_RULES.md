@@ -113,6 +113,8 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - Ülke/şehir şeridi HUD&apos;un `4 dp` altındadır; `106 dp` yüksekliğinde, ekranın `%94` genişliğinde ve en fazla `488 dp`dir. `28 dp` köşe, `1.5 dp` açık turkuaz kenarlık ve `#3E6472 → #263F4D` yarı saydam degrade kullanır.
 - Şeridin ilk satırı ülke/flag, aktif işlem çipi ve ülke içi `x/20` ilerlemesini gösterir. İkinci satır üç destinasyonu `✓ tamamlandı / ● aktif / ○ bekliyor` semantiğiyle sıralar. Her destinasyonun altında birbirinden bağımsız `7 dp` ilerleme çizgisi bulunur.
 - Ülke finalinde şehirlerin tamamı `✓` olur ve ilerleme çipinde `🏆` gösterilir; bu yalnız sunumdur, Country Challenge progression mantığını değiştirmez.
+- Bir destinasyonun son puzzle&apos;ı tamamlandığında otomatik seviye değişmeden önce ortada `DESTİNASYON TAMAMLANDI` kartı görünür; biten destinasyon ve açılan sıradaki destinasyon/Challenge açıkça yazılır. Bu kart bilgi amaçlıdır ve yaklaşık `1.6 sn` sonra akış devam eder.
+- Country Challenge tamamlandığında sonraki ülkeye otomatik ve sessiz geçilmez. Üç destinasyonun onay işaretlerini, `20/20`, pasaport damgasını, landmark ödülünü ve açılan sonraki ülkeyi gösteren zorunlu ülke tamamlama modalı açılır. Yeni ülkenin ilk puzzle&apos;ı yalnız `Sıradaki ülkeye geç` eylemiyle başlatılır; tamamlanmış kayıt uygulama yeniden açıldığında da bu modal atlanmaz.
 - Header ve ana içerik en fazla `512 dp`, modal en fazla `448 dp` genişliğindedir. Modal yüksekliği ekranın en fazla `%85`idir.
 - Ana yatay boşluk `16 dp`; yalnızca kullanılabilir genişliği `288 dp` altına düşen çok dar ekranlarda taşmayı önlemek için küçültülebilir.
 - Hedef alanı Android&apos;deki açık word-card yüzeyine uyarlanır: `#F8FCFB → #DCECEC`, `28 dp` dış köşe, `2 dp #D5EEF2` kenarlık. Üç hedef `%31.6`, dört hedef `%23.5` genişlikle tek satırda kalır; aralık `8 dp`, kart yüksekliği en az `62 dp`dir.
@@ -131,6 +133,8 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - Bir sürüklemede aktif hedefin 2/3 adım sayısından bağımsız olarak çarktaki tüm benzersiz düğümler sırayla seçilebilir; komşuluk zorunluluğu yoktur. Sonuç yalnız parmak bırakıldığında değerlendirilir; mevcut matematik motorunun desteklemediği uzunluktaki yol geçersiz seçim geri bildirimi verir.
 - WOW geri sarma kuralı uygulanır: parmak son seçilen düğümden yolun bir önceki düğümüne döndüğünde son düğüm seçimden çıkar. Parmak aynı yol üzerinde geriye ilerlemeyi sürdürürse tek hareket event&apos;inde dahi birden fazla düğüm sırayla sökülebilir. Yol içinde daha eski fakat bir önceki olmayan seçili düğüme atlamak döngü oluşturmaz ve yok sayılır.
 - Hızlı parmak hareketinde yalnız son event noktası değil, önceki ve yeni nokta arasındaki doğru parçası da düğüm çeperlerine karşı hit-test edilir. Böylece hızlı geçilen hedef düğüm atlanmaz; aynı segment sırası hem ileri seçim hem geriye sarma için kullanılır.
+- Aktif sürükleme koordinatı her pointer event&apos;inde React state&apos;e yazılamaz. Pointer çizgisi, segment hit-test&apos;i ve WOW geri sarma hesabı RNGH/Reanimated ile UI thread&apos;de yürür; JS/React yalnız zincir gerçekten değiştiğinde (düğüm ekleme veya sökme) güncellenir. Böylece ağır JS render&apos;ı parmak takibini bloke etmez.
+- Oyun açıkken sürekli çalışan dekoratif animasyonlar yalnız native driver/UI thread uyumlu `opacity` ve `transform` özelliklerini kullanır. `shadowRadius`, `shadowOpacity` veya layout özelliklerini JS thread&apos;de sonsuz döngüyle animasyonlamak yasaktır.
 - Seçili düğüm `1.25×` ölçeğe çıkar; çizgi bu büyümüş çeperde sonlanır.
 - Karıştırma mevcut düğümleri yeniden oluşturmaz. Sayı ve mantıksal indeks korunur, yalnızca sayı→yuva eşlemesi değişir.
 - Bütün düğümler eski konumlarından yeni konumlarına aynı anda `450 ms` boyunca `cubic-bezier(0.34, 1.3, 0.64, 1)` eğrisiyle kayar. Karıştır simgesi aynı sürede `360°` döner.
@@ -174,6 +178,8 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - `expo-image`: arka plan önbelleği ve `1000 ms` şehir geçişi.
 - `expo-blur`: gerçek modal arka plan bulanıklığı; Android SDK 31+ için hedef görünüm referansı kullanır.
 - `react-native-svg`: radyal çember/düğüm/pul yüzeyleri ve yoğunluktan bağımsız netlik.
+- `react-native-gesture-handler`: çarkın native dokunma akışı, düğümden başlamayan dokunuşun ScrollView&apos;a bırakılması ve kesintisiz pan takibi.
+- `react-native-reanimated`: aktif pointer çizgisi, segment hit-test&apos;i ve zincir state&apos;inin UI thread&apos;de güncellenmesi.
 - `@expo-google-fonts/plus-jakarta-sans`: referans tipografinin paketlenmiş font dosyaları.
 - `@react-native-async-storage/async-storage`: seviye, hedef matrisi, geçmiş ve tercihlerin kalıcı saklanması.
 
