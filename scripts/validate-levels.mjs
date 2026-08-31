@@ -3,6 +3,8 @@ import {
   findSolutionIndices,
   generateLevelData,
   getCombinationKey,
+  hasCompletedRequiredTargets,
+  normalizeLevelData,
 } from '../src/game/levels.ts';
 import {
   TOTAL_WORLD_LEVELS,
@@ -93,6 +95,34 @@ for (let run = 0; run < RUN_COUNT; run += 1) {
     }
     if (data.targets.some((target) => !findSolutionIndices(target, data.numbers))) {
       throw new Error(`Seviye ${level}: çözülemeyen hedef var.`);
+    }
+    if (data.targets.some((target) => target.value === data.bonusTarget.value)) {
+      throw new Error(`Seviye ${level}: bonus hedef ana hedeflerden farklı değil.`);
+    }
+    if (
+      hasCompletedRequiredTargets(data.targets.length - 1, data) ||
+      !hasCompletedRequiredTargets(data.targets.length, data)
+    ) {
+      throw new Error(`Seviye ${level}: isteğe bağlı bonus ana tamamlama koşulunu bozuyor.`);
+    }
+    if (
+      data.bonusTarget.op !== data.op ||
+      data.bonusTarget.steps !== data.steps ||
+      !findSolutionIndices(data.bonusTarget, data.numbers)
+    ) {
+      throw new Error(`Seviye ${level}: bonus hedef çözülebilir değil.`);
+    }
+
+    if (run === 0 && level === 1) {
+      const legacyData = { ...data };
+      delete legacyData.bonusTarget;
+      const migrated = normalizeLevelData(legacyData);
+      if (
+        migrated.targets.some((target) => target.value === migrated.bonusTarget.value) ||
+        !findSolutionIndices(migrated.bonusTarget, migrated.numbers)
+      ) {
+        throw new Error('Eski kayıt için bonus hedef migrasyonu geçersiz.');
+      }
     }
     if (
       data.routeId !== destination.route.id ||

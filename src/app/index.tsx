@@ -27,6 +27,7 @@ import {
   findSolutionIndices,
   generateLevelData,
   getCombinationKey,
+  hasCompletedRequiredTargets,
   OPERATION_DETAILS,
   type LevelData,
   type Target,
@@ -81,6 +82,8 @@ const RESULT_FLIGHT_DURATION = 720;
 const RESULT_FLIGHT_WIDTH = 52;
 const RESULT_FLIGHT_HEIGHT = 52;
 const LEVEL_CELEBRATION_DELAY = RESULT_FLIGHT_DURATION + 100;
+const BONUS_TARGET_INDEX = -1;
+const BONUS_GEM_REWARD = 1;
 const NODE_SELECTION_SOUNDS = [
   'select1',
   'select2',
@@ -195,10 +198,17 @@ function ResultFlightBadge({
         },
       ]}>
       <LinearGradient
-        colors={['#63D5B1', '#16906B']}
+        colors={
+          flight.targetIndex === BONUS_TARGET_INDEX
+            ? ['#FFE98A', '#B56AE8']
+            : ['#63D5B1', '#16906B']
+        }
         end={{ x: 1, y: 1 }}
         start={{ x: 0, y: 0 }}
         style={styles.resultFlightSurface}>
+        {flight.targetIndex === BONUS_TARGET_INDEX ? (
+          <Text style={styles.resultFlightGem}>💎</Text>
+        ) : null}
         <Text style={styles.resultFlightValue}>{flight.value}</Text>
       </LinearGradient>
     </Animated.View>
@@ -375,7 +385,72 @@ function TargetCard({
   );
 }
 
-function PulsingBonus({ count, compact }: { count: number; compact: boolean }) {
+function BonusTargetCard({
+  landed,
+  measureRef,
+  solved,
+  target,
+}: {
+  landed: boolean;
+  measureRef: (view: View | null) => void;
+  solved: boolean;
+  target: Target;
+}) {
+  const operation = OPERATION_DETAILS[target.op];
+  const [scale] = useState(() => new Animated.Value(1));
+
+  useEffect(() => {
+    scale.stopAnimation();
+    const animation = landed
+      ? Animated.sequence([
+          Animated.timing(scale, { toValue: 1.1, duration: 90, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 0.98, duration: 90, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
+        ])
+      : Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [landed, scale]);
+
+  return (
+    <LinearGradient
+      accessibilityLabel={`İsteğe bağlı bonus hedef ${target.value}, ödül ${BONUS_GEM_REWARD} mücevher`}
+      colors={
+        solved
+          ? ['rgba(219,248,237,0.98)', 'rgba(190,235,218,0.98)']
+          : ['rgba(255,247,206,0.98)', 'rgba(236,216,255,0.98)']
+      }
+      end={{ x: 1, y: 1 }}
+      start={{ x: 0, y: 0 }}
+      style={[styles.bonusTargetRow, solved && styles.bonusTargetRowSolved]}>
+      <View style={styles.bonusTargetCopy}>
+        <Text style={[styles.bonusTargetTitle, solved && styles.bonusTargetSolvedText]}>
+          {solved ? '💎 BONUS ALINDI' : '💎 BONUS HEDEF'}
+        </Text>
+        <Text style={[styles.bonusTargetSubtitle, solved && styles.bonusTargetSolvedText]}>
+          {solved ? `+${BONUS_GEM_REWARD} mücevher kazanıldı` : `İsteğe bağlı • +${BONUS_GEM_REWARD} mücevher`}
+        </Text>
+      </View>
+
+      <View ref={measureRef} collapsable={false} style={styles.bonusTargetCardMeasure}>
+        <Animated.View style={{ transform: [{ scale }] }}>
+          <LinearGradient
+            colors={solved ? ['#5BC69A', '#238666'] : ['#9F69D1', '#65448B']}
+            end={{ x: 1, y: 1 }}
+            start={{ x: 0, y: 0 }}
+            style={styles.bonusTargetCard}>
+            <Text style={styles.bonusTargetValue}>{solved ? '✓' : target.value}</Text>
+            <Text style={styles.bonusTargetMeta}>
+              [{operation.symbol}] {Array.from({ length: target.steps }, () => '●').join(' ')}
+            </Text>
+          </LinearGradient>
+        </Animated.View>
+      </View>
+    </LinearGradient>
+  );
+}
+
+function PulsingGems({ count, compact }: { count: number; compact: boolean }) {
   const [pulse] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
@@ -391,6 +466,7 @@ function PulsingBonus({ count, compact }: { count: number; compact: boolean }) {
 
   return (
     <Animated.View
+      accessibilityLabel={`${count} mücevher`}
       style={[
         styles.bonusButton,
         compact && styles.bonusButtonCompact,
@@ -399,7 +475,7 @@ function PulsingBonus({ count, compact }: { count: number; compact: boolean }) {
           shadowRadius: pulse.interpolate({ inputRange: [0, 1], outputRange: [6, 14] }),
         },
       ]}>
-      <Text style={styles.bonusStar}>⭐</Text>
+      <Text style={styles.bonusStar}>💎</Text>
       <Text style={styles.bonusText}>{count}</Text>
     </Animated.View>
   );
@@ -493,7 +569,9 @@ export default function HomeScreen() {
   const [level, setLevel] = useState(1);
   const [levelData, setLevelData] = useState<LevelData>(() => generateLevelData(1));
   const [solvedTargets, setSolvedTargets] = useState<Set<number>>(() => new Set());
+  const [bonusSolved, setBonusSolved] = useState(false);
   const [bonusCount, setBonusCount] = useState(0);
+  const [gemCount, setGemCount] = useState(0);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [hintIndices, setHintIndices] = useState<number[]>([]);
   const [hintedTarget, setHintedTarget] = useState<number | null>(null);
@@ -507,12 +585,14 @@ export default function HomeScreen() {
   const [celebrating, setCelebrating] = useState(false);
   const [resultFlights, setResultFlights] = useState<ResultFlight[]>([]);
   const [flyingTargets, setFlyingTargets] = useState<Set<number>>(() => new Set());
+  const [bonusFlying, setBonusFlying] = useState(false);
   const [landedTarget, setLandedTarget] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const blurTarget = useRef<View>(null);
   const resultLayerRef = useRef<View>(null);
   const resultSourceRef = useRef<View>(null);
   const targetCardRefs = useRef<(View | null)[]>([]);
+  const bonusCardRef = useRef<View>(null);
   const nextFlightId = useRef(1);
   const discoveredBonuses = useRef(new Set<string>());
   const feedbackTimer = useRef<Timer | null>(null);
@@ -527,8 +607,7 @@ export default function HomeScreen() {
   const targetWidth = (levelData.targets.length === 3 ? '31.6%' : '23.5%') as `${number}%`;
   const operation = OPERATION_DETAILS[levelData.op];
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
-  const levelJustCompleted =
-    levelData.targets.length > 0 && solvedTargets.size === levelData.targets.length;
+  const levelJustCompleted = hasCompletedRequiredTargets(solvedTargets.size, levelData);
   const displayedProgressLevel = levelData.level + (levelJustCompleted ? 1 : 0);
   const passportStampCount = getCompletedCountryCount(displayedProgressLevel);
   const completedWorldLevels = getCompletedWorldLevelCount(displayedProgressLevel);
@@ -542,7 +621,10 @@ export default function HomeScreen() {
 
       if (saved) {
         const restoredSolved = new Set(saved.solvedTargets);
-        const restoredLevelComplete = restoredSolved.size === saved.levelData.targets.length;
+        const restoredLevelComplete = hasCompletedRequiredTargets(
+          restoredSolved.size,
+          saved.levelData,
+        );
         const restoredLevel = restoredLevelComplete ? saved.level + 1 : saved.level;
         const restoredLevelData = restoredLevelComplete
           ? generateLevelData(
@@ -554,7 +636,9 @@ export default function HomeScreen() {
         setLevel(restoredLevel);
         setLevelData(restoredLevelData);
         setSolvedTargets(restoredLevelComplete ? new Set() : restoredSolved);
+        setBonusSolved(restoredLevelComplete ? false : saved.bonusSolved);
         setBonusCount(saved.bonusCount);
+        setGemCount(saved.gemCount);
         setEffectsEnabled(saved.effectsEnabled);
         setMusicEnabled(saved.musicEnabled);
         setMusicVolume(saved.musicVolume);
@@ -576,7 +660,9 @@ export default function HomeScreen() {
       level,
       levelData,
       solvedTargets: [...solvedTargets].sort((left, right) => left - right),
+      bonusSolved,
       bonusCount,
+      gemCount,
       discoveredBonuses: [...discoveredBonuses.current],
       effectsEnabled,
       musicEnabled,
@@ -584,7 +670,9 @@ export default function HomeScreen() {
     }).catch(() => undefined);
   }, [
     bonusCount,
+    bonusSolved,
     effectsEnabled,
+    gemCount,
     hydrated,
     level,
     levelData,
@@ -658,6 +746,12 @@ export default function HomeScreen() {
 
   const revealTarget = useCallback(
     (targetIndex: number) => {
+      if (targetIndex === BONUS_TARGET_INDEX) {
+        setBonusFlying(false);
+        pulseTarget(BONUS_TARGET_INDEX);
+        return;
+      }
+
       setFlyingTargets((current) => {
         if (!current.has(targetIndex)) return current;
         const next = new Set(current);
@@ -665,9 +759,8 @@ export default function HomeScreen() {
         return next;
       });
       pulseTarget(targetIndex);
-      triggerEffect('success');
     },
-    [pulseTarget, triggerEffect],
+    [pulseTarget],
   );
 
   const handleResultFlightComplete = useCallback(
@@ -683,7 +776,11 @@ export default function HomeScreen() {
       const [rootRect, sourceRect, targetRect] = await Promise.all([
         measureViewInWindow(resultLayerRef.current),
         measureViewInWindow(resultSourceRef.current),
-        measureViewInWindow(targetCardRefs.current[targetIndex] ?? null),
+        measureViewInWindow(
+          targetIndex === BONUS_TARGET_INDEX
+            ? bonusCardRef.current
+            : (targetCardRefs.current[targetIndex] ?? null),
+        ),
       ]);
 
       if (!rootRect || !sourceRect || !targetRect) {
@@ -713,6 +810,8 @@ export default function HomeScreen() {
     setLevel(nextLevel);
     setLevelData(generateLevelData(nextLevel, previousTargetValues));
     setSolvedTargets(new Set());
+    setBonusSolved(false);
+    setBonusFlying(false);
     setFeedback(null);
     setHintIndices([]);
     setHintedTarget(null);
@@ -773,9 +872,10 @@ export default function HomeScreen() {
         nextSolved.add(targetIndex);
         setFlyingTargets((current) => new Set(current).add(targetIndex));
         setSolvedTargets(nextSolved);
+        triggerEffect('success');
         void launchResultFlight(calculation.result, targetIndex, resultOrigin);
 
-        if (nextSolved.size === levelData.targets.length) {
+        if (hasCompletedRequiredTargets(nextSolved.size, levelData)) {
           // Mesaj ve seyahat sınırı, paralel UI state'inden değil gerçekten çözülen
           // puzzle'ın kendi level kimliğinden hesaplanır. Böylece örneğin Atina 1/7,
           // gecikmiş bir state güncellemesi yüzünden 7/7 gibi değerlendirilemez.
@@ -818,6 +918,35 @@ export default function HomeScreen() {
         return;
       }
 
+      const bonusTarget = levelData.bonusTarget;
+      const matchesBonusTarget =
+        !bonusSolved &&
+        bonusTarget.value === calculation.result &&
+        bonusTarget.steps === indices.length;
+
+      if (matchesBonusTarget) {
+        const newDiscovery = !discoveredBonuses.current.has(combinationKey);
+        discoveredBonuses.current.add(combinationKey);
+        if (newDiscovery) setBonusCount((count) => count + 1);
+        setBonusSolved(true);
+        setGemCount((count) => count + BONUS_GEM_REWARD);
+        setBonusFlying(true);
+        triggerEffect('bonus');
+        void launchResultFlight(
+          calculation.result,
+          BONUS_TARGET_INDEX,
+          resultOrigin,
+        );
+        showTimedFeedback(
+          {
+            text: `💎 Bonus hedef çözüldü! +${BONUS_GEM_REWARD} mücevher`,
+            tone: 'bonus',
+          },
+          1550,
+        );
+        return;
+      }
+
       if (!discoveredBonuses.current.has(combinationKey)) {
         discoveredBonuses.current.add(combinationKey);
         setBonusCount((count) => count + 1);
@@ -834,6 +963,7 @@ export default function HomeScreen() {
       }
     },
     [
+      bonusSolved,
       launchResultFlight,
       levelData,
       showTimedFeedback,
@@ -909,6 +1039,7 @@ export default function HomeScreen() {
           <MainMenu
             bonusCount={bonusCount}
             currentLevel={displayedProgressLevel}
+            gemCount={gemCount}
             levelData={levelData}
             onOpenProfile={() => setActiveScreen('profile')}
             onOpenSettings={() => setSettingsVisible(true)}
@@ -929,6 +1060,7 @@ export default function HomeScreen() {
           <ProfileScreen
             bonusCount={bonusCount}
             currentLevel={displayedProgressLevel}
+            gemCount={gemCount}
             levelData={levelData}
             onBack={() => setActiveScreen('home')}
             onOpenPassport={() => setPassportVisible(true)}
@@ -947,6 +1079,7 @@ export default function HomeScreen() {
         <BlurTargetView ref={blurTarget} style={styles.screen}>
           <JourneyMap
             bonusCount={bonusCount}
+            gemCount={gemCount}
             level={level}
             levelData={levelData}
             onBack={() => setActiveScreen('home')}
@@ -990,7 +1123,7 @@ export default function HomeScreen() {
                 <Text style={styles.backIcon}>‹</Text>
               </Pressable>
 
-              <PulsingBonus compact={compactHeader} count={bonusCount} />
+              <PulsingGems compact={compactHeader} count={gemCount} />
             </View>
 
             <View
@@ -1079,6 +1212,15 @@ export default function HomeScreen() {
                     />
                   ))}
                 </View>
+
+                <BonusTargetCard
+                  landed={landedTarget === BONUS_TARGET_INDEX}
+                  measureRef={(view) => {
+                    bonusCardRef.current = view;
+                  }}
+                  solved={bonusSolved && !bonusFlying}
+                  target={levelData.bonusTarget}
+                />
               </LinearGradient>
 
               <View style={styles.feedbackSlot}>
@@ -1130,7 +1272,7 @@ export default function HomeScreen() {
               </View>
 
               <Text style={styles.instruction}>
-                Parmağınla sayıları sırayla birleştir, tüm hedefleri çöz!
+                Ana hedefleri çöz; bonus mücevher isteğe bağlı!
               </Text>
             </View>
           </ScrollView>
@@ -1610,6 +1752,80 @@ const styles = StyleSheet.create({
   targetSolvedText: {
     color: '#23785B',
   },
+  bonusTargetRow: {
+    width: '100%',
+    minHeight: 52,
+    marginTop: 8,
+    paddingLeft: 12,
+    paddingRight: 7,
+    paddingVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#D9B95A',
+  },
+  bonusTargetRowSolved: {
+    borderColor: '#3DA27B',
+  },
+  bonusTargetCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  bonusTargetTitle: {
+    color: '#6C4D8D',
+    fontFamily: FONTS.black,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '900',
+    letterSpacing: 0.45,
+  },
+  bonusTargetSubtitle: {
+    marginTop: 1,
+    color: '#8B6E2D',
+    fontFamily: FONTS.bold,
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: '800',
+  },
+  bonusTargetSolvedText: {
+    color: '#23785B',
+  },
+  bonusTargetCardMeasure: {
+    width: 94,
+    height: 42,
+    justifyContent: 'center',
+  },
+  bonusTargetCard: {
+    width: 94,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.92)',
+    shadowColor: '#503068',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  bonusTargetValue: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 18,
+    lineHeight: 21,
+    fontWeight: '900',
+  },
+  bonusTargetMeta: {
+    color: 'rgba(255,255,255,0.9)',
+    fontFamily: FONTS.bold,
+    fontSize: 8,
+    lineHeight: 10,
+    fontWeight: '800',
+  },
   feedbackSlot: {
     width: '100%',
     height: 52,
@@ -1712,6 +1928,12 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(4,47,46,0.42)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  resultFlightGem: {
+    position: 'absolute',
+    top: -10,
+    right: -8,
+    fontSize: 17,
   },
   instruction: {
     color: '#557782',

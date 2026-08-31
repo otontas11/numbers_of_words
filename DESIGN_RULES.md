@@ -29,11 +29,12 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 1. Oyuncu 3 veya 4 hedefi ve ortak sayı çemberini görür.
 2. Sayıları parmağıyla sırayla birleştirerek zihinsel yatırım yapar.
 3. Tek hedef bulunduğunda kart yalnızca emerald durumuna geçer; ekran düzeni değişmez ve konfeti gösterilmez.
-4. Hedef olmayan geçerli bir işlem ilk kez keşfedilirse Bonus Keşif sayacı artar.
-5. Tüm hedefler bitince makro ödül olarak konfeti, güçlü başarı titreşimi ve seviye geçişi çalışır; son hedefin normal başarı akorunun üstüne ikinci bir ses bindirilmez.
-6. Her ülkede ilk iki destinasyon 7&apos;şer, üçüncü destinasyon 5 puzzle içerir; 20. puzzle Country Challenge&apos;dır.
-7. Country Challenge tamamlanınca vize pulu ve landmark kazanılır. Oyuncu zorla rota ekranına gönderilmez; ister oyuna devam eder, ister ana ekrandaki Seyahat düğmesiyle yeni bağlantıyı inceler.
-8. Normal seviye geri bildirimi `Puzzle x/y tamamlandı • Şehir` biçimindedir. `Şehir tamamlandı` yalnız katalogda bir sonraki puzzle başka destinasyona geçtiğinde; ülke tamamlandı mesajı yalnız Country Challenge çözüldüğünde gösterilir.
+4. Her seviyede ana hedeflerden farklı, garantili çözülebilen bir `💎 Bonus Hedef` kartı bulunur. Bu kart isteğe bağlıdır; çözülürse `+1 mücevher` verir.
+5. Bonus kartı dışında hedef olmayan geçerli bir işlem ilk kez keşfedilirse Bonus Keşif sayacı artar; bu serbest keşif mücevher vermez.
+6. Tüm **ana hedefler** bitince bonus kartının durumuna bakılmadan konfeti, güçlü başarı titreşimi ve seviye geçişi çalışır. Çözülmemiş bonus sonraki seviyeye geçişi hiçbir zaman engellemez.
+7. Her ülkede ilk iki destinasyon 7&apos;şer, üçüncü destinasyon 5 puzzle içerir; 20. puzzle Country Challenge&apos;dır.
+8. Country Challenge tamamlanınca vize pulu ve landmark kazanılır. Oyuncu zorla rota ekranına gönderilmez; ister oyuna devam eder, ister ana ekrandaki Seyahat düğmesiyle yeni bağlantıyı inceler.
+9. Normal seviye geri bildirimi `Puzzle x/y tamamlandı • Şehir` biçimindedir. `Şehir tamamlandı` yalnız katalogda bir sonraki puzzle başka destinasyona geçtiğinde; ülke tamamlandı mesajı yalnız Country Challenge çözüldüğünde gösterilir.
 
 ## Seviye ve matematik motoru
 
@@ -48,9 +49,10 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 - İkili hedefler `A op B`, üçlü hedefler `A + B + C` biçimindedir. Bir seviyedeki hedeflerin adım sayısı üstteki `Gereken` göstergesiyle aynı olmalıdır.
 - Çıkarma pozitif fark olarak değerlendirilir. Bölme sıraya duyarlıdır, tam bölünür ve sonuç `1`den büyük hedeflerden üretilir.
 - Her hedef benzersiz, çözülebilir ve dahili çözümleyiciyle doğrulanmış olmalıdır. Eksik hedefle seviye başlatılamaz.
+- Bonus hedef, ana hedeflerle aynı çember ve işlemden türetilir; ana hedef değerlerinden farklı, benzersiz ve çözümleyiciyle doğrulanmış olmalıdır. Bonus kartı ana hedef sayısına ve seviye tamamlama koşuluna dahil edilmez.
 - Hedef seçici, düğüm kullanım sayılarının farkını ve kareler toplamını minimize ederek bütün çemberi olabildiğince dengeli kullanır.
 - Mevcut seviyenin hedef değerleri sonraki seviye üretilirken dışlanır. Aynı hedef değeri art arda iki seviyede gösterilemez; bir seviye ara verildikten sonra yeniden kullanılabilir.
-- Uygulama kapanıp açılsa da mevcut sayı matrisi, hedefler, çözülmüş kartlar, seviye, Bonus Keşif geçmişi, efekt tercihi, müzik tercihi ve müzik seviyesi korunur.
+- Uygulama kapanıp açılsa da mevcut sayı matrisi, hedefler, bonus hedefi, çözülmüş kartlar, bonus çözüm durumu, mücevher bakiyesi, seviye, Bonus Keşif geçmişi, efekt tercihi, müzik tercihi ve müzik seviyesi korunur.
 - Dahili global puzzle numarası üretim ve kayıt için kullanılabilir; hiçbir oyuncu arayüzünde “Level 847” gibi gösterilemez. Oyuncu yalnız rota, ülke, destinasyon ve destinasyon içi `x/y` puzzle ilerlemesini görür.
 
 ## Dünya rotası, ülkeler ve pasaport
@@ -144,8 +146,8 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - `pop_hint.wav`: İpucu düğümü, `620 → 868 Hz`, aynı `80 ms` pop zarfı.
 - `pop_shuffle.wav`: Karıştır düğümü, `360 → 504 Hz`, aynı `80 ms` pop zarfı; pembe gürültü kullanılmaz.
 - `success.wav`: her hedef çözümünde sırasıyla `523.25 / 659.25 / 783.99 / 1046.50 Hz` triangle notaları; başlangıç aralığı `70 ms`, her nota `20 ms` attack ve `250 ms` toplam zarfa sahiptir.
-- `bonus.wav`: ilk kez bulunan Bonus Keşif için `880 → 1320 Hz`, `150 ms` sine chirp; gain `0.20 → 0.01` exponential zarfıdır.
-- Bırakılan sonuç önce yalnız çözülmemiş (açık) hedeflerle eşleştirilir. Açık hedef eşleşmesi yoksa işlem + sıralanmış operandlar + sonuç anahtarı daha önce görülmemişse `⭐ Bonus Keşif` kazanılır. Hedef çözen yollar da keşif geçmişine yazılır; aynı yolu ters sırada veya tekrar sürüklemek ikinci bonus kazandırmaz. Aynı sonuca farklı, yeni bir operand kümesiyle ulaşmak ayrı bir bonus keşiftir.
+- `bonus.wav`: isteğe bağlı bonus kartı veya ilk kez bulunan serbest Bonus Keşif için `880 → 1320 Hz`, `150 ms` sine chirp; gain `0.20 → 0.01` exponential zarfıdır.
+- Bırakılan sonuç önce yalnız çözülmemiş ana hedeflerle, sonra çözülmemiş isteğe bağlı bonus kartıyla eşleştirilir. Bonus kartı eşleşirse kart seviye başına yalnız bir kez `+1 mücevher` verir. İkisiyle de eşleşmezse işlem + sıralanmış operandlar + sonuç anahtarı daha önce görülmemişse `⭐ Bonus Keşif` kazanılır. Hedef çözen yollar da keşif geçmişine yazılır; aynı yolu ters sırada veya tekrar sürüklemek ikinci bonus kazandırmaz. Aynı sonuca farklı, yeni bir operand kümesiyle ulaşmak ayrı bir bonus keşiftir.
 - Kaynak HTML son hedefte `success` dışında ikinci bir ses çalmaz; `400 ms` sonra yalnız bölüm konfettisi başlar. `levelComplete` olayı makro titreşimi korur ancak ek WAV çalmaz. `level-complete.wav` yalnız eski paket uyumluluğu için geçerli PCM olarak tutulur.
 - Sesler Expo SDK 57 `expo-audio` oyuncularıyla önceden yüklenir, tekrar öncesi başa sarılır, diğer uygulama sesini kesmez ve arka planda çalmaz.
 - Mikrofon, Android kayıt izni, arka plan kayıt ve arka plan oynatma kapalıdır.
@@ -158,12 +160,12 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 
 ## Hedefe uçan sonuç animasyonu
 
-- Geçerli bir sürükleme hedeflerden biriyle ilk kez eşleştiğinde bulunan sonuç, son seçilen sayı düğümünün merkezinden eşleşen hedef kartın merkezine uçmalıdır. Bonus veya daha önce çözülmüş hedef bu animasyonu başlatmaz.
+- Geçerli bir sürükleme ana hedeflerden veya isteğe bağlı bonus hedeften biriyle ilk kez eşleştiğinde bulunan sonuç, son seçilen sayı düğümünün merkezinden eşleşen kartın merkezine uçmalıdır. Bonus uçuşu altın/mor görünür; serbest Bonus Keşif veya daha önce çözülmüş hedef bu animasyonu başlatmaz.
 - Başlangıç ve bitiş koordinatları sabit ekran değerleriyle tahmin edilmez; çark, tam ekran uçuş katmanı ve ilgili hedef kartı `measureInWindow` ile ölçülür. Böylece farklı ekran boyları ve ScrollView konumlarında doğru karta ulaşır.
 - Rozet okunabilir `720 ms` boyunca kavisli bir yörüngede ilerler; `1 → 1.25 → 1.02 → 0.3` ölçekle yaylanıp hedefte kaybolur. Hedef kartı uçuş bitmeden çözülmüş renge geçmez; iniş anında zümrüt görünümle birlikte layout&apos;u değiştirmeyen kısa `1 → 1.08 → 0.98 → 1` scale animasyonu oynatır. Kartın dış çerçevesi de aynı yuvarlak köşeyi kullanır ve üstüne ayrıca dikdörtgen/kare ring katmanı çizilmez.
 - Son hedef uçuşunda bölüm konfettisi rozet hedefe varmadan başlamaz; varıştan `100 ms` sonra tetiklenir. Böylece hedefe giden sonuç ve kart eşleşmesi makro animasyon tarafından örtülmez.
 - Uçuş katmanı `pointerEvents="none"` kullanır ve oyun dokunuşlarını engellemez. Ölçüm alınamazsa sonuç rozeti atlanır, hedef kartı iniş parlaması yine çalışır.
-- Referans HTML gibi `playSuccess()` yalnız bir kez ve sonuç hedefe vardığında çalar; doğrulama anında erken ya da varıştan sonra ikinci bir başarı sesi tetiklenmez.
+- Ses animasyon callback&apos;ine bağlı bırakılmaz: ana hedef eşleşmesi doğrulandığı anda `success.wav`, bonus kartı veya yeni serbest Bonus Keşif doğrulandığı anda `bonus.wav` yalnız bir kez çalar. Uçuşun iniş callback&apos;i ikinci ses üretmez.
 
 ## Kullanılan native kütüphaneler
 

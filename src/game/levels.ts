@@ -52,6 +52,12 @@ export type LevelData = {
   steps: 2 | 3;
   numbers: number[];
   targets: Target[];
+  /** Ana hedeflerden bağımsız, tamamlanması zorunlu olmayan mücevher hedefi. */
+  bonusTarget: Target;
+};
+
+export type LegacyLevelData = Omit<LevelData, 'bonusTarget'> & {
+  bonusTarget?: Target;
 };
 
 export type Calculation = {
@@ -70,6 +76,13 @@ export const OPERATION_DETAILS: Record<
   '*': { name: 'Çarpma', symbol: '×', color: '#D97706', darkColor: '#B45309' },
   '/': { name: 'Bölme', symbol: '÷', color: '#059669', darkColor: '#047857' },
 };
+
+export function hasCompletedRequiredTargets(
+  solvedTargetCount: number,
+  levelData: Pick<LevelData, 'targets'>,
+): boolean {
+  return levelData.targets.length > 0 && solvedTargetCount === levelData.targets.length;
+}
 
 function shuffle<T>(items: readonly T[]): T[] {
   const result = [...items];
@@ -226,36 +239,50 @@ export function generateLevelData(
   const coverageGoal = Math.min(rules.nodeCount, rules.targetCount * rules.steps);
   let numbers: number[] = [];
   let selectedCandidates: Candidate[] = [];
+  let bonusCandidate: Candidate | null = null;
   let bestCoverage = -1;
+  let bestSelectionCount = -1;
 
   for (let attempt = 0; attempt < 160; attempt += 1) {
     const candidateNumbers = shuffle(getPool(rules.op)).slice(0, rules.nodeCount);
     const candidates = buildCandidates(candidateNumbers, rules.op, rules.steps);
     const selected = selectDiverseCandidates(
       candidates,
-      rules.targetCount,
+      rules.targetCount + 1,
       rules.nodeCount,
       excludedValues,
     );
-    const coverage = new Set(selected.flatMap((candidate) => candidate.indices)).size;
+    const requiredCandidates = selected.slice(0, rules.targetCount);
+    const candidateBonus = selected[rules.targetCount] ?? null;
+    const coverage = new Set(
+      requiredCandidates.flatMap((candidate) => candidate.indices),
+    ).size;
 
     if (
-      selected.length > selectedCandidates.length ||
-      (selected.length === selectedCandidates.length && coverage > bestCoverage)
+      selected.length > bestSelectionCount ||
+      (selected.length === bestSelectionCount && coverage > bestCoverage)
     ) {
       numbers = candidateNumbers;
-      selectedCandidates = selected;
+      selectedCandidates = requiredCandidates;
+      bonusCandidate = candidateBonus;
       bestCoverage = coverage;
+      bestSelectionCount = selected.length;
     }
 
-    if (selected.length === rules.targetCount && coverage >= coverageGoal) break;
+    if (selected.length === rules.targetCount + 1 && coverage >= coverageGoal) break;
   }
 
   const targets = selectedCandidates.map(({ value, steps, op }) => ({ value, steps, op }));
 
-  if (targets.length !== rules.targetCount || bestCoverage < coverageGoal) {
+  if (targets.length !== rules.targetCount || !bonusCandidate || bestCoverage < coverageGoal) {
     throw new Error(`Seviye ${normalizedLevel} için çözülebilir hedef matrisi üretilemedi.`);
   }
+
+  const bonusTarget: Target = {
+    value: bonusCandidate.value,
+    steps: bonusCandidate.steps,
+    op: bonusCandidate.op,
+  };
 
   return {
     level: normalizedLevel,
@@ -264,10 +291,13 @@ export function generateLevelData(
     steps: rules.steps,
     numbers,
     targets,
+    bonusTarget,
   };
 }
 
-function travelMetadata(level: number): Omit<LevelData, 'level' | 'op' | 'steps' | 'numbers' | 'targets'> {
+function travelMetadata(
+  level: number,
+): Omit<LevelData, 'level' | 'op' | 'steps' | 'numbers' | 'targets' | 'bonusTarget'> {
   const destination = resolveTravelLevel(level);
   const { route, country, location } = destination;
 
@@ -300,11 +330,40 @@ function travelMetadata(level: number): Omit<LevelData, 'level' | 'op' | 'steps'
   };
 }
 
-/** v2 kayıtlarındaki puzzle matrisini koruyup seyahat metadatasını yeni kataloğa taşır. */
-export function normalizeLevelData(levelData: LevelData): LevelData {
+function deriveLegacyBonusTarget(levelData: LegacyLevelData): Target {
+  const requiredValues = new Set(levelData.targets.map((target) => target.value));
+  const candidate = buildCandidates(levelData.numbers, levelData.op, levelData.steps).find(
+    (item) => !requiredValues.has(item.value),
+  );
+
+  if (!candidate) {
+    throw new Error(`Seviye ${levelData.level} için bonus hedefi türetilemedi.`);
+  }
+
+  return { value: candidate.value, steps: candidate.steps, op: candidate.op };
+}
+
+function isUsableBonusTarget(levelData: LegacyLevelData): levelData is LevelData {
+  const target = levelData.bonusTarget;
+  if (
+    !target ||
+    target.op !== levelData.op ||
+    target.steps !== levelData.steps ||
+    levelData.targets.some((item) => item.value === target.value)
+  ) {
+    return false;
+  }
+  return findSolutionIndices(target, levelData.numbers) !== null;
+}
+
+/** Eski kayıt matrisini koruyup seyahat ve isteğe bağlı bonus metadatasını günceller. */
+export function normalizeLevelData(levelData: LegacyLevelData): LevelData {
   return {
     ...levelData,
     ...travelMetadata(levelData.level),
+    bonusTarget: isUsableBonusTarget(levelData)
+      ? levelData.bonusTarget
+      : deriveLegacyBonusTarget(levelData),
   };
 }
 

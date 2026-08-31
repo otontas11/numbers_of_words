@@ -1,6 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { findSolutionIndices, normalizeLevelData, type LevelData } from '@/game/levels';
+import {
+  findSolutionIndices,
+  generateLevelData,
+  normalizeLevelData,
+  type LegacyLevelData,
+  type LevelData,
+} from '@/game/levels';
 
 const STORAGE_KEY = '@number-of-wonders/progress-v2';
 const STORAGE_VERSION = 2;
@@ -10,7 +16,9 @@ export type StoredGameProgress = {
   level: number;
   levelData: LevelData;
   solvedTargets: number[];
+  bonusSolved: boolean;
   bonusCount: number;
+  gemCount: number;
   discoveredBonuses: string[];
   effectsEnabled: boolean;
   musicEnabled: boolean;
@@ -21,7 +29,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isValidLevelData(value: unknown, expectedLevel: number): value is LevelData {
+function isValidLevelData(value: unknown, expectedLevel: number): value is LegacyLevelData {
   if (!isRecord(value)) return false;
   if (value.level !== expectedLevel) return false;
   if (
@@ -63,13 +71,31 @@ function isValidLevelData(value: unknown, expectedLevel: number): value is Level
     return false;
   }
 
-  return value.targets.every((target) => {
+  const requiredTargetsValid = value.targets.every((target) => {
     if (!isRecord(target)) return false;
     if (!Number.isFinite(target.value)) return false;
     if (target.steps !== 2 && target.steps !== 3) return false;
     if (!['+', '-', '*', '/'].includes(String(target.op))) return false;
     return findSolutionIndices(target as LevelData['targets'][number], value.numbers as number[]) !== null;
   });
+  if (!requiredTargetsValid) return false;
+
+  if (value.bonusTarget === undefined) return true;
+  if (!isRecord(value.bonusTarget)) return false;
+  const bonusTarget = value.bonusTarget;
+  if (!Number.isFinite(bonusTarget.value)) return false;
+  if (bonusTarget.steps !== 2 && bonusTarget.steps !== 3) return false;
+  if (!['+', '-', '*', '/'].includes(String(bonusTarget.op))) return false;
+  if (bonusTarget.steps !== value.steps || bonusTarget.op !== value.op) return false;
+  return (
+    !value.targets.some(
+      (target) => isRecord(target) && target.value === bonusTarget.value,
+    ) &&
+    findSolutionIndices(
+      bonusTarget as LevelData['bonusTarget'],
+      value.numbers as number[],
+    ) !== null
+  );
 }
 
 function parseProgress(raw: string | null): StoredGameProgress | null {
@@ -90,7 +116,12 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
     ) {
       return null;
     }
+    const bonusSolved = typeof value.bonusSolved === 'boolean' ? value.bonusSolved : false;
     if (!Number.isInteger(value.bonusCount) || Number(value.bonusCount) < 0) return null;
+    const gemCount =
+      Number.isInteger(value.gemCount) && Number(value.gemCount) >= 0
+        ? Number(value.gemCount)
+        : 0;
     if (
       !Array.isArray(value.discoveredBonuses) ||
       !value.discoveredBonuses.every((bonus) => typeof bonus === 'string')
@@ -104,13 +135,31 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       typeof value.musicVolume === 'number' && Number.isFinite(value.musicVolume)
         ? Math.max(0, Math.min(1, value.musicVolume))
         : 0.5;
+    let normalizedLevelData: LevelData;
+    let normalizedSolvedTargets = [...new Set(value.solvedTargets as number[])];
+    let normalizedBonusSolved = bonusSolved;
+
+    try {
+      normalizedLevelData = normalizeLevelData(levelData);
+    } catch {
+      // Çok eski bir matriste ana hedeflerden farklı beşinci bir sonuç yoksa
+      // dünya ilerlemesini koru, yalnız o anki puzzle matrisini güvenle yenile.
+      normalizedLevelData = generateLevelData(
+        level,
+        levelData.targets.map((target) => target.value),
+      );
+      normalizedSolvedTargets = [];
+      normalizedBonusSolved = false;
+    }
 
     return {
       version: STORAGE_VERSION,
       level,
-      levelData: normalizeLevelData(levelData),
-      solvedTargets: [...new Set(value.solvedTargets as number[])],
+      levelData: normalizedLevelData,
+      solvedTargets: normalizedSolvedTargets,
+      bonusSolved: normalizedBonusSolved,
       bonusCount: Number(value.bonusCount),
+      gemCount,
       discoveredBonuses: [...new Set(value.discoveredBonuses as string[])],
       effectsEnabled: value.effectsEnabled,
       musicEnabled,
