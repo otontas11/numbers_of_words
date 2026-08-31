@@ -130,13 +130,13 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 
 ## Etkileşim ve animasyon
 
-- Bağlantı çizgisi `14 dp` yumuşak parlama, `6 dp` renkli akış ve `2 dp` aydınlık merkez katmanıyla çizilir; düğüm merkezlerini kapatmaz. Başlangıç ve bitiş noktası, yön vektörü üzerinde düğümün o anki görsel yarıçapı kadar ötelenir. Native/SVG çizimi cihaz piksel yoğunluğunda otomatik netleştirilir.
+- Bağlantı çizgisi Android `WordWheelView` referansındaki gibi merkezden merkeze tek ve kesintisiz path olarak, `14 dp` yumuşak gölge/parlama ve `6 dp` renkli akış katmanıyla çizilir; düğümler path’in üstüne çizildiği için hat düğüm yüzeylerinin altında kaybolur. Parmak ucu son düğüme doğrudan eklenir; yapay gecikme veya geriden gelen ikinci segment oluşturulmaz. Native/SVG çizimi cihaz piksel yoğunluğunda otomatik netleştirilir.
 - Bir sürüklemede aktif hedefin 2/3 adım sayısından bağımsız olarak çarktaki tüm benzersiz düğümler sırayla seçilebilir; komşuluk zorunluluğu yoktur. Sonuç yalnız parmak bırakıldığında değerlendirilir. Bırakılan zincir ana hedefte zümrüt tonla `520 ms`, bonus/keşifte altın tonla `440 ms`, geçersiz seçimde mercan tonla `180 ms` ekranda tutulur; bu sürede yeni zincir başlatılamaz. Böylece oyuncu bağladığı sayıları ve sonucun karşılığını okuyabilir.
 - WOW geri sarma kuralı uygulanır: parmak son seçilen düğümden yolun bir önceki düğümüne döndüğünde son düğüm seçimden çıkar. Parmak aynı yol üzerinde geriye ilerlemeyi sürdürürse tek hareket event&apos;inde dahi birden fazla düğüm sırayla sökülebilir. Yol içinde daha eski fakat bir önceki olmayan seçili düğüme atlamak döngü oluşturmaz ve yok sayılır.
 - Hızlı parmak hareketinde yalnız son event noktası değil, önceki ve yeni nokta arasındaki doğru parçası da düğüm çeperlerine karşı hit-test edilir. Böylece hızlı geçilen hedef düğüm atlanmaz; aynı segment sırası hem ileri seçim hem geriye sarma için kullanılır.
 - Aktif sürükleme koordinatı her pointer event&apos;inde React state&apos;e yazılamaz. Pointer çizgisi, segment hit-test&apos;i ve WOW geri sarma hesabı RNGH/Reanimated ile UI thread&apos;de yürür; JS/React yalnız zincir gerçekten değiştiğinde (düğüm ekleme veya sökme) güncellenir. Böylece ağır JS render&apos;ı parmak takibini bloke etmez.
 - Oyun açıkken sürekli çalışan dekoratif animasyonlar yalnız native driver/UI thread uyumlu `opacity` ve `transform` özelliklerini kullanır. `shadowRadius`, `shadowOpacity` veya layout özelliklerini JS thread&apos;de sonsuz döngüyle animasyonlamak yasaktır.
-- Seçili düğüm `1.25×` ölçeğe daha yumuşak kütle/yay tepkisiyle çıkar; çizgi bu büyümüş çeperde sonlanır. Sonuç tonu tutulma süresince hem çizgiye hem seçili düğüm yüzeylerine uygulanır.
+- Seçili düğümün çapı değişmez; bağlantı çizgisi sabit düğüm çeperinde sonlanır. Sonuç tonu tutulma süresince hem çizgiye hem seçili düğüm yüzeylerine uygulanır.
 - Karıştırma mevcut düğümleri yeniden oluşturmaz. Sayı ve mantıksal indeks korunur, yalnızca sayı→yuva eşlemesi değişir.
 - Bütün düğümler eski konumlarından yeni konumlarına aynı anda `450 ms` boyunca `cubic-bezier(0.34, 1.3, 0.64, 1)` eğrisiyle kayar. Karıştır simgesi aynı sürede `360°` döner.
 - Karıştırma sürerken yeni sürükleme başlatılamaz. Animasyon tamamlandığında hit-test koordinatları görsel konumlarla aynı olmalıdır.
@@ -160,7 +160,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - Sağ üstteki ayarlar düğmesi Android `dialog_word_path_settings.xml` akışını açar: `Ses` ve `Müzik` satırlarının tamamı anahtar gibi tıklanabilir, müzik seviyesi `%0–100` arasında canlı uygulanır ve `TAMAM` modalı kapatır. Dışarıdan yeni bir oyun mantığı alınmaz.
 - Arka plan müziği Android referansındaki `journey.mp3` dosyasının byte-byte kopyasıdır (`SHA-256 b3a965f31ddbeb3de619a7b4bb151117e632df9c49059ff17f2f33ef3aca2901`), döngüde çalar, varsayılan olarak kapalı ve `%50` seviyededir. Arka plan oynatma kapalıdır; uygulama arka plana geçtiğinde müzik durur.
 - Ses efektleri ve arka plan müziği ayrı tercihlerdir. Ses anahtarını kapatmak müziği, müzik anahtarını kapatmak kısa oyun efektlerini değiştirmez.
-- İlk sayı düğümü zinciri titreşimsiz başlatır. Sürükleyerek eklenen `select2…select4` düğümleri kısa melodik sesle birlikte mikro selection haptic, `select5…select7` ise zincirin uzadığını hissettiren hafif impact haptic üretir. Ses/efekt tercihi kapalıysa bu mikro haptics de çalışmaz; ipucu, karıştır, bonus ve bölüm sonu haptics davranışı korunur.
+- Birleştirme sırasında (`select1…select7`) titreşim üretilmez; düğüm seçim sesi korunur. Haptic yalnızca ipucu, karıştır, bonus, başarı ve bölüm sonu gibi sonuç/aksiyon geri bildirimlerinde kullanılır.
 - Kaynaklar `npm run sounds:generate` ile, ffmpeg&apos;e ihtiyaç duymayan `scripts/generate-sounds.mjs` deterministik PCM üreticisi üzerinden yeniden üretilebilir.
 
 ## Hedefe uçan sonuç animasyonu
@@ -178,6 +178,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - `expo-haptics`: mikro/makro dokunsal geri bildirim ayrımı.
 - `expo-image`: arka plan önbelleği ve `1000 ms` şehir geçişi.
 - `expo-blur`: gerçek modal arka plan bulanıklığı; Android SDK 31+ için hedef görünüm referansı kullanır.
+- `react-native-confetti-cannon`: her bölüm tamamlanmasında native-driver konfeti patlaması.
 - `react-native-svg`: radyal çember/düğüm/pul yüzeyleri ve yoğunluktan bağımsız netlik.
 - `react-native-gesture-handler`: çarkın native dokunma akışı, düğümden başlamayan dokunuşun ScrollView&apos;a bırakılması ve kesintisiz pan takibi.
 - `react-native-reanimated`: aktif pointer çizgisi, segment hit-test&apos;i ve zincir state&apos;inin UI thread&apos;de güncellenmesi.

@@ -2,6 +2,7 @@ import { BlurTargetView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import ConfettiCannon from 'react-native-confetti-cannon';
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import {
   Animated,
@@ -113,19 +114,6 @@ const CONFETTI_COLORS = [
 ] as const;
 
 const GAME_SKY_BACKGROUND = require('../../assets/images/game-sky-background.png');
-
-const CONFETTI = Array.from({ length: 120 }, (_, index) => {
-  const spread = ((index * 47) % 101) / 100;
-  const distance = 150 + ((index * 73) % 180);
-  const angle = Math.PI * (0.25 + spread * 0.5);
-  return {
-    color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
-    drift: Math.cos(angle) * distance,
-    lift: Math.sin(angle) * distance,
-    size: 4 + (index % 5),
-    spin: (index % 2 === 0 ? 1 : -1) * (360 + ((index * 61) % 540)),
-  };
-});
 
 function clearTimer(timer: MutableRefObject<Timer | null>) {
   if (timer.current) {
@@ -241,61 +229,20 @@ function ResultFlightBadge({
 
 function Celebration({ visible }: { visible: boolean }) {
   const { width, height } = useWindowDimensions();
-  const [progress] = useState(() => new Animated.Value(0));
-
-  useEffect(() => {
-    if (!visible) return;
-    progress.setValue(0);
-    const animation = Animated.timing(progress, {
-      toValue: 1,
-      duration: 1450,
-      useNativeDriver: true,
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [progress, visible]);
 
   if (!visible) return null;
 
-  const opacity = progress.interpolate({
-    inputRange: [0, 0.04, 0.82, 1],
-    outputRange: [0, 1, 1, 0],
-  });
-
   return (
     <View pointerEvents="none" style={styles.celebrationLayer}>
-      {CONFETTI.map((piece, index) => {
-        const translateX = progress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, piece.drift],
-        });
-        const translateY = progress.interpolate({
-          inputRange: [0, 0.38, 1],
-          outputRange: [0, -piece.lift, Math.max(height * 0.62, 420)],
-        });
-        const rotate = progress.interpolate({
-          inputRange: [0, 1],
-          outputRange: ['0deg', `${piece.spin}deg`],
-        });
-        return (
-          <Animated.View
-            key={index}
-            style={[
-              styles.confetti,
-              {
-                width: piece.size,
-                height: piece.size * 1.45,
-                borderRadius: index % 3 === 0 ? piece.size : 1,
-                backgroundColor: piece.color,
-                left: width / 2,
-                top: height * 0.4,
-                opacity,
-                transform: [{ translateX }, { translateY }, { rotate }],
-              },
-            ]}
-          />
-        );
-      })}
+      <ConfettiCannon
+        count={180}
+        explosionSpeed={420}
+        fallSpeed={2800}
+        fadeOut
+        colors={[...CONFETTI_COLORS]}
+        origin={{ x: width / 2, y: height * 0.42 }}
+        testID="level-complete-confetti"
+      />
     </View>
   );
 }
@@ -897,15 +844,8 @@ export default function HomeScreen() {
       playSound(kind);
       if (!effectsEnabled) return;
       if (kind.startsWith('select')) {
-        const selectionCount = Number.parseInt(kind.slice('select'.length), 10);
-        // İlk dokunuş sessizce zinciri başlatır. Sonraki her bağ mikro klik
-        // verir; uzun zincirin son düğümleri hafifçe daha tok hissedilir.
-        if (selectionCount <= 1) return;
-        const connectionEffect =
-          selectionCount >= 5
-            ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-            : Haptics.selectionAsync();
-        void connectionEffect.catch(() => undefined);
+        // Birleştirme sırasında ses olabilir, ancak düğüm düğüme
+        // titreşim verilmez; haptic yalnızca sonuç/aksiyon geri bildirimidir.
         return;
       }
       const effect =
@@ -2281,8 +2221,5 @@ const styles = StyleSheet.create({
     left: 0,
     zIndex: 60,
     overflow: 'hidden',
-  },
-  confetti: {
-    position: 'absolute',
   },
 });

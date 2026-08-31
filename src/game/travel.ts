@@ -300,6 +300,7 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
       ['japan', 'Japonya', '🇯🇵', ['Tokyo', 'Kyoto', 'Osaka'], 'Fuji Dağı'],
     ],
   },
+
   {
     id: 'nile-to-south-africa',
     name: "Nil'den Afrika'nın Güneyine",

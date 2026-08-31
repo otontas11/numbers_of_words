@@ -6,26 +6,21 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from 'react';
 import {
   Animated as RNAnimated,
   Easing,
   Pressable,
-  type StyleProp,
   StyleSheet,
   Text,
   View,
-  type ViewStyle,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, {
   runOnJS,
   type SharedValue,
   useAnimatedProps,
-  useAnimatedStyle,
   useSharedValue,
-  withSpring,
 } from 'react-native-reanimated';
 import Svg, {
   Circle,
@@ -221,7 +216,6 @@ function ActiveSelectionPath({
   pointerY,
   positions,
   selection,
-  fromRadius,
   tone,
 }: {
   active: SharedValue<boolean>;
@@ -229,7 +223,6 @@ function ActiveSelectionPath({
   pointerY: SharedValue<number>;
   positions: Point[];
   selection: SharedValue<number[]>;
-  fromRadius: number;
   tone: ConnectionTone;
 }) {
   const colors = CONNECTION_COLORS[tone];
@@ -239,34 +232,29 @@ function ActiveSelectionPath({
       return { d: '', opacity: 0 };
     }
 
+    const firstPosition = positions[currentSelection[0]];
+    if (!firstPosition) return { d: '', opacity: 0 };
     let path = '';
+
+    // Android WordWheelView ile aynı merkezden merkeze tek path kullanılır.
+    // Düğümler path üzerine çizildiği için hat düğüm yüzeylerinin
+    // altında kaybolur; ayrı ayrı M komutları arada ikinci bir çizgi hissi vermez.
+    path += `M ${firstPosition.x} ${firstPosition.y} `;
     for (let index = 1; index < currentSelection.length; index += 1) {
-      const from = positions[currentSelection[index - 1]];
       const to = positions[currentSelection[index]];
-      const deltaX = to.x - from.x;
-      const deltaY = to.y - from.y;
-      const distance = Math.hypot(deltaX, deltaY);
-      if (distance <= fromRadius * 2) continue;
-      const unitX = deltaX / distance;
-      const unitY = deltaY / distance;
-      path += `M ${from.x + unitX * fromRadius} ${from.y + unitY * fromRadius} `;
-      path += `L ${to.x - unitX * fromRadius} ${to.y - unitY * fromRadius} `;
+      path += `L ${to.x} ${to.y} `;
     }
 
     const lastPosition = positions[currentSelection[currentSelection.length - 1]];
     const pointerDeltaX = pointerX.value - lastPosition.x;
     const pointerDeltaY = pointerY.value - lastPosition.y;
     const pointerDistance = Math.hypot(pointerDeltaX, pointerDeltaY);
-    if (pointerDistance > fromRadius) {
-      const unitX = pointerDeltaX / pointerDistance;
-      const unitY = pointerDeltaY / pointerDistance;
-      path += `M ${lastPosition.x + unitX * fromRadius} `;
-      path += `${lastPosition.y + unitY * fromRadius} `;
+    if (pointerDistance > 1) {
       path += `L ${pointerX.value} ${pointerY.value}`;
     }
 
     return { d: path, opacity: 1 };
-  }, [fromRadius, positions]);
+  }, [positions]);
 
   return (
     <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
@@ -292,43 +280,8 @@ function ActiveSelectionPath({
         strokeLinecap="round"
         strokeWidth={6}
       />
-      <ReanimatedPath
-        animatedProps={animatedProps}
-        fill="none"
-        stroke={colors.core}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        strokeWidth={2}
-      />
     </Svg>
   );
-}
-
-function SpringSelectionSurface({
-  children,
-  selected,
-  style,
-}: {
-  children: ReactNode;
-  selected: boolean;
-  style: StyleProp<ViewStyle>;
-}) {
-  const scale = useSharedValue(selected ? 1.25 : 1);
-
-  useEffect(() => {
-    scale.value = withSpring(selected ? 1.25 : 1, {
-      damping: 16,
-      stiffness: 280,
-      mass: 0.65,
-      overshootClamping: false,
-    });
-  }, [scale, selected]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  return <Reanimated.View style={[style, animatedStyle]}>{children}</Reanimated.View>;
 }
 
 export const NumberWheel = memo(function NumberWheel({
@@ -485,7 +438,9 @@ export const NumberWheel = memo(function NumberWheel({
           }
         : undefined;
       const outcome = callbacksRef.current.onComplete(completedSelection, resultOrigin);
-      setConnectionTone(outcome);
+      // Yanlış sonuçta düğümler kırmızıya boyanmaz; bağlantı
+      // mevcut nötr turkuaz tonunda kısa süre görünür.
+      setConnectionTone(outcome === 'invalid' ? 'active' : outcome);
       selectionReleaseTimerRef.current = setTimeout(
         clearSelectionVisuals,
         SELECTION_HOLD_DURATION[outcome],
@@ -540,6 +495,8 @@ export const NumberWheel = memo(function NumberWheel({
           if (!gestureAccepted.value) return;
 
           const point = { x: event.x, y: event.y };
+          // Path, Android referansındaki gibi gerçek pointer noktasını
+          // gecikmeden takip eder; hit-test ve görsel hat aynı koordinatı kullanır.
           pointerX.value = point.x;
           pointerY.value = point.y;
           const previousPoint = {
@@ -639,7 +596,7 @@ export const NumberWheel = memo(function NumberWheel({
     onShuffle();
   };
 
-  const selectedRadius = (nodeSize * 1.25) / 2;
+  // Düğümler seçilirken artık büyümez; çizgi sabit görsel çapa tam oturur.
   const hintScale = hintPulse.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 1.3],
@@ -687,7 +644,6 @@ export const NumberWheel = memo(function NumberWheel({
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
             <ActiveSelectionPath
               active={activePointer}
-              fromRadius={selectedRadius}
               pointerX={pointerX}
               pointerY={pointerY}
               positions={positions}
@@ -730,8 +686,7 @@ export const NumberWheel = memo(function NumberWheel({
                   selected && styles.nodeSelectedLayer,
                   hinted && styles.nodeHintedLayer,
                 ]}>
-                <SpringSelectionSurface
-                  selected={selected}
+                <View
                   style={[
                     styles.nodeShadow,
                     { width: nodeSize, height: nodeSize, borderRadius: nodeSize / 2 },
@@ -793,7 +748,7 @@ export const NumberWheel = memo(function NumberWheel({
                       {number}
                     </Text>
                   </View>
-                </SpringSelectionSurface>
+                </View>
               </RNAnimated.View>
             );
           })}
