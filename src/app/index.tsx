@@ -84,6 +84,7 @@ type DestinationTransitionState = {
 };
 
 const RESULT_FLIGHT_DURATION = 720;
+const RESULT_FLIGHT_ARRIVAL_PROGRESS = 0.9;
 const RESULT_FLIGHT_WIDTH = 52;
 const RESULT_FLIGHT_HEIGHT = 52;
 const LEVEL_CELEBRATION_DELAY = RESULT_FLIGHT_DURATION + 100;
@@ -149,15 +150,27 @@ function measureViewInWindow(view: View | null): Promise<MeasuredRect | null> {
 
 function ResultFlightBadge({
   flight,
+  onArrive,
   onComplete,
 }: {
   flight: ResultFlight;
-  onComplete: (flightId: number, targetIndex: number) => void;
+  onArrive: (targetIndex: number) => void;
+  onComplete: (flightId: number) => void;
 }) {
   const [progress] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
+    let arrived = false;
+    const markArrived = () => {
+      if (arrived) return;
+      arrived = true;
+      onArrive(flight.targetIndex);
+    };
+
     progress.setValue(0);
+    const progressListener = progress.addListener(({ value }) => {
+      if (value >= RESULT_FLIGHT_ARRIVAL_PROGRESS) markArrived();
+    });
     const animation = Animated.timing(progress, {
       toValue: 1,
       duration: RESULT_FLIGHT_DURATION,
@@ -165,10 +178,15 @@ function ResultFlightBadge({
       useNativeDriver: true,
     });
     animation.start(({ finished }) => {
-      if (finished) onComplete(flight.id, flight.targetIndex);
+      if (!finished) return;
+      markArrived();
+      onComplete(flight.id);
     });
-    return () => animation.stop();
-  }, [flight.id, flight.targetIndex, onComplete, progress]);
+    return () => {
+      progress.removeListener(progressListener);
+      animation.stop();
+    };
+  }, [flight.id, flight.targetIndex, onArrive, onComplete, progress]);
 
   const middleX = flight.fromX + (flight.toX - flight.fromX) * 0.56;
   const middleY = (flight.fromY + flight.toY) / 2 - 48;
@@ -872,13 +890,14 @@ export default function HomeScreen() {
     [pulseTarget],
   );
 
-  const handleResultFlightComplete = useCallback(
-    (flightId: number, targetIndex: number) => {
-      setResultFlights((current) => current.filter((flight) => flight.id !== flightId));
-      revealTarget(targetIndex);
-    },
+  const handleResultFlightArrive = useCallback(
+    (targetIndex: number) => revealTarget(targetIndex),
     [revealTarget],
   );
+
+  const handleResultFlightComplete = useCallback((flightId: number) => {
+    setResultFlights((current) => current.filter((flight) => flight.id !== flightId));
+  }, []);
 
   const launchResultFlight = useCallback(
     async (value: number, targetIndex: number, resultOrigin?: ScreenPoint) => {
@@ -1440,6 +1459,7 @@ export default function HomeScreen() {
             <ResultFlightBadge
               flight={flight}
               key={flight.id}
+              onArrive={handleResultFlightArrive}
               onComplete={handleResultFlightComplete}
             />
           ))}
