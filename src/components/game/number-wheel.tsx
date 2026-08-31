@@ -47,15 +47,52 @@ type NumberWheelProps = {
   numbers: number[];
   hintIndices: number[];
   onPreview: (indices: number[]) => void;
-  onComplete: (indices: number[], resultOrigin?: Point) => void;
+  onComplete: (indices: number[], resultOrigin?: Point) => WheelSelectionOutcome;
   onHint: () => void;
   onShuffle: () => void;
   onNodeAdded: (selectionCount: number) => void;
   onDraggingChange: (dragging: boolean) => void;
 };
 
+export type WheelSelectionOutcome = 'success' | 'bonus' | 'invalid';
+type ConnectionTone = WheelSelectionOutcome | 'active';
+
 const SHUFFLE_DURATION = 450;
 const SHUFFLE_EASING = Easing.bezier(0.34, 1.3, 0.64, 1);
+const SELECTION_HOLD_DURATION: Record<WheelSelectionOutcome, number> = {
+  success: 520,
+  bonus: 440,
+  invalid: 180,
+};
+const CONNECTION_COLORS: Record<
+  ConnectionTone,
+  { core: string; end: string; glow: string; start: string }
+> = {
+  active: {
+    start: '#78E1EA',
+    end: '#347C91',
+    core: 'rgba(235,255,255,0.92)',
+    glow: 'rgba(79,195,211,0.28)',
+  },
+  success: {
+    start: '#8CF0C3',
+    end: '#15966D',
+    core: 'rgba(238,255,247,0.96)',
+    glow: 'rgba(34,197,135,0.34)',
+  },
+  bonus: {
+    start: '#FFE58A',
+    end: '#C58A24',
+    core: 'rgba(255,251,224,0.97)',
+    glow: 'rgba(245,190,62,0.36)',
+  },
+  invalid: {
+    start: '#FFA09A',
+    end: '#CC4F57',
+    core: 'rgba(255,240,240,0.94)',
+    glow: 'rgba(232,91,100,0.3)',
+  },
+};
 const ReanimatedPath = Reanimated.createAnimatedComponent(Path);
 
 function findNodesAlongSegment(
@@ -185,6 +222,7 @@ function ActiveSelectionPath({
   positions,
   selection,
   fromRadius,
+  tone,
 }: {
   active: SharedValue<boolean>;
   pointerX: SharedValue<number>;
@@ -192,7 +230,9 @@ function ActiveSelectionPath({
   positions: Point[];
   selection: SharedValue<number[]>;
   fromRadius: number;
+  tone: ConnectionTone;
 }) {
+  const colors = CONNECTION_COLORS[tone];
   const animatedProps = useAnimatedProps(() => {
     const currentSelection = selection.value;
     if (!active.value || currentSelection.length === 0) {
@@ -230,21 +270,35 @@ function ActiveSelectionPath({
 
   return (
     <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
+      <Defs>
+        <SvgLinearGradient id="selection-flow" x1="0%" x2="100%" y1="0%" y2="100%">
+          <Stop offset="0%" stopColor={colors.start} />
+          <Stop offset="100%" stopColor={colors.end} />
+        </SvgLinearGradient>
+      </Defs>
       <ReanimatedPath
         animatedProps={animatedProps}
         fill="none"
-        stroke="rgba(35,60,72,0.28)"
+        stroke={colors.glow}
         strokeLinejoin="round"
         strokeLinecap="round"
-        strokeWidth={9}
+        strokeWidth={14}
       />
       <ReanimatedPath
         animatedProps={animatedProps}
         fill="none"
-        stroke="#3A7A8D"
+        stroke="url(#selection-flow)"
         strokeLinejoin="round"
         strokeLinecap="round"
-        strokeWidth={5}
+        strokeWidth={6}
+      />
+      <ReanimatedPath
+        animatedProps={animatedProps}
+        fill="none"
+        stroke={colors.core}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        strokeWidth={2}
       />
     </Svg>
   );
@@ -263,9 +317,9 @@ function SpringSelectionSurface({
 
   useEffect(() => {
     scale.value = withSpring(selected ? 1.25 : 1, {
-      damping: 23,
-      stiffness: 420,
-      mass: 0.5,
+      damping: 16,
+      stiffness: 280,
+      mass: 0.65,
       overshootClamping: false,
     });
   }, [scale, selected]);
@@ -292,11 +346,13 @@ export const NumberWheel = memo(function NumberWheel({
     Array.from({ length: numbers.length }, (_, index) => index),
   );
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+  const [connectionTone, setConnectionTone] = useState<ConnectionTone>('active');
   const wheelRef = useRef<View>(null);
   const originRef = useRef<Point>({ x: 0, y: 0 });
   const slotOrderRef = useRef(slotOrder);
   const shuffleAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
   const hintAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
+  const selectionReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rotationTurnsRef = useRef(0);
   const [rotation] = useState(() => new RNAnimated.Value(0));
   const [hintPulse] = useState(() => new RNAnimated.Value(0));
@@ -308,6 +364,7 @@ export const NumberWheel = memo(function NumberWheel({
   const gestureAccepted = useSharedValue(false);
   const selectionOnUI = useSharedValue<number[]>([]);
   const shufflingOnUI = useSharedValue(false);
+  const holdingOnUI = useSharedValue(false);
   const callbacksRef = useRef({
     onComplete,
     onDraggingChange,
@@ -342,6 +399,23 @@ export const NumberWheel = memo(function NumberWheel({
   );
   const positionsRef = useRef(positions);
 
+  const clearSelectionVisuals = useCallback(() => {
+    if (selectionReleaseTimerRef.current) {
+      clearTimeout(selectionReleaseTimerRef.current);
+      selectionReleaseTimerRef.current = null;
+    }
+    setSelectedIndices([]);
+    setConnectionTone('active');
+    callbacksRef.current.onDraggingChange(false);
+    // SharedValues are intentionally released from JS after the result hold.
+    // eslint-disable-next-line react-hooks/immutability
+    activePointer.value = false;
+    // eslint-disable-next-line react-hooks/immutability
+    selectionOnUI.value = [];
+    // eslint-disable-next-line react-hooks/immutability
+    holdingOnUI.value = false;
+  }, [activePointer, holdingOnUI, selectionOnUI]);
+
   useEffect(() => {
     callbacksRef.current = { onComplete, onDraggingChange, onNodeAdded, onPreview };
   }, [onComplete, onDraggingChange, onNodeAdded, onPreview]);
@@ -354,6 +428,9 @@ export const NumberWheel = memo(function NumberWheel({
     () => () => {
       shuffleAnimationRef.current?.stop();
       hintAnimationRef.current?.stop();
+      if (selectionReleaseTimerRef.current) {
+        clearTimeout(selectionReleaseTimerRef.current);
+      }
     },
     [],
   );
@@ -376,6 +453,7 @@ export const NumberWheel = memo(function NumberWheel({
 
   const beginSelection = useCallback((nodeIndex: number) => {
     const next = [nodeIndex];
+    setConnectionTone('active');
     setSelectedIndices(next);
     callbacksRef.current.onDraggingChange(true);
     callbacksRef.current.onNodeAdded(1);
@@ -391,8 +469,13 @@ export const NumberWheel = memo(function NumberWheel({
     [],
   );
 
-  const finishSelection = useCallback((completedSelection: number[], shouldComplete: boolean) => {
-    if (shouldComplete && completedSelection.length > 0) {
+  const finishSelection = useCallback(
+    (completedSelection: number[], shouldComplete: boolean) => {
+      if (!shouldComplete || completedSelection.length === 0) {
+        clearSelectionVisuals();
+        return;
+      }
+
       const lastIndex = completedSelection[completedSelection.length - 1];
       const lastPosition = positionsRef.current[lastIndex];
       const resultOrigin = lastPosition
@@ -401,12 +484,15 @@ export const NumberWheel = memo(function NumberWheel({
             y: originRef.current.y + lastPosition.y,
           }
         : undefined;
-      callbacksRef.current.onComplete(completedSelection, resultOrigin);
-    }
-
-    setSelectedIndices([]);
-    callbacksRef.current.onDraggingChange(false);
-  }, []);
+      const outcome = callbacksRef.current.onComplete(completedSelection, resultOrigin);
+      setConnectionTone(outcome);
+      selectionReleaseTimerRef.current = setTimeout(
+        clearSelectionVisuals,
+        SELECTION_HOLD_DURATION[outcome],
+      );
+    },
+    [clearSelectionVisuals],
+  );
 
   /*
    * RNGH worklet callbacks intentionally read and update Reanimated SharedValues.
@@ -422,7 +508,12 @@ export const NumberWheel = memo(function NumberWheel({
         .onTouchesDown((event, stateManager) => {
           'worklet';
           const touch = event.changedTouches[0] ?? event.allTouches[0];
-          if (!touch || shufflingOnUI.value || gestureAccepted.value) {
+          if (
+            !touch ||
+            shufflingOnUI.value ||
+            holdingOnUI.value ||
+            gestureAccepted.value
+          ) {
             stateManager.fail();
             return;
           }
@@ -473,8 +564,7 @@ export const NumberWheel = memo(function NumberWheel({
           if (!gestureAccepted.value) return;
           const completedSelection = [...selectionOnUI.value];
           gestureAccepted.value = false;
-          activePointer.value = false;
-          selectionOnUI.value = [];
+          holdingOnUI.value = true;
           runOnJS(finishSelection)(completedSelection, true);
         })
         .onFinalize(() => {
@@ -494,6 +584,7 @@ export const NumberWheel = memo(function NumberWheel({
       lastPointerX,
       lastPointerY,
       hitRadius,
+      holdingOnUI,
       numbers.length,
       pointerX,
       pointerY,
@@ -506,6 +597,7 @@ export const NumberWheel = memo(function NumberWheel({
   /* eslint-enable react-hooks/immutability, react-hooks/refs */
 
   const shuffleNodes = () => {
+    clearSelectionVisuals();
     let next = shuffledIndices(numbers.length);
     let attempts = 0;
     while (next.every((value, index) => value === slotOrderRef.current[index]) && attempts < 8) {
@@ -600,6 +692,7 @@ export const NumberWheel = memo(function NumberWheel({
               pointerY={pointerY}
               positions={positions}
               selection={selectionOnUI}
+              tone={connectionTone}
             />
           </View>
 
@@ -664,8 +757,18 @@ export const NumberWheel = memo(function NumberWheel({
                           x2="100%"
                           y1="0%"
                           y2="100%">
-                          <Stop offset="0%" stopColor={selected ? '#4B98AA' : '#F8FCFB'} />
-                          <Stop offset="100%" stopColor={selected ? '#316D80' : '#DAEBEB'} />
+                          <Stop
+                            offset="0%"
+                            stopColor={
+                              selected ? CONNECTION_COLORS[connectionTone].start : '#F8FCFB'
+                            }
+                          />
+                          <Stop
+                            offset="100%"
+                            stopColor={
+                              selected ? CONNECTION_COLORS[connectionTone].end : '#DAEBEB'
+                            }
+                          />
                         </SvgLinearGradient>
                       </Defs>
                       <Circle

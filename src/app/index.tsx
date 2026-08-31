@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CountryCompletionModal, PassportModal } from '@/components/game/game-modals';
-import { NumberWheel } from '@/components/game/number-wheel';
+import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
 import { MainMenu, ProfileScreen } from '@/components/home/main-menu';
 import { SettingsModal } from '@/components/home/settings-modal';
 import { JourneyMap } from '@/components/journey/journey-map';
@@ -896,9 +896,18 @@ export default function HomeScreen() {
     (kind: GameSound) => {
       playSound(kind);
       if (!effectsEnabled) return;
-      // Sayıların yükselen seçim melodisi korunur; düğümden düğüme sürüklerken
-      // tekrarlayan titreşim üretilmez.
-      if (kind.startsWith('select')) return;
+      if (kind.startsWith('select')) {
+        const selectionCount = Number.parseInt(kind.slice('select'.length), 10);
+        // İlk dokunuş sessizce zinciri başlatır. Sonraki her bağ mikro klik
+        // verir; uzun zincirin son düğümleri hafifçe daha tok hissedilir.
+        if (selectionCount <= 1) return;
+        const connectionEffect =
+          selectionCount >= 5
+            ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+            : Haptics.selectionAsync();
+        void connectionEffect.catch(() => undefined);
+        return;
+      }
       const effect =
         kind === 'levelComplete'
           ? Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
@@ -1029,17 +1038,17 @@ export default function HomeScreen() {
   );
 
   const handleComplete = useCallback(
-    (indices: number[], resultOrigin?: ScreenPoint) => {
+    (indices: number[], resultOrigin?: ScreenPoint): WheelSelectionOutcome => {
       if (indices.length < 2) {
         setFeedback(null);
-        return;
+        return 'invalid';
       }
 
       const values = indices.map((index) => levelData.numbers[index]);
       const calculation = computeResult(values, levelData.op);
       if (!calculation) {
         showTimedFeedback({ text: 'Bu sıra geçerli bir işlem oluşturmuyor', tone: 'info' });
-        return;
+        return 'invalid';
       }
 
       const combinationKey = getCombinationKey(values, levelData.op, calculation.result);
@@ -1132,7 +1141,7 @@ export default function HomeScreen() {
             1150,
           );
         }
-        return;
+        return 'success';
       }
 
       const bonusTarget = levelData.bonusTarget;
@@ -1161,7 +1170,7 @@ export default function HomeScreen() {
           },
           1550,
         );
-        return;
+        return 'bonus';
       }
 
       if (!discoveredBonuses.current.has(combinationKey)) {
@@ -1176,8 +1185,10 @@ export default function HomeScreen() {
           },
           1450,
         );
+        return 'bonus';
       } else {
         showTimedFeedback({ text: 'Bu kombinasyonu zaten keşfettin', tone: 'info' });
+        return 'invalid';
       }
     },
     [
