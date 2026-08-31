@@ -16,6 +16,8 @@ export type StoredGameProgress = {
   level: number;
   levelData: LevelData;
   solvedTargets: number[];
+  /** Eski v2 kayıtlarında bulunmayabilir; ilk yüklemede mevcut görünür puandan türetilir. */
+  score?: number;
   bonusSolved: boolean;
   bonusCount: number;
   gemCount: number;
@@ -118,10 +120,19 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
     }
     const bonusSolved = typeof value.bonusSolved === 'boolean' ? value.bonusSolved : false;
     if (!Number.isInteger(value.bonusCount) || Number(value.bonusCount) < 0) return null;
-    const gemCount =
+    const bonusCount = Number(value.bonusCount);
+    const storedGemCount =
       Number.isInteger(value.gemCount) && Number(value.gemCount) >= 0
         ? Number(value.gemCount)
         : 0;
+    // Eski kayıtlarda serbest Bonus Keşifler istatistiğe yazılıyor, ancak
+    // mücevher bakiyesine eklenmiyordu. Her bonusun mücevhere dönüştüğü yeni
+    // ekonomiye geçerken oyuncunun daha önceki bonuslarını da koru.
+    const gemCount = Math.max(storedGemCount, bonusCount);
+    const score =
+      Number.isInteger(value.score) && Number(value.score) >= 0
+        ? Number(value.score)
+        : undefined;
     if (
       !Array.isArray(value.discoveredBonuses) ||
       !value.discoveredBonuses.every((bonus) => typeof bonus === 'string')
@@ -158,7 +169,8 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       levelData: normalizedLevelData,
       solvedTargets: normalizedSolvedTargets,
       bonusSolved: normalizedBonusSolved,
-      bonusCount: Number(value.bonusCount),
+      ...(score === undefined ? {} : { score }),
+      bonusCount,
       gemCount,
       discoveredBonuses: [...new Set(value.discoveredBonuses as string[])],
       effectsEnabled: value.effectsEnabled,
@@ -172,6 +184,10 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
 
 let saveQueue: Promise<void> = Promise.resolve();
 
+type GameProgressToSave = Omit<StoredGameProgress, 'version' | 'score'> & {
+  score: number;
+};
+
 export async function loadGameProgress(): Promise<StoredGameProgress | null> {
   try {
     return parseProgress(await AsyncStorage.getItem(STORAGE_KEY));
@@ -180,7 +196,7 @@ export async function loadGameProgress(): Promise<StoredGameProgress | null> {
   }
 }
 
-export function saveGameProgress(progress: Omit<StoredGameProgress, 'version'>): Promise<void> {
+export function saveGameProgress(progress: GameProgressToSave): Promise<void> {
   const serialized = JSON.stringify({ ...progress, version: STORAGE_VERSION });
   saveQueue = saveQueue
     .catch(() => undefined)

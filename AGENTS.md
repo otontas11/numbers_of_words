@@ -1,3 +1,8 @@
-# Expo HAS CHANGED
+# Project instructions
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
+- Do not scan the entire repository unless explicitly requested.
+- Read only files relevant to the current task.
+- Do not inspect build/, .gradle/, generated/, or binary files.
+- Ask before reading more than 10 files.
+- Prefer targeted searches over repository-wide analysis.
+- Keep responses concise.

@@ -315,7 +315,7 @@ export const NumberWheel = memo(function NumberWheel({
     onPreview,
   });
 
-  const nodeSize = size < 300 ? 60 : 62;
+  const nodeSize = size < 300 ? 64 : 66;
   // Android WordWheelView ile aynı 1.18× yarıçap: kolay yakalanır, komşu düğüme
   // gereksiz yapışma üretmez. Hızlı hareketler ayrıca segment boyunca taranır.
   const hitRadius = (nodeSize / 2) * 1.18;
@@ -683,8 +683,8 @@ export const NumberWheel = memo(function NumberWheel({
                         styles.nodeText,
                         selected && styles.nodeTextSelected,
                         {
-                          fontSize: size < 300 ? 20 : 24,
-                          lineHeight: size < 300 ? 25 : 30,
+                          fontSize: size < 300 ? 22 : 26,
+                          lineHeight: size < 300 ? 27 : 32,
                         },
                       ]}>
                       {number}

@@ -36,8 +36,6 @@ import { getGameLayout } from '@/game/layout';
 import { loadGameProgress, saveGameProgress } from '@/game/progress-storage';
 import {
   COUNTRY_BY_ID,
-  WORLD_COUNTRIES,
-  getCompletedCountryCount,
   getCompletedWorldLevelCount,
   getCountryProgress,
   getLocationProgress,
@@ -492,10 +490,12 @@ function BonusTargetCard({
       style={[styles.bonusTargetRow, solved && styles.bonusTargetRowSolved]}>
       <View style={styles.bonusTargetCopy}>
         <Text style={[styles.bonusTargetTitle, solved && styles.bonusTargetSolvedText]}>
-          {solved ? '💎 BONUS ALINDI' : '💎 BONUS HEDEF'}
+          SAYILARI BİRLEŞTİR
         </Text>
         <Text style={[styles.bonusTargetSubtitle, solved && styles.bonusTargetSolvedText]}>
-          {solved ? `+${BONUS_GEM_REWARD} mücevher kazanıldı` : `İsteğe bağlı • +${BONUS_GEM_REWARD} mücevher`}
+          {solved
+            ? `💎 +${BONUS_GEM_REWARD} mücevher kazanıldı`
+            : `Sağdaki bonus sayısını oluştur • +${BONUS_GEM_REWARD} mücevher`}
         </Text>
       </View>
 
@@ -506,7 +506,7 @@ function BonusTargetCard({
             end={{ x: 1, y: 1 }}
             start={{ x: 0, y: 0 }}
             style={styles.bonusTargetCard}>
-            <Text style={styles.bonusTargetValue}>{solved ? '✓' : target.value}</Text>
+            <Text style={styles.bonusTargetValue}>{target.value}</Text>
             <Text style={styles.bonusTargetMeta}>
               [{operation.symbol}] {Array.from({ length: target.steps }, () => '●').join(' ')}
             </Text>
@@ -546,8 +546,30 @@ function PulsingGems({ count, compact }: { count: number; compact: boolean }) {
         },
       ]}>
       <Text style={styles.bonusStar}>💎</Text>
-      <Text style={styles.bonusText}>{count}</Text>
+      <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={styles.bonusText}>
+        {count.toLocaleString('tr-TR')}
+      </Text>
     </Animated.View>
+  );
+}
+
+function ScorePill({ compact, score }: { compact: boolean; score: number }) {
+  return (
+    <View
+      accessibilityLabel={`${score} puan`}
+      style={[styles.scoreButton, compact && styles.scoreButtonCompact]}>
+      <Text style={styles.scoreStar}>★</Text>
+      <View style={styles.scoreCopy}>
+        <Text style={styles.scoreLabel}>PUAN</Text>
+        <Text
+          adjustsFontSizeToFit
+          minimumFontScale={0.62}
+          numberOfLines={1}
+          style={[styles.scoreText, compact && styles.scoreTextCompact]}>
+          {score.toLocaleString('tr-TR')}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -642,6 +664,7 @@ export default function HomeScreen() {
   const [bonusSolved, setBonusSolved] = useState(false);
   const [bonusCount, setBonusCount] = useState(0);
   const [gemCount, setGemCount] = useState(0);
+  const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [hintIndices, setHintIndices] = useState<number[]>([]);
   const [hintedTarget, setHintedTarget] = useState<number | null>(null);
@@ -682,9 +705,6 @@ export default function HomeScreen() {
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
   const levelJustCompleted = hasCompletedRequiredTargets(solvedTargets.size, levelData);
   const displayedProgressLevel = levelData.level + (levelJustCompleted ? 1 : 0);
-  const passportStampCount = getCompletedCountryCount(displayedProgressLevel);
-  const completedWorldLevels = getCompletedWorldLevelCount(displayedProgressLevel);
-  const score = completedWorldLevels * 100 + solvedTargets.size * 20 + bonusCount * 25;
 
   useEffect(() => {
     let active = true;
@@ -708,6 +728,10 @@ export default function HomeScreen() {
               saved.levelData.targets.map((target) => target.value),
             )
           : saved.levelData;
+        const legacyDisplayedLevel = saved.levelData.level + (restoredLevelComplete ? 1 : 0);
+        const legacyScore =
+          getCompletedWorldLevelCount(legacyDisplayedLevel) * 100 +
+          restoredSolved.size * 20;
 
         setLevel(restoredLevel);
         setLevelData(restoredLevelData);
@@ -720,6 +744,7 @@ export default function HomeScreen() {
         setCountryCompletionLevel(restoredCountryCompletion ? saved.level : null);
         setBonusCount(saved.bonusCount);
         setGemCount(saved.gemCount);
+        setScore(saved.score ?? legacyScore);
         setEffectsEnabled(saved.effectsEnabled);
         setMusicEnabled(saved.musicEnabled);
         setMusicVolume(saved.musicVolume);
@@ -741,6 +766,7 @@ export default function HomeScreen() {
       level,
       levelData,
       solvedTargets: [...solvedTargets].sort((left, right) => left - right),
+      score,
       bonusSolved,
       bonusCount,
       gemCount,
@@ -759,6 +785,7 @@ export default function HomeScreen() {
     levelData,
     musicEnabled,
     musicVolume,
+    score,
     solvedTargets,
   ]);
 
@@ -956,6 +983,7 @@ export default function HomeScreen() {
         nextSolved.add(targetIndex);
         setFlyingTargets((current) => new Set(current).add(targetIndex));
         setSolvedTargets(nextSolved);
+        setScore((currentScore) => currentScore + calculation.result);
         triggerEffect('success');
         void launchResultFlight(calculation.result, targetIndex, resultOrigin);
 
@@ -983,7 +1011,10 @@ export default function HomeScreen() {
                   }`
                 : `Puzzle ${levelData.locationLevel}/${levelData.locationLevelCount} tamamlandı • ${levelData.city}`;
           showTimedFeedback(
-            { text: `Harika! ${completionMessage} 🎉`, tone: 'success' },
+            {
+              text: `+${calculation.result} puan • Harika! ${completionMessage} 🎉`,
+              tone: 'success',
+            },
             LEVEL_CELEBRATION_DELAY + 1100,
           );
           clearTimer(levelTimer);
@@ -1016,7 +1047,10 @@ export default function HomeScreen() {
           }, LEVEL_CELEBRATION_DELAY);
         } else {
           showTimedFeedback(
-            { text: `Hedef bulundu: ${calculation.result} ✓`, tone: 'success' },
+            {
+              text: `Hedef bulundu: ${calculation.result} ✓ • +${calculation.result} puan`,
+              tone: 'success',
+            },
             1150,
           );
         }
@@ -1055,10 +1089,11 @@ export default function HomeScreen() {
       if (!discoveredBonuses.current.has(combinationKey)) {
         discoveredBonuses.current.add(combinationKey);
         setBonusCount((count) => count + 1);
+        setGemCount((count) => count + BONUS_GEM_REWARD);
         triggerEffect('bonus');
         showTimedFeedback(
           {
-            text: `⭐ Bonus Keşif! (${calculation.expression} = ${calculation.result})`,
+            text: `⭐ Bonus Keşif! +${BONUS_GEM_REWARD} mücevher • ${calculation.expression} = ${calculation.result}`,
             tone: 'bonus',
           },
           1450,
@@ -1267,7 +1302,7 @@ export default function HomeScreen() {
                 <Text style={styles.backIcon}>‹</Text>
               </Pressable>
 
-              <PulsingGems compact={compactHeader} count={gemCount} />
+              <ScorePill compact={compactHeader} score={score} />
             </View>
 
             <View
@@ -1276,19 +1311,7 @@ export default function HomeScreen() {
                 styles.headerRight,
                 compactHeader && styles.headerSideCompact,
               ]}>
-              <Pressable
-                accessibilityLabel="Seyahat pasaportunu aç"
-                accessibilityRole="button"
-                hitSlop={5}
-                onPress={() => setPassportVisible(true)}
-                style={({ pressed }) => [styles.skyControl, pressed && styles.buttonPressed]}>
-                <Text style={styles.skyControlIcon}>📘</Text>
-                <View style={styles.passportCount}>
-                  <Text style={styles.passportCountText}>
-                    {passportStampCount}/{WORLD_COUNTRIES.length}
-                  </Text>
-                </View>
-              </Pressable>
+              <PulsingGems compact={compactHeader} count={gemCount} />
 
               <Pressable
                 accessibilityLabel="Oyun ayarlarını aç"
@@ -1322,21 +1345,18 @@ export default function HomeScreen() {
                 style={styles.topSection}>
                 <View style={styles.operationRow}>
                   <View style={styles.operationSide}>
-                    <Text style={styles.operationLabel}>HEDEFLER</Text>
+                    <Text style={styles.operationLabel}>İŞLEM TÜRÜ</Text>
                     <LinearGradient
                       colors={['rgba(66,107,120,0.96)', 'rgba(52,87,100,0.96)']}
                       end={{ x: 0, y: 1 }}
                       start={{ x: 0, y: 0 }}
                       style={styles.operationBadge}>
-                      <Text style={styles.operationText}>{operation.name}</Text>
-                      <Text style={styles.operationSymbol}>({operation.symbol})</Text>
+                      <Text style={styles.operationSymbol}>{operation.symbol}</Text>
                     </LinearGradient>
                   </View>
                   <View style={styles.requiredBadge}>
-                    <Text style={styles.requiredLabel}>GEREKEN</Text>
-                    <Text style={styles.requiredDots}>
-                      {Array.from({ length: levelData.steps }, () => '●').join(' ')}
-                    </Text>
+                    <Text style={styles.requiredLabel}>ADIM SAYISI</Text>
+                    <Text style={styles.requiredDots}>{levelData.steps}</Text>
                   </View>
                 </View>
 
@@ -1382,12 +1402,7 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                 ) : (
-                  <View style={styles.feedbackPlaceholder}>
-                    <Text style={styles.feedbackPlaceholderTitle}>SAYILARI BİRLEŞTİR</Text>
-                    <Text style={styles.feedbackPlaceholderText}>
-                      Hedeflerden birini oluşturacak yolu keşfet
-                    </Text>
-                  </View>
+                  null
                 )}
               </View>
 
@@ -1506,38 +1521,63 @@ const styles = StyleSheet.create({
     lineHeight: 42,
     fontWeight: '500',
   },
-  skyControlIcon: {
-    fontSize: 18,
-  },
   gameSettingsIcon: {
     color: '#FFFFFF',
     fontSize: 24,
     lineHeight: 27,
   },
-  passportCount: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    minWidth: 34,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 999,
-    paddingHorizontal: 4,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.92)',
-    backgroundColor: 'rgba(247,252,251,0.96)',
-  },
-  passportCountText: {
-    color: '#233540',
-    fontFamily: FONTS.black,
-    fontSize: 8,
-    lineHeight: 10,
-    fontWeight: '900',
-  },
   buttonPressed: {
     opacity: 0.76,
     transform: [{ scale: 0.94 }],
+  },
+  scoreButton: {
+    height: 44,
+    minWidth: 78,
+    maxWidth: 106,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,231,157,0.94)',
+    backgroundColor: 'rgba(94,68,31,0.93)',
+    shadowColor: '#4B3518',
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
+  scoreButtonCompact: {
+    minWidth: 70,
+    maxWidth: 78,
+    gap: 3,
+    paddingHorizontal: 7,
+  },
+  scoreStar: {
+    color: '#FFE58C',
+    fontSize: 18,
+  },
+  scoreCopy: {
+    minWidth: 0,
+    flexShrink: 1,
+  },
+  scoreLabel: {
+    color: '#FFE9A9',
+    fontFamily: FONTS.bold,
+    fontSize: 6.5,
+    lineHeight: 7,
+    letterSpacing: 0.7,
+    fontWeight: '700',
+  },
+  scoreText: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 14,
+    lineHeight: 17,
+    fontWeight: '900',
+  },
+  scoreTextCompact: {
+    fontSize: 13,
   },
   bonusButton: {
     height: 44,
@@ -1557,12 +1597,15 @@ const styles = StyleSheet.create({
   },
   bonusButtonCompact: {
     minWidth: 70,
+    maxWidth: 78,
     paddingHorizontal: 9,
   },
   bonusStar: {
     fontSize: 19,
   },
   bonusText: {
+    minWidth: 0,
+    flexShrink: 1,
     color: '#FFFFFF',
     fontFamily: FONTS.black,
     fontSize: 16,
@@ -1758,12 +1801,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 4,
-  },
-  operationText: {
-    color: '#FFFFFF',
-    fontFamily: FONTS.black,
-    fontSize: 12,
-    fontWeight: '900',
   },
   operationSymbol: {
     color: '#FFFFFF',
@@ -1990,36 +2027,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.black,
     fontSize: 14,
     fontWeight: '900',
-    textAlign: 'center',
-  },
-  feedbackPlaceholder: {
-    width: '70%',
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(93,129,138,0.55)',
-    backgroundColor: 'rgba(231,239,238,0.36)',
-  },
-  feedbackPlaceholderTitle: {
-    color: '#557782',
-    fontFamily: FONTS.black,
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  feedbackPlaceholderText: {
-    marginTop: 2,
-    color: '#687F87',
-    fontFamily: FONTS.bold,
-    fontSize: 8,
-    lineHeight: 10,
-    fontWeight: '700',
     textAlign: 'center',
   },
   wheelContainer: {

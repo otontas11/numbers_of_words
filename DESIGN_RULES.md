@@ -30,7 +30,7 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 2. Sayıları parmağıyla sırayla birleştirerek zihinsel yatırım yapar.
 3. Tek hedef bulunduğunda kart yalnızca emerald durumuna geçer; ekran düzeni değişmez ve konfeti gösterilmez.
 4. Her seviyede ana hedeflerden farklı, garantili çözülebilen bir `💎 Bonus Hedef` kartı bulunur. Bu kart isteğe bağlıdır; çözülürse `+1 mücevher` verir.
-5. Bonus kartı dışında hedef olmayan geçerli bir işlem ilk kez keşfedilirse Bonus Keşif sayacı artar; bu serbest keşif mücevher vermez.
+5. Bonus kartı dışında hedef olmayan geçerli bir işlem ilk kez keşfedilirse Bonus Keşif sayacı artar ve `+1 mücevher` verir; aynı kombinasyon tekrar ödül vermez.
 6. Tüm **ana hedefler** bitince bonus kartının durumuna bakılmadan konfeti, güçlü başarı titreşimi ve seviye geçişi çalışır. Çözülmemiş bonus sonraki seviyeye geçişi hiçbir zaman engellemez.
 7. Her ülkede ilk iki destinasyon 7&apos;şer, üçüncü destinasyon 5 puzzle içerir; 20. puzzle Country Challenge&apos;dır.
 8. Country Challenge tamamlanınca vize pulu ve landmark kazanılır. Oyuncu zorla rota ekranına gönderilmez; ister oyuna devam eder, ister ana ekrandaki Seyahat düğmesiyle yeni bağlantıyı inceler.
@@ -52,7 +52,7 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 - Bonus hedef, ana hedeflerle aynı çember ve işlemden türetilir; ana hedef değerlerinden farklı, benzersiz ve çözümleyiciyle doğrulanmış olmalıdır. Bonus kartı ana hedef sayısına ve seviye tamamlama koşuluna dahil edilmez.
 - Hedef seçici, düğüm kullanım sayılarının farkını ve kareler toplamını minimize ederek bütün çemberi olabildiğince dengeli kullanır.
 - Mevcut seviyenin hedef değerleri sonraki seviye üretilirken dışlanır. Aynı hedef değeri art arda iki seviyede gösterilemez; bir seviye ara verildikten sonra yeniden kullanılabilir.
-- Uygulama kapanıp açılsa da mevcut sayı matrisi, hedefler, bonus hedefi, çözülmüş kartlar, bonus çözüm durumu, mücevher bakiyesi, seviye, Bonus Keşif geçmişi, efekt tercihi, müzik tercihi ve müzik seviyesi korunur.
+- Uygulama kapanıp açılsa da mevcut sayı matrisi, hedefler, bonus hedefi, çözülmüş kartlar, bonus çözüm durumu, toplam puan, mücevher bakiyesi, seviye, Bonus Keşif geçmişi, efekt tercihi, müzik tercihi ve müzik seviyesi korunur.
 - Dahili global puzzle numarası üretim ve kayıt için kullanılabilir; hiçbir oyuncu arayüzünde “Level 847” gibi gösterilemez. Oyuncu yalnız rota, ülke, destinasyon ve destinasyon içi `x/y` puzzle ilerlemesini görür.
 
 ## Dünya rotası, ülkeler ve pasaport
@@ -83,7 +83,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 ## Yolculuk haritası ve giriş akışı
 
 - Uygulama açıldığında ilk ekran Words of Wonders tarzı ana menüdür; sayı çarkı veya rota listesi doğrudan açılmaz.
-- Ana menünün sol üstünde türetilmiş oyuncu puanı, sağ üstünde Oyun Ayarları bulunur. Puan `tamamlanan puzzle × 100 + açık seviyedeki çözülmüş hedef × 20 + Bonus Keşif × 25` formülüyle mevcut kalıcı progress&apos;ten hesaplanır; ayrı ve tutarsız bir puan kaydı tutulmaz.
+- Ana menünün ve oyun HUD&apos;unun sol üst grubunda oyuncu puanı, sağ üst grubunda mücevher bakiyesi bulunur. İlk kez çözülen her ana hedef, kartta yazan sayı değeri kadar puan verir. Bonus hedef ve ilk kez bulunan serbest Bonus Keşif puan vermez; her biri `+1 mücevher` verir. Toplam puan ve mücevher bakiyesi kalıcı progress&apos;te saklanır.
 - Ekranın merkezindeki büyük altın çerçeveli `BÖLÜM` düğmesi aktif ülke/destinasyon içindeki puzzle numarasını gösterir ve kayıtlı sayı matrisi ile çözülmüş hedeflerden **tek dokunuşla** devam eder.
 - Alt soldaki `PROFİL` düğmesi puan, tamamlanan puzzle, ülke, Bonus Keşif ve pasaport ilerlemesini açar. Alt sağdaki `SEYAHAT` düğmesi 14 rota, ülke kartları, şehir/lokasyon çipleri ve Challenge rayını içeren yolculuk sayfasını açar.
 - Rota → ülke → şehir gezinmesi günlük oyuna giriş koşulu değildir. Şehirler ülke kartlarında ilerleme bilgisi olarak görünür; ayrıca şehir seçtirilmez.
@@ -109,7 +109,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 
 - Yazı ailesi tüm ekranlarda `Plus Jakarta Sans` 400, 500, 600, 700 ve 800 ağırlıklarıyla yerel olarak yüklenir.
 - Puzzle ekranı `assets/images/game-sky-background.png` görselini `cover` olarak kullanır. Bu dosya Android referansındaki sky background ile byte-byte aynıdır; üzerine yalnız yaklaşık `%3–10` koyu okunabilirlik katmanı gelir.
-- Puzzle ekranı üst HUD&apos;u güvenli alanın altında `46 dp` yüksekliğindedir; yatay marjin `12 dp`, üst marjin `8–10 dp`dir. Sol tarafta `44 dp` ana menüye dönüş kontrolü ve bonus çipi, sağda `44 dp` pasaport ile ayarlar kontrolü bulunur.
+- Puzzle ekranı üst HUD&apos;u güvenli alanın altında `46 dp` yüksekliğindedir; yatay marjin `12 dp`, üst marjin `8–10 dp`dir. Sıra yalnızca `geri → puan … mücevher → ayarlar` biçimindedir; oyun HUD&apos;unda pasaport veya başka kontrol bulunmaz.
 - Ülke/şehir şeridi HUD&apos;un `4 dp` altındadır; `106 dp` yüksekliğinde, ekranın `%94` genişliğinde ve en fazla `488 dp`dir. `28 dp` köşe, `1.5 dp` açık turkuaz kenarlık ve `#3E6472 → #263F4D` yarı saydam degrade kullanır.
 - Şeridin ilk satırı ülke/flag, aktif işlem çipi ve ülke içi `x/20` ilerlemesini gösterir. İkinci satır üç destinasyonu `✓ tamamlandı / ● aktif / ○ bekliyor` semantiğiyle sıralar. Her destinasyonun altında birbirinden bağımsız `7 dp` ilerleme çizgisi bulunur.
 - Ülke finalinde şehirlerin tamamı `✓` olur ve ilerleme çipinde `🏆` gösterilir; bu yalnız sunumdur, Country Challenge progression mantığını değiştirmez.
@@ -117,11 +117,12 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - Country Challenge tamamlandığında sonraki ülkeye otomatik ve sessiz geçilmez. Üç destinasyonun onay işaretlerini, `20/20`, pasaport damgasını, landmark ödülünü ve açılan sonraki ülkeyi gösteren zorunlu ülke tamamlama modalı açılır. Yeni ülkenin ilk puzzle&apos;ı yalnız `Sıradaki ülkeye geç` eylemiyle başlatılır; tamamlanmış kayıt uygulama yeniden açıldığında da bu modal atlanmaz.
 - Header ve ana içerik en fazla `512 dp`, modal en fazla `448 dp` genişliğindedir. Modal yüksekliği ekranın en fazla `%85`idir.
 - Ana yatay boşluk `16 dp`; yalnızca kullanılabilir genişliği `288 dp` altına düşen çok dar ekranlarda taşmayı önlemek için küçültülebilir.
-- Hedef alanı Android&apos;deki açık word-card yüzeyine uyarlanır: `#F8FCFB → #DCECEC`, `28 dp` dış köşe, `2 dp #D5EEF2` kenarlık. Üç hedef `%31.6`, dört hedef `%23.5` genişlikle tek satırda kalır; aralık `8 dp`, kart yüksekliği en az `62 dp`dir.
+- Hedef alanı Android&apos;deki açık word-card yüzeyine uyarlanır: `#F8FCFB → #DCECEC`, `28 dp` dış köşe, `2 dp #D5EEF2` kenarlık. Üst bilgi satırı `İŞLEM TÜRÜ` altında yalnız işlem sembolünü ve `ADIM SAYISI` altında sayısal adım değerini gösterir. Üç hedef `%31.6`, dört hedef `%23.5` genişlikle tek satırda kalır; aralık `8 dp`, kart yüksekliği en az `62 dp`dir.
 - Hedef kartı varsayılan olarak krem degrade, koyu `#233540` sayı ve turkuaz metadır. Başarı durumu emerald kalır; hedef kartı ölçeklenmez ve yerleşim sıçramaz.
-- Geri bildirim yuvası `52 dp` yüksekliğinde ve dikeyde `4 dp` marjinlidir. Boş durumda referanstaki dashed selection placeholder, seçimde aynı boyutta koyu geri bildirim kartı görünür; mesaj değişmesi çarkı yerinden oynatmaz.
-- Çember geniş telefonlarda `288 dp`, tabletlerde `320 dp`dir. Dikey alan kısa olduğunda Android constraint davranışına denk olarak `208 / 224 / 252 / 272 dp` kademelerine küçülür; içerik yine dikey kaydırılabilir.
-- Düğüm çapı telefonda `60 dp`, geniş düzende `62 dp`dir. Düğüm merkezleri dış çeperden `düğüm yarıçapı + 10 dp` içerideki eşit açılı yörüngeye yerleşir; en kısa düzende yörünge yarıçapı en az `72 dp`dir.
+- Bonus satırı solda `SAYILARI BİRLEŞTİR` yönergesini, sağda bonus sayısını gösterir. Bonus çözülünce sayı onay işaretiyle değiştirilmez; satırın emerald durumu ve mücevher metni sonucu bildirir.
+- Geri bildirim yuvası `52 dp` yüksekliğinde ve dikeyde `4 dp` marjinlidir. Boş durumda görünür bir `SAYILARI BİRLEŞTİR` placeholder&apos;ı bulunmaz; seçimde aynı yuvada koyu geri bildirim kartı görünür ve çark yerinden oynamaz.
+- Çember geniş telefonlarda `304 dp`, tabletlerde `336 dp`dir. Dikey alan kısa olduğunda Android constraint davranışına denk olarak `224 / 240 / 268 / 288 dp` kademelerine küçülür; içerik yine dikey kaydırılabilir.
+- Düğüm çapı telefonda `64 dp`, geniş düzende `66 dp`dir. Düğüm merkezleri dış çeperden `düğüm yarıçapı + 10 dp` içerideki eşit açılı yörüngeye yerleşir; en kısa düzende yörünge yarıçapı en az `72 dp`dir.
 - Çarkın koyu dolu diski yoktur. Düğüm merkezlerinden geçen `7 dp rgba(55,83,92,0.42)` rota halkası ve `10 dp` hafif alt gölge kullanılır. Düğüm yüzeyi `#F8FCFB → #DAEBEB`, kenarı yarı saydam turkuaz ve sayısı `#233540`dır; seçili düğüm turkuaz, sayı beyazdır.
 - İpucu ve Karıştır çarkın merkezinde bulunamaz. Çarkın hemen altındaki `62 dp` aksiyon satırında İpucu solda, Karıştır sağda yer alır. Her kontrol `52×52 dp`, yuvarlak, yarı saydam koyu degrade, beyaz `22 dp` ikon ve `9 dp` etikettir.
 - Hedef başarı durumunda kart büyümez. Arka plan açık emerald olur, kenarlık `2 dp #10B981`, metin `#23785B` ve yeşil parlama kullanılır.
@@ -151,7 +152,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - `pop_shuffle.wav`: Karıştır düğümü, `360 → 504 Hz`, aynı `80 ms` pop zarfı; pembe gürültü kullanılmaz.
 - `success.wav`: her hedef çözümünde sırasıyla `523.25 / 659.25 / 783.99 / 1046.50 Hz` triangle notaları; başlangıç aralığı `70 ms`, her nota `20 ms` attack ve `250 ms` toplam zarfa sahiptir.
 - `bonus.wav`: isteğe bağlı bonus kartı veya ilk kez bulunan serbest Bonus Keşif için `880 → 1320 Hz`, `150 ms` sine chirp; gain `0.20 → 0.01` exponential zarfıdır.
-- Bırakılan sonuç önce yalnız çözülmemiş ana hedeflerle, sonra çözülmemiş isteğe bağlı bonus kartıyla eşleştirilir. Bonus kartı eşleşirse kart seviye başına yalnız bir kez `+1 mücevher` verir. İkisiyle de eşleşmezse işlem + sıralanmış operandlar + sonuç anahtarı daha önce görülmemişse `⭐ Bonus Keşif` kazanılır. Hedef çözen yollar da keşif geçmişine yazılır; aynı yolu ters sırada veya tekrar sürüklemek ikinci bonus kazandırmaz. Aynı sonuca farklı, yeni bir operand kümesiyle ulaşmak ayrı bir bonus keşiftir.
+- Bırakılan sonuç önce yalnız çözülmemiş ana hedeflerle, sonra çözülmemiş isteğe bağlı bonus kartıyla eşleştirilir. Ana hedef ilk kez eşleşirse hedef sayısı kadar puan verir. Bonus kartı eşleşirse kart seviye başına yalnız bir kez `+1 mücevher` verir. İkisiyle de eşleşmezse işlem + sıralanmış operandlar + sonuç anahtarı daha önce görülmemişse `⭐ Bonus Keşif` ve `+1 mücevher` kazanılır. Hedef çözen yollar da keşif geçmişine yazılır; aynı yolu ters sırada veya tekrar sürüklemek ikinci bonus kazandırmaz. Aynı sonuca farklı, yeni bir operand kümesiyle ulaşmak ayrı bir bonus keşiftir.
 - Kaynak HTML son hedefte `success` dışında ikinci bir ses çalmaz; `400 ms` sonra yalnız bölüm konfettisi başlar. `levelComplete` olayı makro titreşimi korur ancak ek WAV çalmaz. `level-complete.wav` yalnız eski paket uyumluluğu için geçerli PCM olarak tutulur.
 - Sesler Expo SDK 57 `expo-audio` oyuncularıyla önceden yüklenir, tekrar öncesi başa sarılır, diğer uygulama sesini kesmez ve arka planda çalmaz.
 - Mikrofon, Android kayıt izni, arka plan kayıt ve arka plan oynatma kapalıdır.
@@ -197,6 +198,6 @@ npx expo export --platform all
 
 Seviye motoru tüm `1–2000` ana turu ve Master Tour başlangıcını tekrarlı rastgele koşularla doğrular: 14 rota, 100 benzersiz ülke, 300 destinasyon, `7+7+5+Challenge`, doğru düğüm/hedef adedi, benzersiz hedefler, çözülebilirlik, adım tutarlılığı ve ardışık hedef tekrarsızlığı.
 
-Görsel kontrol matrisi: `320×568`, `360×640`, `375×667`, `390×844`, `430×932`, `448×998` ve `768×1024 dp`. Beklenen çember çapları sırasıyla `208`, `224`, `224`, `288`, `288`, `288` ve `320 dp`dir.
+Görsel kontrol matrisi: `320×568`, `360×640`, `375×667`, `390×844`, `430×932`, `448×998` ve `768×1024 dp`. Beklenen çember çapları sırasıyla `224`, `240`, `240`, `304`, `304`, `304` ve `336 dp`dir.
 
 Bağlı fiziksel Android veya iOS cihazlarda açılış, kalıcı ilerleme, sürükleme, çeper çizgisi, ipucu, yaylı karıştırma, ses aç/kapat, mikro başarı, bölüm sonu konfeti ve iki modal kontrol edilir. Yol haritasındaki Günlük Bulmaca, Time Attack, PvP ve 3D pasaport mevcut sürümün kabul kapsamına dahil değildir.

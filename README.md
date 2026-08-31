@@ -68,7 +68,7 @@ Sürüm ayrıntıları için [Expo SDK 57 belgelerine](https://docs.expo.dev/ver
 
 Ürün döngüsü, seviye üretim invariantları, dünya rotası, pasaport, responsive ekran ölçüleri, piksel hassasiyetindeki yerleşim, erişilebilirlik ve ses kuralları [DESIGN_RULES.md](./DESIGN_RULES.md) dosyasındadır.
 
-Mevcut sayı matrisi, çözülmüş hedefler, seviye, Bonus Keşif geçmişi ve ses/haptics tercihi cihazda kalıcı tutulur.
+Mevcut sayı matrisi, çözülmüş hedefler, toplam puan, mücevher bakiyesi, seviye, Bonus Keşif geçmişi ve ses/haptics tercihi cihazda kalıcı tutulur.
 
 Oyun efektleri `assets/sounds` altında yerel WAV dosyaları olarak paketlenir. Dosyaları üretim tanımından yeniden oluşturmak için:
 
