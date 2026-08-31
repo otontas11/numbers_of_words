@@ -85,6 +85,7 @@ type DestinationTransitionState = {
 
 const RESULT_FLIGHT_DURATION = 720;
 const RESULT_FLIGHT_ARRIVAL_PROGRESS = 0.9;
+const TARGET_COLOR_REVEAL_DURATION = 300;
 const RESULT_FLIGHT_WIDTH = 52;
 const RESULT_FLIGHT_HEIGHT = 52;
 const LEVEL_CELEBRATION_DELAY = RESULT_FLIGHT_DURATION + 100;
@@ -359,6 +360,34 @@ function DestinationTransition({
   );
 }
 
+function useTargetColorReveal(solved: boolean, landed: boolean) {
+  const [reveal] = useState(() => new Animated.Value(solved ? 1 : 0));
+
+  useEffect(() => {
+    reveal.stopAnimation();
+    let animation: Animated.CompositeAnimation | null = null;
+
+    if (!solved) {
+      reveal.setValue(0);
+    } else if (!landed) {
+      reveal.setValue(1);
+    } else {
+      reveal.setValue(0);
+      animation = Animated.timing(reveal, {
+        toValue: 1,
+        duration: TARGET_COLOR_REVEAL_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      });
+      animation.start();
+    }
+
+    return () => animation?.stop();
+  }, [landed, reveal, solved]);
+
+  return reveal;
+}
+
 function TargetCard({
   target,
   solved,
@@ -378,6 +407,7 @@ function TargetCard({
 }) {
   const operation = OPERATION_DETAILS[target.op];
   const [scale] = useState(() => new Animated.Value(1));
+  const colorReveal = useTargetColorReveal(solved, landed);
 
   useEffect(() => {
     scale.stopAnimation();
@@ -433,11 +463,7 @@ function TargetCard({
           { transform: [{ scale }] },
         ]}>
         <LinearGradient
-          colors={
-            solved
-              ? ['rgba(218,246,232,0.98)', 'rgba(189,232,213,0.98)']
-              : ['#F8FCFB', '#DCECEC']
-          }
+          colors={['#F8FCFB', '#DCECEC']}
           end={{ x: 1, y: 1 }}
           start={{ x: 0, y: 0 }}
           style={[
@@ -445,6 +471,18 @@ function TargetCard({
             solved && styles.targetSolved,
             hinted && styles.targetHinted,
           ]}>
+          {solved ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.targetColorReveal, { transform: [{ scale: colorReveal }] }]}>
+              <LinearGradient
+                colors={['rgba(218,246,232,0.99)', 'rgba(189,232,213,0.99)']}
+                end={{ x: 1, y: 1 }}
+                start={{ x: 0, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+          ) : null}
           <Text
             style={[
               styles.targetValue,
@@ -481,6 +519,7 @@ function BonusTargetCard({
 }) {
   const operation = OPERATION_DETAILS[target.op];
   const [scale] = useState(() => new Animated.Value(1));
+  const colorReveal = useTargetColorReveal(solved, landed);
 
   useEffect(() => {
     scale.stopAnimation();
@@ -498,14 +537,22 @@ function BonusTargetCard({
   return (
     <LinearGradient
       accessibilityLabel={`İsteğe bağlı bonus hedef ${target.value}, ödül ${BONUS_GEM_REWARD} mücevher`}
-      colors={
-        solved
-          ? ['rgba(219,248,237,0.98)', 'rgba(190,235,218,0.98)']
-          : ['rgba(255,247,206,0.98)', 'rgba(236,216,255,0.98)']
-      }
+      colors={['rgba(255,247,206,0.98)', 'rgba(236,216,255,0.98)']}
       end={{ x: 1, y: 1 }}
       start={{ x: 0, y: 0 }}
       style={[styles.bonusTargetRow, solved && styles.bonusTargetRowSolved]}>
+      {solved ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.bonusRowColorReveal, { transform: [{ scaleX: colorReveal }] }]}>
+          <LinearGradient
+            colors={['rgba(219,248,237,0.99)', 'rgba(190,235,218,0.99)']}
+            end={{ x: 1, y: 1 }}
+            start={{ x: 0, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+      ) : null}
       <View style={styles.bonusTargetCopy}>
         <Text style={[styles.bonusTargetTitle, solved && styles.bonusTargetSolvedText]}>
           SAYILARI BİRLEŞTİR
@@ -520,10 +567,22 @@ function BonusTargetCard({
       <View ref={measureRef} collapsable={false} style={styles.bonusTargetCardMeasure}>
         <Animated.View style={{ transform: [{ scale }] }}>
           <LinearGradient
-            colors={solved ? ['#5BC69A', '#238666'] : ['#9F69D1', '#65448B']}
+            colors={['#9F69D1', '#65448B']}
             end={{ x: 1, y: 1 }}
             start={{ x: 0, y: 0 }}
             style={styles.bonusTargetCard}>
+            {solved ? (
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.targetColorReveal, { transform: [{ scale: colorReveal }] }]}>
+                <LinearGradient
+                  colors={['#5BC69A', '#238666']}
+                  end={{ x: 1, y: 1 }}
+                  start={{ x: 0, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
+            ) : null}
             <Text style={styles.bonusTargetValue}>{target.value}</Text>
             <Text style={styles.bonusTargetMeta}>
               [{operation.symbol}] {Array.from({ length: target.steps }, () => '●').join(' ')}
@@ -1899,6 +1958,17 @@ const styles = StyleSheet.create({
     borderColor: '#C6DEE2',
     padding: 8,
   },
+  targetColorReveal: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: 180,
+    height: 180,
+    marginLeft: -90,
+    marginTop: -90,
+    overflow: 'hidden',
+    borderRadius: 90,
+  },
   targetSolved: {
     borderWidth: 2,
     borderColor: '#10B981',
@@ -1917,6 +1987,7 @@ const styles = StyleSheet.create({
     borderColor: '#FBBF24',
   },
   targetValue: {
+    zIndex: 1,
     color: '#233540',
     fontFamily: FONTS.black,
     fontSize: 24,
@@ -1928,6 +1999,7 @@ const styles = StyleSheet.create({
     lineHeight: 36,
   },
   targetMeta: {
+    zIndex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -1955,6 +2027,7 @@ const styles = StyleSheet.create({
     paddingLeft: 12,
     paddingRight: 7,
     paddingVertical: 5,
+    overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1966,7 +2039,15 @@ const styles = StyleSheet.create({
   bonusTargetRowSolved: {
     borderColor: '#3DA27B',
   },
+  bonusRowColorReveal: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: '200%',
+  },
   bonusTargetCopy: {
+    zIndex: 1,
     flex: 1,
     minWidth: 0,
   },
@@ -1990,6 +2071,7 @@ const styles = StyleSheet.create({
     color: '#23785B',
   },
   bonusTargetCardMeasure: {
+    zIndex: 1,
     width: 94,
     height: 42,
     justifyContent: 'center',
@@ -1999,6 +2081,7 @@ const styles = StyleSheet.create({
     height: 42,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.92)',
@@ -2009,6 +2092,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   bonusTargetValue: {
+    zIndex: 1,
     color: '#FFFFFF',
     fontFamily: FONTS.black,
     fontSize: 18,
@@ -2016,6 +2100,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   bonusTargetMeta: {
+    zIndex: 1,
     color: 'rgba(255,255,255,0.9)',
     fontFamily: FONTS.bold,
     fontSize: 8,
