@@ -2,7 +2,7 @@ import { BlurTargetView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import ConfettiCannon from 'react-native-confetti-cannon';
+import { PIConfetti } from 'react-native-fast-confetti';
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import {
   Animated,
@@ -228,21 +228,27 @@ function ResultFlightBadge({
 }
 
 function Celebration({ visible }: { visible: boolean }) {
-  const { width, height } = useWindowDimensions();
-
   if (!visible) return null;
 
   return (
-    <View pointerEvents="none" style={styles.celebrationLayer}>
-      <ConfettiCannon
-        count={180}
-        explosionSpeed={420}
-        fallSpeed={2800}
-        fadeOut
+    <View
+      pointerEvents="none"
+      style={styles.celebrationLayer}
+      testID="level-complete-confetti">
+      <PIConfetti
+        autoplay
         colors={[...CONFETTI_COLORS]}
-        origin={{ x: width / 2, y: height * 0.42 }}
-        testID="level-complete-confetti"
-      />
+        fadeOutOnEnd
+        flakeStyle="glossy">
+        <PIConfetti.Origin
+          blastPosition="center"
+          count={180}
+          initialSpeed={1.8}
+          spread={Math.PI * 2}>
+          <PIConfetti.Flake size={10} radius={4} />
+          <PIConfetti.Flake width={7} height={13} radius={3} />
+        </PIConfetti.Origin>
+      </PIConfetti>
     </View>
   );
 }

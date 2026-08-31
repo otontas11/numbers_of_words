@@ -178,7 +178,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - `expo-haptics`: mikro/makro dokunsal geri bildirim ayrımı.
 - `expo-image`: arka plan önbelleği ve `1000 ms` şehir geçişi.
 - `expo-blur`: gerçek modal arka plan bulanıklığı; Android SDK 31+ için hedef görünüm referansı kullanır.
-- `react-native-confetti-cannon`: her bölüm tamamlanmasında native-driver konfeti patlaması.
+- `react-native-fast-confetti` + `@shopify/react-native-skia`: her bölüm tamamlanmasında Skia Atlas tabanlı, renkli konfeti patlaması.
 - `react-native-svg`: radyal çember/düğüm/pul yüzeyleri ve yoğunluktan bağımsız netlik.
 - `react-native-gesture-handler`: çarkın native dokunma akışı, düğümden başlamayan dokunuşun ScrollView&apos;a bırakılması ve kesintisiz pan takibi.
 - `react-native-reanimated`: aktif pointer çizgisi, segment hit-test&apos;i ve zincir state&apos;inin UI thread&apos;de güncellenmesi.
