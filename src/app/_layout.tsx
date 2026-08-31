@@ -12,6 +12,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { ClickSoundProvider } from '@/hooks/use-click-sound';
+
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -31,17 +33,19 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={DarkTheme}>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            animation: 'fade',
-            contentStyle: { backgroundColor: '#020617' },
-            headerShown: false,
-          }}>
-          <Stack.Screen name="index" />
-        </Stack>
-      </ThemeProvider>
+      <ClickSoundProvider>
+        <ThemeProvider value={DarkTheme}>
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              animation: 'fade',
+              contentStyle: { backgroundColor: '#020617' },
+              headerShown: false,
+            }}>
+            <Stack.Screen name="index" />
+          </Stack>
+        </ThemeProvider>
+      </ClickSoundProvider>
     </GestureHandlerRootView>
   );
 }

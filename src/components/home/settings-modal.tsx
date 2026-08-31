@@ -1,8 +1,9 @@
 import Slider from '@react-native-community/slider';
 import { BlurView } from 'expo-blur';
 import { useEffect, type RefObject } from 'react';
-import { BackHandler, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { BackHandler, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { FONTS } from '@/constants/fonts';
 
 type SettingsModalProps = {

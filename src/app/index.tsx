@@ -8,7 +8,6 @@ import {
   Animated,
   BackHandler,
   Easing,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CountryCompletionModal, PassportModal } from '@/components/game/game-modals';
+import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
 import { MainMenu, ProfileScreen } from '@/components/home/main-menu';
 import { SettingsModal } from '@/components/home/settings-modal';

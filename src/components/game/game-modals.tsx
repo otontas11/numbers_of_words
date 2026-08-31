@@ -1,8 +1,9 @@
 import { BlurView } from 'expo-blur';
 import { useEffect, type ReactNode, type RefObject } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { FONTS } from '@/constants/fonts';
 import {
   WORLD_COUNTRIES,

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import {
   Animated,
   Easing,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FONTS } from '@/constants/fonts';
+import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import type { LevelData } from '@/game/levels';
 import {
   COUNTRY_BY_ID,
