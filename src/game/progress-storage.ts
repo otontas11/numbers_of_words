@@ -86,9 +86,9 @@ function isValidLevelData(value: unknown, expectedLevel: number): value is Legac
   if (!isRecord(value.bonusTarget)) return false;
   const bonusTarget = value.bonusTarget;
   if (!Number.isFinite(bonusTarget.value)) return false;
-  if (bonusTarget.steps !== 2 && bonusTarget.steps !== 3) return false;
+  if (bonusTarget.steps !== 2 && bonusTarget.steps !== 3 && bonusTarget.steps !== 4) return false;
   if (!['+', '-', '*', '/'].includes(String(bonusTarget.op))) return false;
-  if (bonusTarget.steps !== value.steps || bonusTarget.op !== value.op) return false;
+  if (bonusTarget.op !== value.op) return false;
   return (
     !value.targets.some(
       (target) => isRecord(target) && target.value === bonusTarget.value,

@@ -25,14 +25,14 @@ const PLAYER_OPTIONS = {
   updateInterval: 1000,
 } as const;
 
-function replay(player: AudioPlayer) {
+function replay(player: AudioPlayer, volume = 1) {
   try {
     // `AudioPlayer.isLoaded` Android'de yalnız STATE_READY için true döner.
     // Kısa bir efekt bittiğinde ExoPlayer STATE_ENDED durumuna geçer; eski
     // erken dönüş bu yüzden aynı sesi sonraki seçimlerde tamamen susturuyordu.
     // `play()` yükleme sürerken playWhenReady davranışı gösterdiğinden burada
     // hazır olmayan ilk dokunuşu da düşürmemeliyiz.
-    player.volume = 1;
+    player.volume = volume;
     if (player.currentTime > 0.001) {
       const seekResult = player.seekTo(0);
       void Promise.resolve(seekResult)
@@ -91,6 +91,10 @@ export function useGameSounds(enabled: boolean) {
     PLAYER_OPTIONS,
   );
   const bonusPlayer = useAudioPlayer(require('../../assets/sounds/bonus.wav'), PLAYER_OPTIONS);
+  const levelCompletePlayer = useAudioPlayer(
+    require('../../assets/sounds/level-complete.wav'),
+    PLAYER_OPTIONS,
+  );
   const shufflePlayer = useAudioPlayer(
     require('../../assets/sounds/pop_shuffle.wav'),
     PLAYER_OPTIONS,
@@ -112,8 +116,6 @@ export function useGameSounds(enabled: boolean) {
   return useCallback(
     (sound: GameSound, force = false) => {
       if (!enabled && !force) return;
-      // Referans HTML finalde yalnız konfeti gösterir; ikinci bir ses katmanı çalmaz.
-      if (sound === 'levelComplete') return;
 
       const selectionPlayers = [
         selectOnePlayer,
@@ -136,16 +138,20 @@ export function useGameSounds(enabled: boolean) {
               ? successPlayer
               : sound === 'bonus'
                 ? bonusPlayer
-                : shufflePlayer;
+                : sound === 'levelComplete'
+                  ? levelCompletePlayer
+                  : shufflePlayer;
 
       if (!player) return;
 
-      replay(player);
+      // Bölüm sonu konfetiyle birlikte kısa ve hafif bir kutlama sesi çal.
+      replay(player, sound === 'levelComplete' ? 0.35 : 1);
     },
     [
       bonusPlayer,
       enabled,
       hintPlayer,
+      levelCompletePlayer,
       selectFivePlayer,
       selectFourPlayer,
       selectOnePlayer,

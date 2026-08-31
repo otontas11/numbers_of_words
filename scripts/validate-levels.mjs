@@ -107,7 +107,7 @@ for (let run = 0; run < RUN_COUNT; run += 1) {
     }
     if (
       data.bonusTarget.op !== data.op ||
-      data.bonusTarget.steps !== data.steps ||
+      ![2, 3, 4].includes(data.bonusTarget.steps) ||
       !findSolutionIndices(data.bonusTarget, data.numbers)
     ) {
       throw new Error(`Seviye ${level}: bonus hedef çözülebilir değil.`);

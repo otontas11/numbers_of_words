@@ -29,7 +29,7 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 1. Oyuncu 3 veya 4 hedefi ve ortak sayı çemberini görür.
 2. Sayıları parmağıyla sırayla birleştirerek zihinsel yatırım yapar.
 3. Tek hedef bulunduğunda kart yalnızca emerald durumuna geçer; ekran düzeni değişmez ve konfeti gösterilmez.
-4. Her seviyede ana hedeflerden farklı, garantili çözülebilen bir `💎 Bonus Hedef` kartı bulunur. Bu kart isteğe bağlıdır; çözülürse `+1 mücevher` verir.
+4. Her seviyede ana hedeflerden farklı, garantili çözülebilen bir `💎 Bonus Hedef` kartı bulunur. Bu kart isteğe bağlıdır; 2, 3 veya 4 adımlı olabilir ve çözülürse `bonus sayı × adım sayısı` kadar mücevheri hemen verir.
 5. Bonus kartı dışında hedef olmayan geçerli bir işlem ilk kez keşfedilirse Bonus Keşif sayacı artar ve `+1 mücevher` verir; aynı kombinasyon tekrar ödül vermez.
 6. Tüm **ana hedefler** bitince bonus kartının durumuna bakılmadan konfeti, güçlü başarı titreşimi ve seviye geçişi çalışır. Çözülmemiş bonus sonraki seviyeye geçişi hiçbir zaman engellemez.
 7. Her ülkede ilk iki destinasyon 7&apos;şer, üçüncü destinasyon 5 puzzle içerir; 20. puzzle Country Challenge&apos;dır.
@@ -83,7 +83,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 ## Yolculuk haritası ve giriş akışı
 
 - Uygulama açıldığında ilk ekran Words of Wonders tarzı ana menüdür; sayı çarkı veya rota listesi doğrudan açılmaz.
-- Ana menünün ve oyun HUD&apos;unun sol üst grubunda oyuncu puanı, sağ üst grubunda mücevher bakiyesi bulunur. İlk kez çözülen her ana hedef, kartta yazan sayı değeri kadar puan verir. Bonus hedef ve ilk kez bulunan serbest Bonus Keşif puan vermez; her biri `+1 mücevher` verir. Toplam puan ve mücevher bakiyesi kalıcı progress&apos;te saklanır.
+- Ana menünün ve oyun HUD&apos;unun sol üst grubunda oyuncu puanı, sağ üst grubunda mücevher bakiyesi bulunur. Bölüm tamamlandığında, yapılan ana hedef işlemlerindeki sayıların toplamı × adım sayısı kadar puan toplu olarak eklenir. Bonus hedef 2, 3 veya 4 adımda çözülebilir ve `bonus sayı × adım sayısı` kadar mücevheri hemen verir. İlk kez bulunan serbest Bonus Keşif `+1 mücevher` verir. Toplam puan ve mücevher bakiyesi kalıcı progress&apos;te saklanır.
 - Ekranın merkezindeki büyük altın çerçeveli `BÖLÜM` düğmesi aktif ülke/destinasyon içindeki puzzle numarasını gösterir ve kayıtlı sayı matrisi ile çözülmüş hedeflerden **tek dokunuşla** devam eder.
 - Alt soldaki `PROFİL` düğmesi puan, tamamlanan puzzle, ülke, Bonus Keşif ve pasaport ilerlemesini açar. Alt sağdaki `SEYAHAT` düğmesi 14 rota, ülke kartları, şehir/lokasyon çipleri ve Challenge rayını içeren yolculuk sayfasını açar.
 - Rota → ülke → şehir gezinmesi günlük oyuna giriş koşulu değildir. Şehirler ülke kartlarında ilerleme bilgisi olarak görünür; ayrıca şehir seçtirilmez.
@@ -150,10 +150,10 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - `pop_select.wav`: ilk düğüm, `420 → 588 Hz`, `80 ms` sine chirp. Sonraki düğümler `select-2.wav` … `select-7.wav` ile `600 / 690 / 780 / 870 / 960 / 1050 Hz` başlangıç frekanslarına çıkar; böylece parmak ilerledikçe referanstaki yükselen kısa melodi sürer. Tümünde frekans `1.4×`, gain `0.15 → 0.01` exponential zarfıdır.
 - `pop_hint.wav`: İpucu düğümü, `620 → 868 Hz`, aynı `80 ms` pop zarfı.
 - `pop_shuffle.wav`: Karıştır düğümü, `360 → 504 Hz`, aynı `80 ms` pop zarfı; pembe gürültü kullanılmaz.
-- `success.wav`: her hedef çözümünde sırasıyla `523.25 / 659.25 / 783.99 / 1046.50 Hz` triangle notaları; başlangıç aralığı `70 ms`, her nota `20 ms` attack ve `250 ms` toplam zarfa sahiptir.
+- `success.wav`: her hedef çözümünde sırasıyla `523.25 / 659.25 / 783.99 / 1046.50 Hz` triangle notaları; başlangıç aralığı `70 ms`, her nota `20 ms` attack ve `250 ms` toplam zarfa sahiptir. Ana hedef puanı bölüm sonunda seçilen sayıların toplamı × adım sayısı olarak toplu eklenir.
 - `bonus.wav`: isteğe bağlı bonus kartı veya ilk kez bulunan serbest Bonus Keşif için `880 → 1320 Hz`, `150 ms` sine chirp; gain `0.20 → 0.01` exponential zarfıdır.
 - Bırakılan sonuç önce yalnız çözülmemiş ana hedeflerle, sonra çözülmemiş isteğe bağlı bonus kartıyla eşleştirilir. Ana hedef ilk kez eşleşirse hedef sayısı kadar puan verir. Bonus kartı eşleşirse kart seviye başına yalnız bir kez `+1 mücevher` verir. İkisiyle de eşleşmezse işlem + sıralanmış operandlar + sonuç anahtarı daha önce görülmemişse `⭐ Bonus Keşif` ve `+1 mücevher` kazanılır. Hedef çözen yollar da keşif geçmişine yazılır; aynı yolu ters sırada veya tekrar sürüklemek ikinci bonus kazandırmaz. Aynı sonuca farklı, yeni bir operand kümesiyle ulaşmak ayrı bir bonus keşiftir.
-- Kaynak HTML son hedefte `success` dışında ikinci bir ses çalmaz; `400 ms` sonra yalnız bölüm konfettisi başlar. `levelComplete` olayı makro titreşimi korur ancak ek WAV çalmaz. `level-complete.wav` yalnız eski paket uyumluluğu için geçerli PCM olarak tutulur.
+- Kaynak HTML son hedefte `success` dışında ikinci bir ses çalmaz; `400 ms` sonra bölüm konfettisi başlar. Native sürümde konfetiyle aynı anda `level-complete.wav` kısa ve hafif (`%35` ses seviyesi) kutlama sesi olarak çalınır; `levelComplete` olayı makro titreşimi de korur.
 - Sesler Expo SDK 57 `expo-audio` oyuncularıyla önceden yüklenir, tekrar öncesi başa sarılır, diğer uygulama sesini kesmez ve arka planda çalmaz.
 - Mikrofon, Android kayıt izni, arka plan kayıt ve arka plan oynatma kapalıdır.
 - Ses anahtarı sesi ve haptics efektlerini birlikte yönetir; tercih kalıcıdır.

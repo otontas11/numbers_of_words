@@ -9,7 +9,7 @@ export type Operation = '+' | '-' | '*' | '/';
 
 export type Target = {
   value: number;
-  steps: 2 | 3;
+  steps: 2 | 3 | 4;
   op: Operation;
 };
 
@@ -132,50 +132,28 @@ function getPool(op: Operation): number[] {
   return [24, 20, 18, 16, 12, 8, 6, 4, 3, 2];
 }
 
-function buildCandidates(numbers: number[], op: Operation, steps: 2 | 3): Candidate[] {
+function buildCandidates(numbers: number[], op: Operation, steps: 2 | 3 | 4): Candidate[] {
   const candidates: Candidate[] = [];
 
-  if (steps === 2) {
-    for (let first = 0; first < numbers.length; first += 1) {
-      for (let second = first + 1; second < numbers.length; second += 1) {
-        const left = numbers[first];
-        const right = numbers[second];
-        let value: number | null = null;
-
-        if (op === '+') value = left + right;
-        if (op === '-') value = Math.abs(left - right);
-        if (op === '*') value = left * right;
-
-        if (value !== null && value > 0) {
-          candidates.push({ value, steps: 2, op, indices: [first, second] });
-        }
-
-        if (op === '/') {
-          if (left % right === 0 && left / right > 1) {
-            candidates.push({ value: left / right, steps: 2, op, indices: [first, second] });
-          }
-          if (right % left === 0 && right / left > 1) {
-            candidates.push({ value: right / left, steps: 2, op, indices: [second, first] });
-          }
-        }
+  const build = (indices: number[]) => {
+    if (indices.length === steps) {
+      const calculation = computeResult(
+        indices.map((index) => numbers[index]),
+        op,
+      );
+      if (calculation && calculation.result > 0 && Number.isFinite(calculation.result)) {
+        candidates.push({ value: calculation.result, steps, op, indices });
       }
+      return;
     }
-  }
 
-  if (op === '+' && steps === 3) {
-    for (let first = 0; first < numbers.length; first += 1) {
-      for (let second = first + 1; second < numbers.length; second += 1) {
-        for (let third = second + 1; third < numbers.length; third += 1) {
-          candidates.push({
-            value: numbers[first] + numbers[second] + numbers[third],
-            steps: 3,
-            op,
-            indices: [first, second, third],
-          });
-        }
-      }
+    for (let index = 0; index < numbers.length; index += 1) {
+      if (indices.includes(index)) continue;
+      build([...indices, index]);
     }
-  }
+  };
+
+  build([]);
 
   return candidates;
 }
@@ -248,28 +226,40 @@ export function generateLevelData(
     const candidates = buildCandidates(candidateNumbers, rules.op, rules.steps);
     const selected = selectDiverseCandidates(
       candidates,
-      rules.targetCount + 1,
+      rules.targetCount,
       rules.nodeCount,
       excludedValues,
     );
-    const requiredCandidates = selected.slice(0, rules.targetCount);
-    const candidateBonus = selected[rules.targetCount] ?? null;
+    const requiredCandidates = selected;
+    const requiredValues = new Set(requiredCandidates.map((candidate) => candidate.value));
+    const bonusCandidates = shuffle(
+      ([2, 3, 4] as const).flatMap((bonusSteps) =>
+        buildCandidates(candidateNumbers, rules.op, bonusSteps),
+      ),
+    ).filter(
+      (candidate) =>
+        !excludedValues.has(candidate.value) && !requiredValues.has(candidate.value),
+    );
+    const candidateBonus = bonusCandidates[0] ?? null;
+    const selectedWithBonus = candidateBonus
+      ? [...requiredCandidates, candidateBonus]
+      : requiredCandidates;
     const coverage = new Set(
       requiredCandidates.flatMap((candidate) => candidate.indices),
     ).size;
 
     if (
-      selected.length > bestSelectionCount ||
-      (selected.length === bestSelectionCount && coverage > bestCoverage)
+      selectedWithBonus.length > bestSelectionCount ||
+      (selectedWithBonus.length === bestSelectionCount && coverage > bestCoverage)
     ) {
       numbers = candidateNumbers;
       selectedCandidates = requiredCandidates;
       bonusCandidate = candidateBonus;
       bestCoverage = coverage;
-      bestSelectionCount = selected.length;
+      bestSelectionCount = selectedWithBonus.length;
     }
 
-    if (selected.length === rules.targetCount + 1 && coverage >= coverageGoal) break;
+    if (selectedWithBonus.length === rules.targetCount + 1 && coverage >= coverageGoal) break;
   }
 
   const targets = selectedCandidates.map(({ value, steps, op }) => ({ value, steps, op }));
@@ -332,9 +322,9 @@ function travelMetadata(
 
 function deriveLegacyBonusTarget(levelData: LegacyLevelData): Target {
   const requiredValues = new Set(levelData.targets.map((target) => target.value));
-  const candidate = buildCandidates(levelData.numbers, levelData.op, levelData.steps).find(
-    (item) => !requiredValues.has(item.value),
-  );
+  const candidate = ([2, 3, 4] as const)
+    .flatMap((steps) => buildCandidates(levelData.numbers, levelData.op, steps))
+    .find((item) => !requiredValues.has(item.value));
 
   if (!candidate) {
     throw new Error(`Seviye ${levelData.level} için bonus hedefi türetilemedi.`);
@@ -348,7 +338,6 @@ function isUsableBonusTarget(levelData: LegacyLevelData): levelData is LevelData
   if (
     !target ||
     target.op !== levelData.op ||
-    target.steps !== levelData.steps ||
     levelData.targets.some((item) => item.value === target.value)
   ) {
     return false;
@@ -370,15 +359,32 @@ export function normalizeLevelData(levelData: LegacyLevelData): LevelData {
 export function computeResult(values: number[], op: Operation): Calculation | null {
   const symbol = OPERATION_DETAILS[op].symbol;
 
+  if (values.length < 2 || values.length > 4) return null;
+
+  if (op === '+') {
+    return {
+      expression: values.join(` ${symbol} `),
+      result: values.reduce((total, value) => total + value, 0),
+    };
+  }
+
+  if (op === '-') {
+    const [largest, ...remaining] = [...values].sort((left, right) => right - left);
+    const result = largest - remaining.reduce((total, value) => total + value, 0);
+    return result > 0
+      ? { expression: [largest, ...remaining].join(` ${symbol} `), result }
+      : null;
+  }
+
+  if (op === '*') {
+    return {
+      expression: values.join(` ${symbol} `),
+      result: values.reduce((total, value) => total * value, 1),
+    };
+  }
+
   if (values.length === 2) {
     const [left, right] = values;
-    if (op === '+') return { expression: `${left} ${symbol} ${right}`, result: left + right };
-    if (op === '-') {
-      const larger = Math.max(left, right);
-      const smaller = Math.min(left, right);
-      return { expression: `${larger} ${symbol} ${smaller}`, result: larger - smaller };
-    }
-    if (op === '*') return { expression: `${left} ${symbol} ${right}`, result: left * right };
     if (right !== 0 && left % right === 0) {
       return { expression: `${left} ${symbol} ${right}`, result: left / right };
     }
@@ -388,15 +394,12 @@ export function computeResult(values: number[], op: Operation): Calculation | nu
     return null;
   }
 
-  if (values.length === 3 && op === '+') {
-    const [first, second, third] = values;
-    return {
-      expression: `${first} + ${second} + ${third}`,
-      result: first + second + third,
-    };
+  let result = values[0];
+  for (const divisor of values.slice(1)) {
+    if (divisor === 0 || result % divisor !== 0) return null;
+    result /= divisor;
   }
-
-  return null;
+  return result > 0 ? { expression: values.join(` ${symbol} `), result } : null;
 }
 
 /**
@@ -416,30 +419,22 @@ export function findSolutionIndices(
   target: Target,
   numbers: number[],
 ): number[] | null {
-  if (target.steps === 2) {
-    for (let first = 0; first < numbers.length; first += 1) {
-      for (let second = 0; second < numbers.length; second += 1) {
-        if (first === second) continue;
-        const calculation = computeResult([numbers[first], numbers[second]], target.op);
-        if (calculation?.result === target.value) return [first, second];
-      }
+  const search = (indices: number[]): number[] | null => {
+    if (indices.length === target.steps) {
+      const calculation = computeResult(
+        indices.map((index) => numbers[index]),
+        target.op,
+      );
+      return calculation?.result === target.value ? indices : null;
     }
-  }
 
-  if (target.steps === 3) {
-    for (let first = 0; first < numbers.length; first += 1) {
-      for (let second = 0; second < numbers.length; second += 1) {
-        for (let third = 0; third < numbers.length; third += 1) {
-          if (first === second || first === third || second === third) continue;
-          const calculation = computeResult(
-            [numbers[first], numbers[second], numbers[third]],
-            target.op,
-          );
-          if (calculation?.result === target.value) return [first, second, third];
-        }
-      }
+    for (let index = 0; index < numbers.length; index += 1) {
+      if (indices.includes(index)) continue;
+      const result = search([...indices, index]);
+      if (result) return result;
     }
-  }
+    return null;
+  };
 
-  return null;
+  return search([]);
 }

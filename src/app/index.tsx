@@ -91,7 +91,7 @@ const RESULT_FLIGHT_WIDTH = 52;
 const RESULT_FLIGHT_HEIGHT = 52;
 const LEVEL_CELEBRATION_DELAY = RESULT_FLIGHT_DURATION + 100;
 const BONUS_TARGET_INDEX = -1;
-const BONUS_GEM_REWARD = 1;
+const BONUS_DISCOVERY_GEM_REWARD = 1;
 const NODE_SELECTION_SOUNDS = [
   'select1',
   'select2',
@@ -471,6 +471,7 @@ function BonusTargetCard({
   target: Target;
 }) {
   const operation = OPERATION_DETAILS[target.op];
+  const reward = target.value * target.steps;
   const [scale] = useState(() => new Animated.Value(1));
   const colorReveal = useTargetColorReveal(solved, landed);
 
@@ -489,7 +490,7 @@ function BonusTargetCard({
 
   return (
     <LinearGradient
-      accessibilityLabel={`İsteğe bağlı bonus hedef ${target.value}, ödül ${BONUS_GEM_REWARD} mücevher`}
+      accessibilityLabel={`İsteğe bağlı bonus hedef ${target.value}, ödül ${reward} mücevher`}
       colors={['rgba(255,247,206,0.98)', 'rgba(236,216,255,0.98)']}
       end={{ x: 1, y: 1 }}
       start={{ x: 0, y: 0 }}
@@ -512,8 +513,8 @@ function BonusTargetCard({
         </Text>
         <Text style={[styles.bonusTargetSubtitle, solved && styles.bonusTargetSolvedText]}>
           {solved
-            ? `💎 +${BONUS_GEM_REWARD} mücevher kazanıldı`
-            : `Sağdaki bonus sayısını oluştur • +${BONUS_GEM_REWARD} mücevher`}
+            ? `💎 +${reward} mücevher kazanıldı`
+            : `Sağdaki bonus sayısını oluştur • +${reward} mücevher`}
         </Text>
       </View>
 
@@ -547,8 +548,60 @@ function BonusTargetCard({
   );
 }
 
+function useAnimatedCounter(value: number) {
+  const [displayValue, setDisplayValue] = useState(value);
+  const displayedValueRef = useRef(value);
+  const [animatedValue] = useState(() => new Animated.Value(value));
+  const [gainScale] = useState(() => new Animated.Value(1));
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      displayedValueRef.current = value;
+      animatedValue.setValue(value);
+      return;
+    }
+
+    const startValue = displayedValueRef.current;
+    if (startValue === value) return;
+
+    animatedValue.stopAnimation();
+    animatedValue.setValue(startValue);
+    const listenerId = animatedValue.addListener(({ value: nextValue }) => {
+      const nextDisplayValue = Math.round(nextValue);
+      displayedValueRef.current = nextDisplayValue;
+      setDisplayValue(nextDisplayValue);
+    });
+
+    gainScale.stopAnimation();
+    gainScale.setValue(1);
+    const countAnimation = Animated.timing(animatedValue, {
+      duration: 900,
+      toValue: value,
+      useNativeDriver: false,
+    });
+    const bounceAnimation = Animated.sequence([
+      Animated.timing(gainScale, { duration: 140, toValue: 1.12, useNativeDriver: true }),
+      Animated.timing(gainScale, { duration: 140, toValue: 1, useNativeDriver: true }),
+    ]);
+
+    countAnimation.start();
+    bounceAnimation.start();
+
+    return () => {
+      countAnimation.stop();
+      bounceAnimation.stop();
+      animatedValue.removeListener(listenerId);
+    };
+  }, [animatedValue, gainScale, value]);
+
+  return { displayValue, gainScale };
+}
+
 function PulsingGems({ count, compact }: { count: number; compact: boolean }) {
   const [pulse] = useState(() => new Animated.Value(0));
+  const { displayValue, gainScale } = useAnimatedCounter(count);
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -563,7 +616,7 @@ function PulsingGems({ count, compact }: { count: number; compact: boolean }) {
 
   return (
     <Animated.View
-      accessibilityLabel={`${count} mücevher`}
+      accessibilityLabel={`${displayValue} mücevher`}
       style={[
         styles.bonusButton,
         compact && styles.bonusButtonCompact,
@@ -572,22 +625,29 @@ function PulsingGems({ count, compact }: { count: number; compact: boolean }) {
             {
               scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.045] }),
             },
+            { scale: gainScale },
           ],
         },
       ]}>
       <Text style={styles.bonusStar}>💎</Text>
       <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={styles.bonusText}>
-        {count.toLocaleString('tr-TR')}
+        {displayValue.toLocaleString('tr-TR')}
       </Text>
     </Animated.View>
   );
 }
 
 function ScorePill({ compact, score }: { compact: boolean; score: number }) {
+  const { displayValue, gainScale } = useAnimatedCounter(score);
+
   return (
-    <View
-      accessibilityLabel={`${score} puan`}
-      style={[styles.scoreButton, compact && styles.scoreButtonCompact]}>
+    <Animated.View
+      accessibilityLabel={`${displayValue} puan`}
+      style={[
+        styles.scoreButton,
+        compact && styles.scoreButtonCompact,
+        { transform: [{ scale: gainScale }] },
+      ]}>
       <Text style={styles.scoreStar}>★</Text>
       <View style={styles.scoreCopy}>
         <Text style={styles.scoreLabel}>PUAN</Text>
@@ -596,10 +656,10 @@ function ScorePill({ compact, score }: { compact: boolean; score: number }) {
           minimumFontScale={0.62}
           numberOfLines={1}
           style={[styles.scoreText, compact && styles.scoreTextCompact]}>
-          {score.toLocaleString('tr-TR')}
+          {displayValue.toLocaleString('tr-TR')}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -719,6 +779,7 @@ export default function HomeScreen() {
   const resultSourceRef = useRef<View>(null);
   const targetCardRefs = useRef<(View | null)[]>([]);
   const bonusCardRef = useRef<View>(null);
+  const levelScorePending = useRef(0);
   const nextFlightId = useRef(1);
   const discoveredBonuses = useRef(new Set<string>());
   const feedbackTimer = useRef<Timer | null>(null);
@@ -951,6 +1012,7 @@ export default function HomeScreen() {
     clearTimer(landingTimer);
     setLevel(nextLevel);
     setLevelData(generateLevelData(nextLevel, previousTargetValues));
+    levelScorePending.current = 0;
     setSolvedTargets(new Set());
     setBonusSolved(false);
     setBonusFlying(false);
@@ -1016,7 +1078,8 @@ export default function HomeScreen() {
         nextSolved.add(targetIndex);
         setFlyingTargets((current) => new Set(current).add(targetIndex));
         setSolvedTargets(nextSolved);
-        setScore((currentScore) => currentScore + calculation.result);
+        levelScorePending.current +=
+          values.reduce((total, value) => total + value, 0) * indices.length;
         triggerEffect('success');
         void launchResultFlight(calculation.result, targetIndex, resultOrigin);
 
@@ -1045,13 +1108,20 @@ export default function HomeScreen() {
                 : `Puzzle ${levelData.locationLevel}/${levelData.locationLevelCount} tamamlandı • ${levelData.city}`;
           showTimedFeedback(
             {
-              text: `+${calculation.result} puan • Harika! ${completionMessage} 🎉`,
+              text: `Bölüm tamamlandı • +${
+                levelScorePending.current
+              } puan • Harika! ${completionMessage} 🎉`,
               tone: 'success',
             },
             LEVEL_CELEBRATION_DELAY + 1100,
           );
           clearTimer(levelTimer);
           levelTimer.current = setTimeout(() => {
+            const completionScore = levelScorePending.current;
+            levelScorePending.current = 0;
+            if (completionScore > 0) {
+              setScore((currentScore) => currentScore + completionScore);
+            }
             setCelebrating(true);
             triggerEffect('levelComplete');
 
@@ -1101,7 +1171,8 @@ export default function HomeScreen() {
         discoveredBonuses.current.add(combinationKey);
         if (newDiscovery) setBonusCount((count) => count + 1);
         setBonusSolved(true);
-        setGemCount((count) => count + BONUS_GEM_REWARD);
+        const bonusGemReward = bonusTarget.value * bonusTarget.steps;
+        setGemCount((count) => count + bonusGemReward);
         setBonusFlying(true);
         triggerEffect('bonus');
         void launchResultFlight(
@@ -1111,7 +1182,7 @@ export default function HomeScreen() {
         );
         showTimedFeedback(
           {
-            text: `💎 Bonus hedef çözüldü! +${BONUS_GEM_REWARD} mücevher`,
+            text: `💎 Bonus hedef çözüldü! +${bonusGemReward} mücevher`,
             tone: 'bonus',
           },
           1550,
@@ -1122,11 +1193,11 @@ export default function HomeScreen() {
       if (!discoveredBonuses.current.has(combinationKey)) {
         discoveredBonuses.current.add(combinationKey);
         setBonusCount((count) => count + 1);
-        setGemCount((count) => count + BONUS_GEM_REWARD);
+        setGemCount((count) => count + BONUS_DISCOVERY_GEM_REWARD);
         triggerEffect('bonus');
         showTimedFeedback(
           {
-            text: `⭐ Bonus Keşif! +${BONUS_GEM_REWARD} mücevher • ${calculation.expression} = ${calculation.result}`,
+            text: `⭐ Bonus Keşif! +${BONUS_DISCOVERY_GEM_REWARD} mücevher • ${calculation.expression} = ${calculation.result}`,
             tone: 'bonus',
           },
           1450,
