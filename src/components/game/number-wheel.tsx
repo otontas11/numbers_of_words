@@ -2,6 +2,7 @@ import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import {
   useCallback,
   useEffect,
+  memo,
   useMemo,
   useRef,
   useState,
@@ -30,7 +31,6 @@ import Svg, {
   Circle,
   Defs,
   LinearGradient as SvgLinearGradient,
-  Line,
   Path,
   Stop,
 } from 'react-native-svg';
@@ -56,7 +56,7 @@ type NumberWheelProps = {
 
 const SHUFFLE_DURATION = 450;
 const SHUFFLE_EASING = Easing.bezier(0.34, 1.3, 0.64, 1);
-const AnimatedSvgLine = Reanimated.createAnimatedComponent(Line);
+const ReanimatedPath = Reanimated.createAnimatedComponent(Path);
 
 function findNodesAlongSegment(
   from: Point,
@@ -178,101 +178,71 @@ function shuffledIndices(count: number): number[] {
   return result;
 }
 
-function ConnectorLine({
-  from,
-  to,
-  fromRadius = 0,
-  toRadius = 0,
-}: {
-  from: Point;
-  to: Point;
-  fromRadius?: number;
-  toRadius?: number;
-}) {
-  const deltaX = to.x - from.x;
-  const deltaY = to.y - from.y;
-  const centerDistance = Math.hypot(deltaX, deltaY);
-  const length = centerDistance - fromRadius - toRadius;
-  if (length < 2 || centerDistance === 0) return null;
-
-  const angle = Math.atan2(deltaY, deltaX);
-  const unitX = deltaX / centerDistance;
-  const unitY = deltaY / centerDistance;
-  const start = {
-    x: from.x + unitX * fromRadius,
-    y: from.y + unitY * fromRadius,
-  };
-  const end = {
-    x: to.x - unitX * toRadius,
-    y: to.y - unitY * toRadius,
-  };
-  return (
-    <View
-      style={[
-        styles.connector,
-        {
-          left: (start.x + end.x) / 2 - length / 2,
-          top: (start.y + end.y) / 2 - 2.5,
-          width: length,
-          transform: [{ rotate: `${angle}rad` }],
-        },
-      ]}
-    />
-  );
-}
-
-function ActiveConnectorLine({
+function ActiveSelectionPath({
   active,
-  anchorX,
-  anchorY,
   pointerX,
   pointerY,
+  positions,
+  selection,
   fromRadius,
 }: {
   active: SharedValue<boolean>;
-  anchorX: SharedValue<number>;
-  anchorY: SharedValue<number>;
   pointerX: SharedValue<number>;
   pointerY: SharedValue<number>;
+  positions: Point[];
+  selection: SharedValue<number[]>;
   fromRadius: number;
 }) {
   const animatedProps = useAnimatedProps(() => {
-    const deltaX = pointerX.value - anchorX.value;
-    const deltaY = pointerY.value - anchorY.value;
-    const centerDistance = Math.hypot(deltaX, deltaY);
-    const length = centerDistance - fromRadius;
-
-    if (!active.value || length < 2 || centerDistance === 0) {
-      return {
-        opacity: 0,
-        x1: anchorX.value,
-        y1: anchorY.value,
-        x2: anchorX.value,
-        y2: anchorY.value,
-      };
+    const currentSelection = selection.value;
+    if (!active.value || currentSelection.length === 0) {
+      return { d: '', opacity: 0 };
     }
 
-    const unitX = deltaX / centerDistance;
-    const unitY = deltaY / centerDistance;
-    const startX = anchorX.value + unitX * fromRadius;
-    const startY = anchorY.value + unitY * fromRadius;
-    const endX = pointerX.value;
-    const endY = pointerY.value;
+    let path = '';
+    for (let index = 1; index < currentSelection.length; index += 1) {
+      const from = positions[currentSelection[index - 1]];
+      const to = positions[currentSelection[index]];
+      const deltaX = to.x - from.x;
+      const deltaY = to.y - from.y;
+      const distance = Math.hypot(deltaX, deltaY);
+      if (distance <= fromRadius * 2) continue;
+      const unitX = deltaX / distance;
+      const unitY = deltaY / distance;
+      path += `M ${from.x + unitX * fromRadius} ${from.y + unitY * fromRadius} `;
+      path += `L ${to.x - unitX * fromRadius} ${to.y - unitY * fromRadius} `;
+    }
 
-    return { opacity: 1, x1: startX, y1: startY, x2: endX, y2: endY };
-  }, [fromRadius]);
+    const lastPosition = positions[currentSelection[currentSelection.length - 1]];
+    const pointerDeltaX = pointerX.value - lastPosition.x;
+    const pointerDeltaY = pointerY.value - lastPosition.y;
+    const pointerDistance = Math.hypot(pointerDeltaX, pointerDeltaY);
+    if (pointerDistance > fromRadius) {
+      const unitX = pointerDeltaX / pointerDistance;
+      const unitY = pointerDeltaY / pointerDistance;
+      path += `M ${lastPosition.x + unitX * fromRadius} `;
+      path += `${lastPosition.y + unitY * fromRadius} `;
+      path += `L ${pointerX.value} ${pointerY.value}`;
+    }
+
+    return { d: path, opacity: 1 };
+  }, [fromRadius, positions]);
 
   return (
     <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
-      <AnimatedSvgLine
+      <ReanimatedPath
         animatedProps={animatedProps}
+        fill="none"
         stroke="rgba(35,60,72,0.28)"
+        strokeLinejoin="round"
         strokeLinecap="round"
         strokeWidth={9}
       />
-      <AnimatedSvgLine
+      <ReanimatedPath
         animatedProps={animatedProps}
+        fill="none"
         stroke="#3A7A8D"
+        strokeLinejoin="round"
         strokeLinecap="round"
         strokeWidth={5}
       />
@@ -307,7 +277,7 @@ function SpringSelectionSurface({
   return <Reanimated.View style={[style, animatedStyle]}>{children}</Reanimated.View>;
 }
 
-export function NumberWheel({
+export const NumberWheel = memo(function NumberWheel({
   size,
   numbers,
   hintIndices,
@@ -333,8 +303,6 @@ export function NumberWheel({
   const activePointer = useSharedValue(false);
   const pointerX = useSharedValue(0);
   const pointerY = useSharedValue(0);
-  const anchorX = useSharedValue(0);
-  const anchorY = useSharedValue(0);
   const lastPointerX = useSharedValue(0);
   const lastPointerY = useSharedValue(0);
   const gestureAccepted = useSharedValue(false);
@@ -466,15 +434,12 @@ export function NumberWheel({
             return;
           }
 
-          const nodePosition = positions[nodeIndex];
           gestureAccepted.value = true;
           selectionOnUI.value = [nodeIndex];
           pointerX.value = point.x;
           pointerY.value = point.y;
           lastPointerX.value = point.x;
           lastPointerY.value = point.y;
-          anchorX.value = nodePosition.x;
-          anchorY.value = nodePosition.y;
           activePointer.value = true;
           stateManager.activate();
           runOnJS(beginSelection)(nodeIndex);
@@ -501,10 +466,6 @@ export function NumberWheel({
           if (!update.changed) return;
 
           selectionOnUI.value = update.selection;
-          const lastIndex = update.selection[update.selection.length - 1];
-          const lastPosition = positions[lastIndex];
-          anchorX.value = lastPosition.x;
-          anchorY.value = lastPosition.y;
           runOnJS(syncSelection)(update.selection, update.addedSelectionCounts);
         })
         .onEnd(() => {
@@ -527,8 +488,6 @@ export function NumberWheel({
         }),
     [
       activePointer,
-      anchorX,
-      anchorY,
       beginSelection,
       finishSelection,
       gestureAccepted,
@@ -588,7 +547,6 @@ export function NumberWheel({
     onShuffle();
   };
 
-  const selectedPoints = selectedIndices.map((index) => positions[index]);
   const selectedRadius = (nodeSize * 1.25) / 2;
   const hintScale = hintPulse.interpolate({
     inputRange: [0, 1],
@@ -635,22 +593,13 @@ export function NumberWheel({
           </Svg>
 
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-            {selectedPoints.slice(1).map((point, index) => (
-              <ConnectorLine
-                key={`selected-${selectedIndices[index]}-${selectedIndices[index + 1]}`}
-                from={selectedPoints[index]}
-                fromRadius={selectedRadius}
-                to={point}
-                toRadius={selectedRadius}
-              />
-            ))}
-            <ActiveConnectorLine
+            <ActiveSelectionPath
               active={activePointer}
-              anchorX={anchorX}
-              anchorY={anchorY}
               fromRadius={selectedRadius}
               pointerX={pointerX}
               pointerY={pointerY}
+              positions={positions}
+              selection={selectionOnUI}
             />
           </View>
 
@@ -786,7 +735,7 @@ export function NumberWheel({
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wheelArea: {
@@ -799,16 +748,6 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     overflow: 'visible',
-  },
-  connector: {
-    position: 'absolute',
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: '#3A7A8D',
-    shadowColor: '#233C48',
-    shadowOpacity: 0.28,
-    shadowRadius: 4,
-    elevation: 2,
   },
   nodePosition: {
     position: 'absolute',

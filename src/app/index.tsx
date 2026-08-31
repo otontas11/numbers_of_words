@@ -966,10 +966,14 @@ export default function HomeScreen() {
           const completedPuzzleLevel = levelData.level;
           const travelCompletion = getTravelLevelCompletion(completedPuzzleLevel);
           const completedLocation = travelCompletion.locationCompleted;
+          const completedCountry =
+            travelCompletion.countryCompleted ||
+            (levelData.countryChallenge &&
+              levelData.countryLevel === levelData.countryLevelCount);
           const nextDestination = travelCompletion.nextDestination;
           const completionMessage = travelCompletion.worldTourCompleted
             ? '100/100 ülke • WORLD TOUR COMPLETED! Golden Compass ve World Explorer kazanıldı'
-            : travelCompletion.countryCompleted
+            : completedCountry
               ? `${levelData.country} tamamlandı! Pasaport damgası ve ${COUNTRY_BY_ID.get(levelData.countryId)?.rewardLandmark ?? levelData.country} kartı kazanıldı`
               : completedLocation
                 ? `${levelData.city} tamamlandı! ${
@@ -999,7 +1003,7 @@ export default function HomeScreen() {
             }
 
             levelTimer.current = setTimeout(() => {
-              if (travelCompletion.countryCompleted) {
+              if (completedCountry) {
                 setCountryCompletionLevel(completedPuzzleLevel);
                 return;
               }
@@ -1094,6 +1098,19 @@ export default function HomeScreen() {
       hintTimer.current = null;
     }, 1800);
   }, [levelData, showTimedFeedback, solvedTargets, triggerEffect]);
+
+  const handleWheelNodeAdded = useCallback(
+    (selectionCount: number) => {
+      triggerEffect(getNodeSelectionSound(selectionCount));
+    },
+    [triggerEffect],
+  );
+
+  const handleWheelShuffle = useCallback(() => {
+    setHintIndices([]);
+    setHintedTarget(null);
+    triggerEffect('shuffle');
+  }, [triggerEffect]);
 
   const handleEffectsChange = useCallback(
     (enabled: boolean) => {
@@ -1385,15 +1402,9 @@ export default function HomeScreen() {
                   onComplete={handleComplete}
                   onDraggingChange={setDragging}
                   onHint={handleHint}
-                  onNodeAdded={(selectionCount) =>
-                    triggerEffect(getNodeSelectionSound(selectionCount))
-                  }
+                  onNodeAdded={handleWheelNodeAdded}
                   onPreview={handlePreview}
-                  onShuffle={() => {
-                    setHintIndices([]);
-                    setHintedTarget(null);
-                    triggerEffect('shuffle');
-                  }}
+                  onShuffle={handleWheelShuffle}
                   size={wheelSize}
                 />
               </View>
