@@ -69,6 +69,7 @@ type ScreenPoint = {
 
 type ResultFlight = {
   id: number;
+  kind: 'result' | 'gem';
   value: number;
   targetIndex: number;
   fromX: number;
@@ -143,7 +144,7 @@ function ResultFlightBadge({
   onComplete,
 }: {
   flight: ResultFlight;
-  onArrive: (targetIndex: number) => void;
+  onArrive: (flight: ResultFlight) => void;
   onComplete: (flightId: number) => void;
 }) {
   const [progress] = useState(() => new Animated.Value(0));
@@ -153,7 +154,7 @@ function ResultFlightBadge({
     const markArrived = () => {
       if (arrived) return;
       arrived = true;
-      onArrive(flight.targetIndex);
+      onArrive(flight);
     };
 
     progress.setValue(0);
@@ -175,7 +176,7 @@ function ResultFlightBadge({
       progress.removeListener(progressListener);
       animation.stop();
     };
-  }, [flight.id, flight.targetIndex, onArrive, onComplete, progress]);
+  }, [flight, onArrive, onComplete, progress]);
 
   const middleX = flight.fromX + (flight.toX - flight.fromX) * 0.56;
   const middleY = (flight.fromY + flight.toY) / 2 - 48;
@@ -218,10 +219,12 @@ function ResultFlightBadge({
         end={{ x: 1, y: 1 }}
         start={{ x: 0, y: 0 }}
         style={styles.resultFlightSurface}>
-        {flight.targetIndex === BONUS_TARGET_INDEX ? (
+        {flight.kind === 'gem' || flight.targetIndex === BONUS_TARGET_INDEX ? (
           <Text style={styles.resultFlightGem}>💎</Text>
         ) : null}
-        <Text style={styles.resultFlightValue}>{flight.value}</Text>
+        {flight.kind === 'gem' ? null : (
+          <Text style={styles.resultFlightValue}>{flight.value}</Text>
+        )}
       </LinearGradient>
     </Animated.View>
   );
@@ -550,9 +553,12 @@ function BonusTargetCard({
 
 function useAnimatedCounter(value: number) {
   const [displayValue, setDisplayValue] = useState(value);
+  const [gain, setGain] = useState(0);
   const displayedValueRef = useRef(value);
   const [animatedValue] = useState(() => new Animated.Value(value));
   const [gainScale] = useState(() => new Animated.Value(1));
+  const [gainOpacity] = useState(() => new Animated.Value(0));
+  const [gainTranslateY] = useState(() => new Animated.Value(0));
   const mounted = useRef(false);
 
   useEffect(() => {
@@ -576,6 +582,11 @@ function useAnimatedCounter(value: number) {
 
     gainScale.stopAnimation();
     gainScale.setValue(1);
+    gainOpacity.stopAnimation();
+    gainTranslateY.stopAnimation();
+    gainOpacity.setValue(1);
+    gainTranslateY.setValue(0);
+    setGain(Math.max(0, value - startValue));
     const countAnimation = Animated.timing(animatedValue, {
       duration: 900,
       toValue: value,
@@ -585,23 +596,40 @@ function useAnimatedCounter(value: number) {
       Animated.timing(gainScale, { duration: 140, toValue: 1.12, useNativeDriver: true }),
       Animated.timing(gainScale, { duration: 140, toValue: 1, useNativeDriver: true }),
     ]);
+    const gainAnimation = Animated.parallel([
+      Animated.timing(gainTranslateY, { duration: 1500, toValue: -8, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.delay(1200),
+        Animated.timing(gainOpacity, { duration: 280, toValue: 0, useNativeDriver: true }),
+      ]),
+    ]);
 
     countAnimation.start();
     bounceAnimation.start();
+    gainAnimation.start();
 
     return () => {
       countAnimation.stop();
       bounceAnimation.stop();
+      gainAnimation.stop();
       animatedValue.removeListener(listenerId);
     };
-  }, [animatedValue, gainScale, value]);
+  }, [animatedValue, gainOpacity, gainScale, gainTranslateY, value]);
 
-  return { displayValue, gainScale };
+  return { displayValue, gain, gainOpacity, gainScale, gainTranslateY };
 }
 
-function PulsingGems({ count, compact }: { count: number; compact: boolean }) {
+function PulsingGems({
+  count,
+  compact,
+  measureRef,
+}: {
+  count: number;
+  compact: boolean;
+  measureRef?: MutableRefObject<View | null>;
+}) {
   const [pulse] = useState(() => new Animated.Value(0));
-  const { displayValue, gainScale } = useAnimatedCounter(count);
+  const { displayValue, gain, gainOpacity, gainScale, gainTranslateY } = useAnimatedCounter(count);
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -616,6 +644,7 @@ function PulsingGems({ count, compact }: { count: number; compact: boolean }) {
 
   return (
     <Animated.View
+      ref={measureRef}
       accessibilityLabel={`${displayValue} mücevher`}
       style={[
         styles.bonusButton,
@@ -633,12 +662,22 @@ function PulsingGems({ count, compact }: { count: number; compact: boolean }) {
       <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={styles.bonusText}>
         {displayValue.toLocaleString('tr-TR')}
       </Text>
+      {gain > 0 ? (
+        <Animated.Text
+          pointerEvents="none"
+          style={[
+            styles.counterGain,
+            { opacity: gainOpacity, transform: [{ translateY: gainTranslateY }] },
+          ]}>
+          +{gain.toLocaleString('tr-TR')}
+        </Animated.Text>
+      ) : null}
     </Animated.View>
   );
 }
 
 function ScorePill({ compact, score }: { compact: boolean; score: number }) {
-  const { displayValue, gainScale } = useAnimatedCounter(score);
+  const { displayValue, gain, gainOpacity, gainScale, gainTranslateY } = useAnimatedCounter(score);
 
   return (
     <Animated.View
@@ -659,6 +698,16 @@ function ScorePill({ compact, score }: { compact: boolean; score: number }) {
           {displayValue.toLocaleString('tr-TR')}
         </Text>
       </View>
+      {gain > 0 ? (
+        <Animated.Text
+          pointerEvents="none"
+          style={[
+            styles.counterGain,
+            { opacity: gainOpacity, transform: [{ translateY: gainTranslateY }] },
+          ]}>
+          +{gain.toLocaleString('tr-TR')}
+        </Animated.Text>
+      ) : null}
     </Animated.View>
   );
 }
@@ -779,6 +828,7 @@ export default function HomeScreen() {
   const resultSourceRef = useRef<View>(null);
   const targetCardRefs = useRef<(View | null)[]>([]);
   const bonusCardRef = useRef<View>(null);
+  const gemTargetRef = useRef<View>(null);
   const levelScorePending = useRef(0);
   const nextFlightId = useRef(1);
   const discoveredBonuses = useRef(new Set<string>());
@@ -915,14 +965,17 @@ export default function HomeScreen() {
         // titreşim verilmez; haptic yalnızca sonuç/aksiyon geri bildirimidir.
         return;
       }
+      if (kind === 'points') return;
       const effect =
         kind === 'levelComplete'
           ? Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
           : kind === 'bonus'
             ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-            : kind === 'shuffle' || kind === 'success'
-              ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-              : Haptics.selectionAsync();
+            : kind === 'diamond'
+              ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+              : kind === 'shuffle' || kind === 'success'
+                ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                : Haptics.selectionAsync();
       void effect.catch(() => undefined);
     },
     [effectsEnabled, playSound],
@@ -966,7 +1019,13 @@ export default function HomeScreen() {
   );
 
   const handleResultFlightArrive = useCallback(
-    (targetIndex: number) => revealTarget(targetIndex),
+    (flight: ResultFlight) => {
+      if (flight.kind === 'gem') {
+        setGemCount((count) => count + flight.value);
+        return;
+      }
+      revealTarget(flight.targetIndex);
+    },
     [revealTarget],
   );
 
@@ -993,6 +1052,7 @@ export default function HomeScreen() {
 
       const flight: ResultFlight = {
         id: nextFlightId.current,
+        kind: 'result',
         value,
         targetIndex,
         fromX: (resultOrigin?.x ?? sourceRect.x + sourceRect.width / 2) - rootRect.x,
@@ -1005,6 +1065,32 @@ export default function HomeScreen() {
     },
     [revealTarget],
   );
+
+  const launchGemFlight = useCallback(async (reward: number) => {
+    const [rootRect, sourceRect, targetRect] = await Promise.all([
+      measureViewInWindow(resultLayerRef.current),
+      measureViewInWindow(bonusCardRef.current),
+      measureViewInWindow(gemTargetRef.current),
+    ]);
+
+    if (!rootRect || !sourceRect || !targetRect) {
+      setGemCount((count) => count + reward);
+      return;
+    }
+
+    const flight: ResultFlight = {
+      id: nextFlightId.current,
+      kind: 'gem',
+      value: reward,
+      targetIndex: BONUS_TARGET_INDEX,
+      fromX: sourceRect.x + sourceRect.width / 2 - rootRect.x,
+      fromY: sourceRect.y + sourceRect.height / 2 - rootRect.y,
+      toX: targetRect.x + targetRect.width / 2 - rootRect.x,
+      toY: targetRect.y + targetRect.height / 2 - rootRect.y,
+    };
+    nextFlightId.current += 1;
+    setResultFlights((current) => [...current, flight]);
+  }, []);
 
   const startLevel = useCallback((nextLevel: number, previousTargetValues: readonly number[]) => {
     clearTimer(feedbackTimer);
@@ -1121,6 +1207,7 @@ export default function HomeScreen() {
             levelScorePending.current = 0;
             if (completionScore > 0) {
               setScore((currentScore) => currentScore + completionScore);
+              triggerEffect('points');
             }
             setCelebrating(true);
             triggerEffect('levelComplete');
@@ -1172,14 +1259,14 @@ export default function HomeScreen() {
         if (newDiscovery) setBonusCount((count) => count + 1);
         setBonusSolved(true);
         const bonusGemReward = bonusTarget.value * bonusTarget.steps;
-        setGemCount((count) => count + bonusGemReward);
         setBonusFlying(true);
-        triggerEffect('bonus');
+        triggerEffect('diamond');
         void launchResultFlight(
           calculation.result,
           BONUS_TARGET_INDEX,
           resultOrigin,
         );
+        void launchGemFlight(bonusGemReward);
         showTimedFeedback(
           {
             text: `💎 Bonus hedef çözüldü! +${bonusGemReward} mücevher`,
@@ -1210,6 +1297,7 @@ export default function HomeScreen() {
     },
     [
       bonusSolved,
+      launchGemFlight,
       launchResultFlight,
       levelData,
       showTimedFeedback,
@@ -1417,7 +1505,11 @@ export default function HomeScreen() {
                 styles.headerRight,
                 compactHeader && styles.headerSideCompact,
               ]}>
-              <PulsingGems compact={compactHeader} count={gemCount} />
+              <PulsingGems
+                compact={compactHeader}
+                count={gemCount}
+                measureRef={gemTargetRef}
+              />
 
               <Pressable
                 accessibilityLabel="Oyun ayarlarını aç"
@@ -1685,6 +1777,19 @@ const styles = StyleSheet.create({
   },
   scoreTextCompact: {
     fontSize: 13,
+  },
+  counterGain: {
+    position: 'absolute',
+    top: -14,
+    right: 4,
+    color: '#FFF1A8',
+    fontFamily: FONTS.extraBold,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '800',
+    textShadowColor: 'rgba(52,30,10,0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   bonusButton: {
     height: 44,

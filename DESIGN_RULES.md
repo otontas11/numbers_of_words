@@ -151,7 +151,8 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - `pop_hint.wav`: İpucu düğümü, `620 → 868 Hz`, aynı `80 ms` pop zarfı.
 - `pop_shuffle.wav`: Karıştır düğümü, `360 → 504 Hz`, aynı `80 ms` pop zarfı; pembe gürültü kullanılmaz.
 - `success.wav`: her hedef çözümünde sırasıyla `523.25 / 659.25 / 783.99 / 1046.50 Hz` triangle notaları; başlangıç aralığı `70 ms`, her nota `20 ms` attack ve `250 ms` toplam zarfa sahiptir. Ana hedef puanı bölüm sonunda seçilen sayıların toplamı × adım sayısı olarak toplu eklenir.
-- `bonus.wav`: isteğe bağlı bonus kartı veya ilk kez bulunan serbest Bonus Keşif için `880 → 1320 Hz`, `150 ms` sine chirp; gain `0.20 → 0.01` exponential zarfıdır.
+- `point.mp3`: bölüm sonunda puan sayacı artarken, puan artış animasyonuyla eşzamanlı çalınır.
+- `bonus.wav`: ilk kez bulunan serbest Bonus Keşif için `880 → 1320 Hz`, `150 ms` sine chirp; bonus hedef kartı çözümünde ise `assets/sounds/dimaond.mp3` çalınır.
 - Bırakılan sonuç önce yalnız çözülmemiş ana hedeflerle, sonra çözülmemiş isteğe bağlı bonus kartıyla eşleştirilir. Ana hedef ilk kez eşleşirse hedef sayısı kadar puan verir. Bonus kartı eşleşirse kart seviye başına yalnız bir kez `+1 mücevher` verir. İkisiyle de eşleşmezse işlem + sıralanmış operandlar + sonuç anahtarı daha önce görülmemişse `⭐ Bonus Keşif` ve `+1 mücevher` kazanılır. Hedef çözen yollar da keşif geçmişine yazılır; aynı yolu ters sırada veya tekrar sürüklemek ikinci bonus kazandırmaz. Aynı sonuca farklı, yeni bir operand kümesiyle ulaşmak ayrı bir bonus keşiftir.
 - Kaynak HTML son hedefte `success` dışında ikinci bir ses çalmaz; `400 ms` sonra bölüm konfettisi başlar. Native sürümde konfetiyle aynı anda `level-complete.wav` kısa ve hafif (`%35` ses seviyesi) kutlama sesi olarak çalınır; `levelComplete` olayı makro titreşimi de korur.
 - Sesler Expo SDK 57 `expo-audio` oyuncularıyla önceden yüklenir, tekrar öncesi başa sarılır, diğer uygulama sesini kesmez ve arka planda çalmaz.

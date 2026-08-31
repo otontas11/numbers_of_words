@@ -17,6 +17,8 @@ export type GameSound =
   | 'hint'
   | 'success'
   | 'bonus'
+  | 'diamond'
+  | 'points'
   | 'shuffle'
   | 'levelComplete';
 
@@ -91,8 +93,16 @@ export function useGameSounds(enabled: boolean) {
     PLAYER_OPTIONS,
   );
   const bonusPlayer = useAudioPlayer(require('../../assets/sounds/bonus.wav'), PLAYER_OPTIONS);
+  const diamondPlayer = useAudioPlayer(
+    require('../../assets/sounds/dimaond.mp3'),
+    PLAYER_OPTIONS,
+  );
   const levelCompletePlayer = useAudioPlayer(
     require('../../assets/sounds/level-complete.wav'),
+    PLAYER_OPTIONS,
+  );
+  const pointsPlayer = useAudioPlayer(
+    require('../../assets/sounds/point.mp3'),
     PLAYER_OPTIONS,
   );
   const shufflePlayer = useAudioPlayer(
@@ -138,20 +148,26 @@ export function useGameSounds(enabled: boolean) {
               ? successPlayer
               : sound === 'bonus'
                 ? bonusPlayer
-                : sound === 'levelComplete'
-                  ? levelCompletePlayer
-                  : shufflePlayer;
+                : sound === 'diamond'
+                  ? diamondPlayer
+                  : sound === 'points'
+                    ? pointsPlayer
+                    : sound === 'levelComplete'
+                      ? levelCompletePlayer
+                      : shufflePlayer;
 
       if (!player) return;
 
       // Bölüm sonu konfetiyle birlikte kısa ve hafif bir kutlama sesi çal.
-      replay(player, sound === 'levelComplete' ? 0.35 : 1);
+      replay(player, sound === 'levelComplete' ? 0.35 : sound === 'points' ? 0.65 : 1);
     },
     [
       bonusPlayer,
+      diamondPlayer,
       enabled,
       hintPlayer,
       levelCompletePlayer,
+      pointsPlayer,
       selectFivePlayer,
       selectFourPlayer,
       selectOnePlayer,
