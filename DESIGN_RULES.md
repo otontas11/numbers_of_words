@@ -10,6 +10,10 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 - Yolculuk haritası referans SHA-256: `d4d2328424e0f827070d52214ce8994cf6fc282982d86a366aa5fcae3e69e1f4`
 - Oyun ekranı görsel referansı: `/Users/oktaytontas/Documents/android_apps/tecvid_elifba_pro/app/src/main/res/layout/activity_word_path_game.xml`
 - Oyun ekranı layout SHA-256: `28db620d46a437f95720a25aa37ac6438c9bcae5cfe48da390f2e3f9a0fd66d7`
+- Ayarlar modalı referansı: `/Users/oktaytontas/Documents/android_apps/tecvid_elifba_pro/app/src/main/res/layout/dialog_word_path_settings.xml`
+- Ayarlar modalı referans SHA-256: `c4c227b3c56d6996ed667ebc44343400eae3ebe72f6a7a56d6cf0f9b419eb77a`
+- Ses ayarı davranış referansı: `/Users/oktaytontas/Documents/android_apps/tecvid_elifba_pro/app/src/main/java/platform/tnts/tecvidogren/oyunlar/WordPathAudioSettings.java`
+- Ses ayarı davranış SHA-256: `158640434377be1efdce9d7e9a3d8ff1721cf9124a61365b3e86997c0da80a51`
 - Çark görsel referansı: `/Users/oktaytontas/Documents/android_apps/tecvid_elifba_pro/app/src/main/java/platform/tnts/tecvidogren/oyunlar/WordWheelView.java`
 - Çark referans SHA-256: `6710a5ca16a71d1028f04f039eecc2fec622ce6f87bec73779936320bde209d7`
 - Referans oyun mantığı: `/Users/oktaytontas/Documents/android_apps/tecvid_elifba_pro/docs/harf-tecvid-yolculugu-oyun-mantigi.md`
@@ -28,7 +32,7 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 4. Hedef olmayan geçerli bir işlem ilk kez keşfedilirse Bonus Keşif sayacı artar.
 5. Tüm hedefler bitince makro ödül olarak konfeti, güçlü başarı titreşimi ve seviye geçişi çalışır; son hedefin normal başarı akorunun üstüne ikinci bir ses bindirilmez.
 6. Her ülkede ilk iki destinasyon 7&apos;şer, üçüncü destinasyon 5 puzzle içerir; 20. puzzle Country Challenge&apos;dır.
-7. Country Challenge tamamlanınca vize pulu ve landmark kazanılır, seyahat haritası açılır ve sıradaki ülkeye ulaşım bağlantısı gösterilir.
+7. Country Challenge tamamlanınca vize pulu ve landmark kazanılır. Oyuncu zorla rota ekranına gönderilmez; ister oyuna devam eder, ister ana ekrandaki Seyahat düğmesiyle yeni bağlantıyı inceler.
 8. Normal seviye geri bildirimi `Puzzle x/y tamamlandı • Şehir` biçimindedir. `Şehir tamamlandı` yalnız katalogda bir sonraki puzzle başka destinasyona geçtiğinde; ülke tamamlandı mesajı yalnız Country Challenge çözüldüğünde gösterilir.
 
 ## Seviye ve matematik motoru
@@ -46,7 +50,7 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 - Her hedef benzersiz, çözülebilir ve dahili çözümleyiciyle doğrulanmış olmalıdır. Eksik hedefle seviye başlatılamaz.
 - Hedef seçici, düğüm kullanım sayılarının farkını ve kareler toplamını minimize ederek bütün çemberi olabildiğince dengeli kullanır.
 - Mevcut seviyenin hedef değerleri sonraki seviye üretilirken dışlanır. Aynı hedef değeri art arda iki seviyede gösterilemez; bir seviye ara verildikten sonra yeniden kullanılabilir.
-- Uygulama kapanıp açılsa da mevcut sayı matrisi, hedefler, çözülmüş kartlar, seviye, Bonus Keşif geçmişi ve efekt tercihi korunur.
+- Uygulama kapanıp açılsa da mevcut sayı matrisi, hedefler, çözülmüş kartlar, seviye, Bonus Keşif geçmişi, efekt tercihi, müzik tercihi ve müzik seviyesi korunur.
 - Dahili global puzzle numarası üretim ve kayıt için kullanılabilir; hiçbir oyuncu arayüzünde “Level 847” gibi gösterilemez. Oyuncu yalnız rota, ülke, destinasyon ve destinasyon içi `x/y` puzzle ilerlemesini görür.
 
 ## Dünya rotası, ülkeler ve pasaport
@@ -76,7 +80,11 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 
 ## Yolculuk haritası ve giriş akışı
 
-- Uygulama açıldığında ilk ekran doğrudan sayı çarkı değil, `WordJourneyActivity` görsel diline uyarlanmış Dünya haritasıdır.
+- Uygulama açıldığında ilk ekran Words of Wonders tarzı ana menüdür; sayı çarkı veya rota listesi doğrudan açılmaz.
+- Ana menünün sol üstünde türetilmiş oyuncu puanı, sağ üstünde Oyun Ayarları bulunur. Puan `tamamlanan puzzle × 100 + açık seviyedeki çözülmüş hedef × 20 + Bonus Keşif × 25` formülüyle mevcut kalıcı progress&apos;ten hesaplanır; ayrı ve tutarsız bir puan kaydı tutulmaz.
+- Ekranın merkezindeki büyük altın çerçeveli `BÖLÜM` düğmesi aktif ülke/destinasyon içindeki puzzle numarasını gösterir ve kayıtlı sayı matrisi ile çözülmüş hedeflerden **tek dokunuşla** devam eder.
+- Alt soldaki `PROFİL` düğmesi puan, tamamlanan puzzle, ülke, Bonus Keşif ve pasaport ilerlemesini açar. Alt sağdaki `SEYAHAT` düğmesi 14 rota, ülke kartları, şehir/lokasyon çipleri ve Challenge rayını içeren yolculuk sayfasını açar.
+- Rota → ülke → şehir gezinmesi günlük oyuna giriş koşulu değildir. Şehirler ülke kartlarında ilerleme bilgisi olarak görünür; ayrıca şehir seçtirilmez.
 - Hero altındaki `OYUNA DEVAM ET` kartı, oyuncunun bulunduğu harita katmanından bağımsız olarak kayıtlı aktif puzzle&apos;ı **tek dokunuşla** açar. Günlük oyun akışında rota veya ülke seçimi zorunlu değildir.
 - Rota ve ülke listeleri progression engeli değil, keşif/navigasyon yüzeyidir. Oyuncu isterse dünya rotalarını inceler; hızlı oturumda doğrudan `OYUNA DEVAM ET` kullanır.
 - Zoom 1/Dünya aynı anda yalnız 14 tematik rotayı gösterir; 100 ülke pini gösterilmez. Mevcut rota parlak, tamamlanan rota altın, kilitli rota soluktur.
@@ -91,7 +99,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - Ülkeler arasındaki bağlantı alanı `56 dp` yüksekliğindedir; ortadaki ulaşım/mesafe çipi rota verisinden okunur.
 - Her ülke kartı sıra/durum, ülke adı, üç şehir/lokasyonu ayrı ve okunabilir bilgi çipleriyle, `5 dp` ilerleme çubuğunu ve üç destinasyon + Challenge ilerleme rayını gösterir. Bu şehir çipleri seçim kontrolü değildir.
 - Kilitli karta basmak kaydı veya aktif puzzle&apos;ı değiştirmez. Tamamlanan rota/ülke incelenebilir ancak yalnız `CURRENT` ülke kartı oyunu açabilir.
-- Oyun ekranındaki harita düğmesi Dünya haritasına geri döner; Android sistem geri tuşu da oyun ekranındayken aynı davranışı kullanır.
+- Oyun ekranındaki geri düğmesi ana menüye döner; Android sistem geri tuşu da oyun, profil veya Seyahat sayfasındayken ana menüye döner. Seyahat sayfasının kendi geri düğmesi rota katmanındayken Dünya katmanına, Dünya katmanındayken ana menüye gider.
 - Harita yüzeyi sıcak parşömen gradyanıdır: `#FBF7EE → #F3E7D3 → #E7D3B4`. Devam kartı `#FFF9E9`, ana koyu kontrol `#2D394B`, altın vurgu `#F4D37B`, ana metin `#49382E`dir.
 - Harita içeriği en fazla `512 dp` genişliktedir ve büyük ekranlarda ortalanır. Dar ekranlarda yatay taşma kabul edilmez; bütün rota tek bir dikey kaydırma yüzeyinde kalır.
 
@@ -99,7 +107,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 
 - Yazı ailesi tüm ekranlarda `Plus Jakarta Sans` 400, 500, 600, 700 ve 800 ağırlıklarıyla yerel olarak yüklenir.
 - Puzzle ekranı `assets/images/game-sky-background.png` görselini `cover` olarak kullanır. Bu dosya Android referansındaki sky background ile byte-byte aynıdır; üzerine yalnız yaklaşık `%3–10` koyu okunabilirlik katmanı gelir.
-- Puzzle ekranı üst HUD&apos;u güvenli alanın altında `46 dp` yüksekliğindedir; yatay marjin `12 dp`, üst marjin `8–10 dp`dir. Sol tarafta `44 dp` geri/harita kontrolü ve bonus çipi, sağda `44 dp` pasaport ile ses kontrolü bulunur.
+- Puzzle ekranı üst HUD&apos;u güvenli alanın altında `46 dp` yüksekliğindedir; yatay marjin `12 dp`, üst marjin `8–10 dp`dir. Sol tarafta `44 dp` ana menüye dönüş kontrolü ve bonus çipi, sağda `44 dp` pasaport ile ayarlar kontrolü bulunur.
 - Ülke/şehir şeridi HUD&apos;un `4 dp` altındadır; `106 dp` yüksekliğinde, ekranın `%94` genişliğinde ve en fazla `488 dp`dir. `28 dp` köşe, `1.5 dp` açık turkuaz kenarlık ve `#3E6472 → #263F4D` yarı saydam degrade kullanır.
 - Şeridin ilk satırı ülke/flag, aktif işlem çipi ve ülke içi `x/20` ilerlemesini gösterir. İkinci satır üç destinasyonu `✓ tamamlandı / ● aktif / ○ bekliyor` semantiğiyle sıralar. Her destinasyonun altında birbirinden bağımsız `7 dp` ilerleme çizgisi bulunur.
 - Ülke finalinde şehirlerin tamamı `✓` olur ve ilerleme çipinde `🏆` gösterilir; bu yalnız sunumdur, Country Challenge progression mantığını değiştirmez.
@@ -142,6 +150,9 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - Sesler Expo SDK 57 `expo-audio` oyuncularıyla önceden yüklenir, tekrar öncesi başa sarılır, diğer uygulama sesini kesmez ve arka planda çalmaz.
 - Mikrofon, Android kayıt izni, arka plan kayıt ve arka plan oynatma kapalıdır.
 - Ses anahtarı sesi ve haptics efektlerini birlikte yönetir; tercih kalıcıdır.
+- Sağ üstteki ayarlar düğmesi Android `dialog_word_path_settings.xml` akışını açar: `Ses` ve `Müzik` satırlarının tamamı anahtar gibi tıklanabilir, müzik seviyesi `%0–100` arasında canlı uygulanır ve `TAMAM` modalı kapatır. Dışarıdan yeni bir oyun mantığı alınmaz.
+- Arka plan müziği Android referansındaki `journey.mp3` dosyasının byte-byte kopyasıdır (`SHA-256 b3a965f31ddbeb3de619a7b4bb151117e632df9c49059ff17f2f33ef3aca2901`), döngüde çalar, varsayılan olarak kapalı ve `%50` seviyededir. Arka plan oynatma kapalıdır; uygulama arka plana geçtiğinde müzik durur.
+- Ses efektleri ve arka plan müziği ayrı tercihlerdir. Ses anahtarını kapatmak müziği, müzik anahtarını kapatmak kısa oyun efektlerini değiştirmez.
 - Sayı düğümüne dokunma ve sürükleyerek yeni sayı seçme (`select1…select7`) yalnız kısa melodik sesi çalar; titreşim üretmez. İpucu, karıştır, bonus ve bölüm sonu haptics davranışı korunur.
 - Kaynaklar `npm run sounds:generate` ile, ffmpeg&apos;e ihtiyaç duymayan `scripts/generate-sounds.mjs` deterministik PCM üreticisi üzerinden yeniden üretilebilir.
 

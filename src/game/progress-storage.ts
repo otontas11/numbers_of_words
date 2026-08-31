@@ -13,6 +13,8 @@ export type StoredGameProgress = {
   bonusCount: number;
   discoveredBonuses: string[];
   effectsEnabled: boolean;
+  musicEnabled: boolean;
+  musicVolume: number;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -96,6 +98,12 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       return null;
     }
     if (typeof value.effectsEnabled !== 'boolean') return null;
+    const musicEnabled =
+      typeof value.musicEnabled === 'boolean' ? value.musicEnabled : false;
+    const musicVolume =
+      typeof value.musicVolume === 'number' && Number.isFinite(value.musicVolume)
+        ? Math.max(0, Math.min(1, value.musicVolume))
+        : 0.5;
 
     return {
       version: STORAGE_VERSION,
@@ -105,6 +113,8 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       bonusCount: Number(value.bonusCount),
       discoveredBonuses: [...new Set(value.discoveredBonuses as string[])],
       effectsEnabled: value.effectsEnabled,
+      musicEnabled,
+      musicVolume,
     };
   } catch {
     return null;

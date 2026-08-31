@@ -18,6 +18,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PassportModal } from '@/components/game/game-modals';
 import { NumberWheel } from '@/components/game/number-wheel';
+import { MainMenu, ProfileScreen } from '@/components/home/main-menu';
+import { SettingsModal } from '@/components/home/settings-modal';
 import { JourneyMap } from '@/components/journey/journey-map';
 import { FONTS } from '@/constants/fonts';
 import {
@@ -35,13 +37,16 @@ import {
   COUNTRY_BY_ID,
   WORLD_COUNTRIES,
   getCompletedCountryCount,
+  getCompletedWorldLevelCount,
   getCountryProgress,
   getLocationProgress,
   getTravelLevelCompletion,
 } from '@/game/travel';
+import { useBackgroundMusic } from '@/hooks/use-background-music';
 import { useGameSounds, type GameSound } from '@/hooks/use-game-sounds';
 
 type FeedbackTone = 'live' | 'success' | 'bonus' | 'info';
+type AppScreen = 'home' | 'game' | 'profile' | 'travel';
 
 type Feedback = {
   text: string;
@@ -493,8 +498,11 @@ export default function HomeScreen() {
   const [hintIndices, setHintIndices] = useState<number[]>([]);
   const [hintedTarget, setHintedTarget] = useState<number | null>(null);
   const [passportVisible, setPassportVisible] = useState(false);
-  const [journeyVisible, setJourneyVisible] = useState(true);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [activeScreen, setActiveScreen] = useState<AppScreen>('home');
   const [effectsEnabled, setEffectsEnabled] = useState(true);
+  const [musicEnabled, setMusicEnabled] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(0.5);
   const [dragging, setDragging] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
   const [resultFlights, setResultFlights] = useState<ResultFlight[]>([]);
@@ -515,6 +523,7 @@ export default function HomeScreen() {
   const layout = getGameLayout(width, height);
   const { compact, compactHeader, wheelSize } = layout;
   const playSound = useGameSounds(effectsEnabled);
+  useBackgroundMusic(hydrated && musicEnabled, musicVolume);
   const targetWidth = (levelData.targets.length === 3 ? '31.6%' : '23.5%') as `${number}%`;
   const operation = OPERATION_DETAILS[levelData.op];
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
@@ -522,6 +531,8 @@ export default function HomeScreen() {
     levelData.targets.length > 0 && solvedTargets.size === levelData.targets.length;
   const displayedProgressLevel = levelData.level + (levelJustCompleted ? 1 : 0);
   const passportStampCount = getCompletedCountryCount(displayedProgressLevel);
+  const completedWorldLevels = getCompletedWorldLevelCount(displayedProgressLevel);
+  const score = completedWorldLevels * 100 + solvedTargets.size * 20 + bonusCount * 25;
 
   useEffect(() => {
     let active = true;
@@ -545,6 +556,8 @@ export default function HomeScreen() {
         setSolvedTargets(restoredLevelComplete ? new Set() : restoredSolved);
         setBonusCount(saved.bonusCount);
         setEffectsEnabled(saved.effectsEnabled);
+        setMusicEnabled(saved.musicEnabled);
+        setMusicVolume(saved.musicVolume);
         discoveredBonuses.current = new Set(saved.discoveredBonuses);
       }
 
@@ -566,8 +579,19 @@ export default function HomeScreen() {
       bonusCount,
       discoveredBonuses: [...discoveredBonuses.current],
       effectsEnabled,
+      musicEnabled,
+      musicVolume,
     }).catch(() => undefined);
-  }, [bonusCount, effectsEnabled, hydrated, level, levelData, solvedTargets]);
+  }, [
+    bonusCount,
+    effectsEnabled,
+    hydrated,
+    level,
+    levelData,
+    musicEnabled,
+    musicVolume,
+    solvedTargets,
+  ]);
 
   useEffect(
     () => () => {
@@ -580,13 +604,19 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    if (journeyVisible) return;
+    if (
+      activeScreen === 'home' ||
+      passportVisible ||
+      settingsVisible
+    ) {
+      return;
+    }
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      setJourneyVisible(true);
+      setActiveScreen('home');
       return true;
     });
     return () => subscription.remove();
-  }, [journeyVisible]);
+  }, [activeScreen, passportVisible, settingsVisible]);
 
   const triggerEffect = useCallback(
     (kind: GameSound) => {
@@ -777,7 +807,6 @@ export default function HomeScreen() {
                 completedPuzzleLevel + 1,
                 levelData.targets.map((target) => target.value),
               );
-              if (levelData.countryChallenge || completedLocation) setJourneyVisible(true);
             }, 1000);
           }, LEVEL_CELEBRATION_DELAY);
         } else {
@@ -835,40 +864,98 @@ export default function HomeScreen() {
     }, 1800);
   }, [levelData, showTimedFeedback, solvedTargets, triggerEffect]);
 
-  const handleToggleEffects = useCallback(() => {
-    const nextEnabled = !effectsEnabled;
-    setEffectsEnabled(nextEnabled);
-    if (nextEnabled) {
+  const handleEffectsChange = useCallback(
+    (enabled: boolean) => {
+      setEffectsEnabled(enabled);
+      if (!enabled) return;
       playSound('select1', true);
-      void Haptics.selectionAsync().catch(() => undefined);
-    }
-  }, [effectsEnabled, playSound]);
+    },
+    [playSound],
+  );
+
+  const openGame = useCallback(() => {
+    setActiveScreen('game');
+    triggerEffect('select1');
+  }, [triggerEffect]);
 
   if (!hydrated) return <View style={styles.screen} />;
 
-  if (journeyVisible) {
+  const overlays = (
+    <>
+      <PassportModal
+        blurTarget={blurTarget}
+        currentLevel={displayedProgressLevel}
+        onClose={() => setPassportVisible(false)}
+        visible={passportVisible}
+      />
+      <SettingsModal
+        blurTarget={blurTarget}
+        effectsEnabled={effectsEnabled}
+        musicEnabled={musicEnabled}
+        musicVolume={musicVolume}
+        onClose={() => setSettingsVisible(false)}
+        onEffectsChange={handleEffectsChange}
+        onMusicChange={setMusicEnabled}
+        onMusicVolumeChange={setMusicVolume}
+        visible={settingsVisible}
+      />
+    </>
+  );
+
+  if (activeScreen === 'home') {
+    return (
+      <View style={styles.screen}>
+        <BlurTargetView ref={blurTarget} style={styles.screen}>
+          <MainMenu
+            bonusCount={bonusCount}
+            currentLevel={displayedProgressLevel}
+            levelData={levelData}
+            onOpenProfile={() => setActiveScreen('profile')}
+            onOpenSettings={() => setSettingsVisible(true)}
+            onOpenTravel={() => setActiveScreen('travel')}
+            onPlay={openGame}
+            score={score}
+          />
+        </BlurTargetView>
+        {overlays}
+      </View>
+    );
+  }
+
+  if (activeScreen === 'profile') {
+    return (
+      <View style={styles.screen}>
+        <BlurTargetView ref={blurTarget} style={styles.screen}>
+          <ProfileScreen
+            bonusCount={bonusCount}
+            currentLevel={displayedProgressLevel}
+            levelData={levelData}
+            onBack={() => setActiveScreen('home')}
+            onOpenPassport={() => setPassportVisible(true)}
+            onPlay={openGame}
+            score={score}
+          />
+        </BlurTargetView>
+        {overlays}
+      </View>
+    );
+  }
+
+  if (activeScreen === 'travel') {
     return (
       <View style={styles.screen}>
         <BlurTargetView ref={blurTarget} style={styles.screen}>
           <JourneyMap
             bonusCount={bonusCount}
-            effectsEnabled={effectsEnabled}
             level={level}
             levelData={levelData}
-            onContinue={() => {
-              setJourneyVisible(false);
-              triggerEffect('select1');
-            }}
+            onBack={() => setActiveScreen('home')}
+            onContinue={openGame}
             onOpenPassport={() => setPassportVisible(true)}
-            onToggleEffects={handleToggleEffects}
+            onOpenSettings={() => setSettingsVisible(true)}
           />
         </BlurTargetView>
-        <PassportModal
-          blurTarget={blurTarget}
-          currentLevel={displayedProgressLevel}
-          onClose={() => setPassportVisible(false)}
-          visible={passportVisible}
-        />
+        {overlays}
       </View>
     );
   }
@@ -892,10 +979,10 @@ export default function HomeScreen() {
           <View style={[styles.header, compactHeader && styles.headerCompact]}>
             <View style={[styles.headerSide, compactHeader && styles.headerSideCompact]}>
               <Pressable
-                accessibilityLabel="Dünya rotasına dön"
+                accessibilityLabel="Ana sayfaya dön"
                 accessibilityRole="button"
                 hitSlop={5}
-                onPress={() => setJourneyVisible(true)}
+                onPress={() => setActiveScreen('home')}
                 style={({ pressed }) => [
                   styles.skyControl,
                   pressed && styles.buttonPressed,
@@ -927,17 +1014,12 @@ export default function HomeScreen() {
               </Pressable>
 
               <Pressable
-                accessibilityLabel={
-                  effectsEnabled
-                    ? 'Ses ve dokunsal efektleri kapat'
-                    : 'Ses ve dokunsal efektleri aç'
-                }
+                accessibilityLabel="Oyun ayarlarını aç"
                 accessibilityRole="button"
-                accessibilityState={{ checked: effectsEnabled }}
                 hitSlop={5}
-                onPress={handleToggleEffects}
+                onPress={() => setSettingsVisible(true)}
                 style={({ pressed }) => [styles.skyControl, pressed && styles.buttonPressed]}>
-                <Text style={styles.skyControlIcon}>{effectsEnabled ? '🔊' : '🔇'}</Text>
+                <Text style={styles.gameSettingsIcon}>⚙</Text>
               </Pressable>
             </View>
           </View>
@@ -1069,12 +1151,7 @@ export default function HomeScreen() {
         </View>
         <Celebration visible={celebrating} />
       </BlurTargetView>
-      <PassportModal
-        blurTarget={blurTarget}
-        currentLevel={displayedProgressLevel}
-        onClose={() => setPassportVisible(false)}
-        visible={passportVisible}
-      />
+      {overlays}
     </View>
   );
 }
@@ -1150,6 +1227,11 @@ const styles = StyleSheet.create({
   },
   skyControlIcon: {
     fontSize: 18,
+  },
+  gameSettingsIcon: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    lineHeight: 27,
   },
   passportCount: {
     position: 'absolute',
