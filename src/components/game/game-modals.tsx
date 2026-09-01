@@ -6,9 +6,11 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { FONTS } from '@/constants/fonts';
 import {
-  WORLD_COUNTRIES,
+  PASSPORT_COUNTRIES,
+  TOTAL_COUNTRIES,
+  TOTAL_ROUTES,
   getTravelLevelCompletion,
-  isCountryComplete,
+  isPassportEarned,
   resolveTravelLevel,
 } from '@/game/travel';
 
@@ -95,8 +97,8 @@ export function PassportModal({
   blurTarget: RefObject<View | null>;
   onClose: () => void;
 }) {
-  const earnedCountries = WORLD_COUNTRIES.filter((country) =>
-    isCountryComplete(currentLevel, country.id),
+  const earnedCountries = PASSPORT_COUNTRIES.filter((country) =>
+    isPassportEarned(currentLevel, country.passportId),
   );
 
   return (
@@ -105,12 +107,12 @@ export function PassportModal({
       footer={
         <Text style={styles.footerText}>
           Her ülkenin 3 destinasyonu ve Country Challenge&apos;ı tamamlandığında yeni bir
-          pasaport kazanılır. Koleksiyon: {earnedCountries.length}/100.
+          pasaport kazanılır. Koleksiyon: {earnedCountries.length}/{TOTAL_COUNTRIES}.
         </Text>
       }
       icon="📘"
       onClose={onClose}
-      subtitle={`${earnedCountries.length}/100 kazanılmış pasaport`}
+      subtitle={`${earnedCountries.length}/${TOTAL_COUNTRIES} kazanılmış pasaport`}
       title="Pasaport Koleksiyonu"
       visible={visible}>
       <View style={styles.stampGrid}>
@@ -200,6 +202,7 @@ export function CountryCompletionModal({
   const country = destination.country;
   const nextCountry = completion.nextDestination.country;
   const worldTourCompleted = completion.worldTourCompleted;
+  const passportWasAlreadyEarned = isPassportEarned(completedLevel, country.passportId);
 
   return (
     <GameModal
@@ -225,7 +228,7 @@ export function CountryCompletionModal({
       onClose={onContinue}
       subtitle={
         worldTourCompleted
-          ? '100 / 100 ülke keşfedildi'
+          ? `${TOTAL_COUNTRIES} / ${TOTAL_COUNTRIES} ülke keşfedildi`
           : '20 / 20 puzzle • Pasaport damgası kazanıldı'
       }
       title={worldTourCompleted ? 'WORLD TOUR COMPLETED' : `${country.country} Tamamlandı!`}
@@ -256,7 +259,9 @@ export function CountryCompletionModal({
       <View style={styles.countryRewards}>
         <View style={styles.countryRewardCard}>
           <Text style={styles.countryRewardIcon}>📘</Text>
-          <Text style={styles.countryRewardTitle}>Pasaport Damgası</Text>
+          <Text style={styles.countryRewardTitle}>
+            {passportWasAlreadyEarned ? 'Yeni Rota Mührü' : 'Pasaport Damgası'}
+          </Text>
         </View>
         <View style={styles.countryRewardCard}>
           <Text style={styles.countryRewardIcon}>🗺️</Text>
@@ -268,7 +273,7 @@ export function CountryCompletionModal({
 
       {!worldTourCompleted ? (
         <View style={styles.nextCountryCard}>
-          <Text style={styles.nextCountryLabel}>YENİ ÜLKE AÇILDI</Text>
+          <Text style={styles.nextCountryLabel}>YENİ ROTA ETABI AÇILDI</Text>
           <Text style={styles.nextCountryName}>
             {country.flag} {country.country}　→　{nextCountry.flag} {nextCountry.country}
           </Text>
@@ -300,7 +305,7 @@ const ANALYSIS_CARDS = [
   {
     icon: '🌍',
     title: 'Seyahat & Koleksiyon Motivasyonu',
-    body: 'Oyuncu 14 tematik rotada 100 ülkeyi gezer. Her ülkede 3 destinasyon ve bir Country Challenge bulunur; ülke tamamlanınca pasaporta vize pulu basılır.',
+    body: `Oyuncu ${TOTAL_ROUTES} tematik rotada ${TOTAL_COUNTRIES} farklı ülkeyi gezer. Aynı ülkeye ait yeni şehir paketleri bağımsız rota etapları olarak eklenebilir; her etapta 3 destinasyon ve bir Country Challenge bulunur.`,
     background: 'rgba(120,53,15,0.28)',
     border: 'rgba(245,158,11,0.42)',
     titleColor: '#FCD34D',

@@ -10,6 +10,9 @@ export type TravelLocation = {
 
 export type TravelCountry = {
   id: string;
+  /** Aynı ülkenin farklı rota paketlerini tek pasaport altında birleştirir. */
+  passportId: string;
+  passportIndex: number;
   country: string;
   flag: string;
   primaryRouteId: string;
@@ -66,13 +69,28 @@ export type TravelLevelCompletion = {
   nextDestination: TravelDestination;
 };
 
-type CountrySeed = readonly [
+type CountrySeedTuple = readonly [
   id: string,
   country: string,
   flag: string,
   locations: readonly [string, string, string],
   rewardLandmark?: string,
 ];
+
+/**
+ * Yeni ülke paketlerinde nesne biçimi tercih edilir. `passportId` verilirse aynı ülkenin
+ * farklı şehir paketi bağımsız bir rota etabı olur, fakat koleksiyonda tek pasaport kazanır.
+ */
+type CountrySeedConfig = {
+  id: string;
+  passportId?: string;
+  country: string;
+  flag: string;
+  locations: readonly [string, string, string];
+  rewardLandmark?: string;
+};
+
+type CountrySeed = CountrySeedTuple | CountrySeedConfig;
 
 type RouteSeed = {
   id: string;
@@ -373,7 +391,167 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
       ['new-zealand', 'Yeni Zelanda', '🇳🇿', ['Auckland', 'Rotorua', 'Queenstown'], 'Milford Sound'],
     ],
   },
+  {
+    id: 'caribbean-treasures',
+    name: 'Karayip Hazineleri',
+    shortName: 'Karayipler',
+    emoji: '🏝️',
+    theme: 'Renkli ada kültürleri, mercan kıyıları ve Karayip ritimleri',
+    background: ROUTE_ART.americas,
+    modes: ['✈️ Uçak', '⛴️ Gemi', '⛴️ Gemi', '⛴️ Gemi', '⛴️ Gemi', '⛴️ Gemi'],
+    countries: [
+      ['cuba', 'Küba', '🇨🇺', ['Havana', 'Trinidad', 'Varadero'], 'Eski Havana'],
+      ['jamaica', 'Jamaika', '🇯🇲', ['Kingston', 'Montego Bay', 'Ocho Rios'], "Dunn's River Şelaleleri"],
+      ['dominican-republic', 'Dominik Cumhuriyeti', '🇩🇴', ['Santo Domingo', 'Puerto Plata', 'Punta Cana'], 'Kolonyal Şehir'],
+      ['bahamas', 'Bahamalar', '🇧🇸', ['Nassau', 'Freeport', 'Exuma'], 'Exuma Adaları'],
+      ['barbados', 'Barbados', '🇧🇧', ['Bridgetown', 'Bathsheba', 'Speightstown'], "Harrison's Cave"],
+      ['trinidad-and-tobago', 'Trinidad & Tobago', '🇹🇹', ['Port of Spain', 'San Fernando', 'Scarborough'], 'Pigeon Point'],
+      ['haiti', 'Haiti', '🇭🇹', ['Port-au-Prince', 'Cap-Haïtien', 'Jacmel'], 'Citadelle Laferrière'],
+    ],
+  },
+  {
+    id: 'central-america-guianas',
+    name: 'Orta Amerika & Guyanalar',
+    shortName: 'Orta Amerika',
+    emoji: '🌴',
+    theme: 'Maya izlerinden yağmur ormanlarına uzanan tropik geçit',
+    background: ROUTE_ART.americas,
+    modes: ['🚗 Araba', '🚗 Araba', '🚗 Araba', '🚗 Araba', '🚗 Araba', '✈️ Uçak'],
+    countries: [
+      ['belize', 'Belize', '🇧🇿', ['Belize City', 'San Ignacio', 'Caye Caulker'], 'Büyük Mavi Çukur'],
+      ['honduras', 'Honduras', '🇭🇳', ['Tegucigalpa', 'Copán Ruinas', 'Roatán'], 'Copán'],
+      ['el-salvador', 'El Salvador', '🇸🇻', ['San Salvador', 'Suchitoto', 'Santa Ana'], 'Çiçekler Rotası'],
+      ['nicaragua', 'Nikaragua', '🇳🇮', ['Managua', 'Granada', 'León'], 'Ometepe Adası'],
+      ['panama', 'Panama', '🇵🇦', ['Panama City', 'Boquete', 'Bocas del Toro'], 'Panama Kanalı'],
+      ['guyana', 'Guyana', '🇬🇾', ['Georgetown', 'Kaieteur', 'Lethem'], 'Kaieteur Şelalesi'],
+      ['suriname', 'Surinam', '🇸🇷', ['Paramaribo', 'Brownsberg', 'Galibi'], 'Tarihi Paramaribo'],
+    ],
+  },
+  {
+    id: 'heart-of-africa',
+    name: "Afrika'nın Kalbi",
+    shortName: "Afrika'nın Kalbi",
+    emoji: '🦍',
+    theme: 'Büyük göller, volkanlar ve ekvator ormanlarının vahşi kalbi',
+    background: ROUTE_ART.nileAfrica,
+    modes: ['🚗 Araba', '🚗 Araba', '✈️ Uçak', '🚗 Araba', '🚗 Araba', '🚗 Araba'],
+    countries: [
+      ['uganda', 'Uganda', '🇺🇬', ['Kampala', 'Jinja', 'Entebbe'], 'Bwindi Ormanı'],
+      ['rwanda', 'Ruanda', '🇷🇼', ['Kigali', 'Musanze', 'Kibuye'], 'Volkanlar Milli Parkı'],
+      ['dr-congo', 'Kongo Demokratik Cumhuriyeti', '🇨🇩', ['Kinşasa', 'Goma', 'Kisangani'], 'Virunga'],
+      ['republic-of-congo', 'Kongo Cumhuriyeti', '🇨🇬', ['Brazzaville', 'Pointe-Noire', 'Ouesso'], 'Odzala Ormanı'],
+      ['cameroon', 'Kamerun', '🇨🇲', ['Yaoundé', 'Douala', 'Buea'], 'Kamerun Dağı'],
+      ['gabon', 'Gabon', '🇬🇦', ['Libreville', 'Lambaréné', 'Port-Gentil'], 'Loango Milli Parkı'],
+      ['burundi', 'Burundi', '🇧🇮', ['Bujumbura', 'Gitega', 'Rumonge'], 'Tanganika Gölü'],
+    ],
+  },
+  {
+    id: 'west-africa',
+    name: 'Batı Afrika',
+    shortName: 'Batı Afrika',
+    emoji: '🥁',
+    theme: 'Atlantik kıyıları, kadim krallıklar ve canlı pazarlar',
+    background: ROUTE_ART.africaAdventure,
+    modes: ['✈️ Uçak', '🚗 Araba', '🚗 Araba', '✈️ Uçak', '🚗 Araba', '🚗 Araba'],
+    countries: [
+      ['nigeria', 'Nijerya', '🇳🇬', ['Lagos', 'Abuja', 'Calabar'], 'Zuma Kayası'],
+      ['ivory-coast', 'Fildişi Sahili', '🇨🇮', ['Abidjan', 'Yamoussoukro', 'Grand-Bassam'], 'Barış Meryem Ana Bazilikası'],
+      ['benin', 'Benin', '🇧🇯', ['Cotonou', 'Ouidah', 'Abomey'], 'Abomey Kraliyet Sarayları'],
+      ['togo', 'Togo', '🇹🇬', ['Lomé', 'Kpalimé', 'Kara'], 'Koutammakou'],
+      ['gambia', 'Gambiya', '🇬🇲', ['Banjul', 'Serrekunda', 'Janjanbureh'], 'Kunta Kinteh Adası'],
+      ['guinea', 'Gine', '🇬🇳', ['Conakry', 'Kindia', 'Labé'], 'Fouta Djallon'],
+      ['sierra-leone', 'Sierra Leone', '🇸🇱', ['Freetown', 'Bo', 'Kenema'], 'Tiwai Adası'],
+    ],
+  },
+  {
+    id: 'pacific-islands',
+    name: 'Pasifik Adaları',
+    shortName: 'Pasifik',
+    emoji: '🌺',
+    theme: 'Volkanik adalar, lagünler ve Büyük Okyanus kültürleri',
+    background: ROUTE_ART.pacificFinal,
+    modes: ['✈️ Uçak', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak'],
+    countries: [
+      ['fiji', 'Fiji', '🇫🇯', ['Suva', 'Nadi', 'Levuka'], 'Mamanuca Adaları'],
+      ['samoa', 'Samoa', '🇼🇸', ['Apia', "Savai'i", 'Lalomanu'], 'To Sua Okyanus Çukuru'],
+      ['tonga', 'Tonga', '🇹🇴', ["Nuku'alofa", "Neiafu / Vava'u", "Pangai / Ha'apai"], "Vava'u Adaları"],
+      ['vanuatu', 'Vanuatu', '🇻🇺', ['Port Vila', 'Luganville', 'Tanna'], 'Yasur Yanardağı'],
+      ['solomon-islands', 'Solomon Adaları', '🇸🇧', ['Honiara', 'Gizo', 'Munda'], 'Marovo Lagünü'],
+      ['kiribati', 'Kiribati', '🇰🇮', ['Güney Tarawa', 'Kiritimati', 'Abaiang'], 'Phoenix Adaları'],
+      ['papua-new-guinea', 'Papua Yeni Gine', '🇵🇬', ['Port Moresby', 'Lae', 'Mount Hagen'], 'Kokoda Patikası'],
+    ],
+  },
+  {
+    id: 'north-america-arctic',
+    name: 'Kuzey Amerika & Arktik',
+    shortName: 'Arktik',
+    emoji: '❄️',
+    theme: 'Kuzey Atlantik adaları ve Kuzey Amerika’nın kutup etapları',
+    background: ROUTE_ART.northernLights,
+    modes: ['✈️ Uçak', '✈️ Uçak', '⛴️ Gemi', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak'],
+    countries: [
+      ['iceland', 'İzlanda', '🇮🇸', ['Reykjavík', 'Akureyri', 'Vík'], 'Altın Çember'],
+      ['greenland', 'Grönland', '🇬🇱', ['Nuuk', 'Ilulissat', 'Sisimiut'], 'Ilulissat Buz Fiyordu'],
+      ['faroe-islands', 'Faroe Adaları', '🇫🇴', ['Tórshavn', 'Klaksvík', 'Gjógv'], 'Múlafossur Şelalesi'],
+      {
+        id: 'norway-svalbard',
+        passportId: 'norway',
+        country: 'Norveç · Svalbard',
+        flag: '🇳🇴',
+        locations: ['Longyearbyen', 'Barentsburg', 'Ny-Ålesund'],
+        rewardLandmark: 'Arktik Vahşi Yaşamı',
+      },
+      {
+        id: 'united-states-alaska',
+        passportId: 'united-states',
+        country: 'ABD · Alaska',
+        flag: '🇺🇸',
+        locations: ['Anchorage', 'Fairbanks', 'Juneau'],
+        rewardLandmark: 'Denali',
+      },
+      {
+        id: 'canada-yukon',
+        passportId: 'canada',
+        country: 'Kanada · Yukon',
+        flag: '🇨🇦',
+        locations: ['Whitehorse', 'Dawson City', 'Kluane'],
+        rewardLandmark: 'Kluane Milli Parkı',
+      },
+      {
+        id: 'canada-nunavut',
+        passportId: 'canada',
+        country: 'Kanada · Nunavut',
+        flag: '🇨🇦',
+        locations: ['Iqaluit', 'Rankin Inlet', 'Cambridge Bay'],
+        rewardLandmark: 'Auyuittuq Milli Parkı',
+      },
+    ],
+  },
+  {
+    id: 'hidden-africa',
+    name: "Afrika'nın Saklı Hazineleri",
+    shortName: 'Saklı Afrika',
+    emoji: '🌍',
+    theme: 'Atlantik yaylalarından Hint Okyanusu adalarına keşif',
+    background: ROUTE_ART.africaAdventure,
+    modes: ['✈️ Uçak', '🚗 Araba', '🚗 Araba', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak'],
+    countries: [
+      ['angola', 'Angola', '🇦🇴', ['Luanda', 'Lubango', 'Benguela'], 'Kalandula Şelaleleri'],
+      ['malawi', 'Malavi', '🇲🇼', ['Lilongwe', 'Blantyre', 'Nkhata Bay'], 'Malavi Gölü'],
+      ['lesotho', 'Lesotho', '🇱🇸', ['Maseru', 'Semonkong', 'Butha-Buthe'], 'Maletsunyane Şelalesi'],
+      ['eswatini', 'Esvatini', '🇸🇿', ['Mbabane', 'Lobamba', 'Manzini'], 'Mlilwane Koruma Alanı'],
+      ['seychelles', 'Seyşeller', '🇸🇨', ['Victoria / Mahé', 'Praslin', 'La Digue'], "Anse Source d'Argent"],
+      ['comoros', 'Komorlar', '🇰🇲', ['Moroni', 'Mutsamudu', 'Fomboni'], 'Karthala Dağı'],
+      ['djibouti', 'Cibuti', '🇩🇯', ['Cibuti', 'Tadjoura', 'Ali Sabieh'], 'Assal Gölü'],
+    ],
+  },
 ] as const;
+
+function normalizeCountrySeed(seed: CountrySeed): CountrySeedConfig {
+  if (!Array.isArray(seed)) return seed as CountrySeedConfig;
+  const [id, country, flag, locations, rewardLandmark] = seed as CountrySeedTuple;
+  return { id, country, flag, locations, rewardLandmark };
+}
 
 function slugify(value: string) {
   return value
@@ -419,14 +597,30 @@ function distanceFor(mode: string, routeOrder: number, legIndex: number) {
 }
 
 const countries: TravelCountry[] = [];
+const passportIndexById = new Map<string, number>();
 
 export const TRAVEL_ROUTES: TravelRoute[] = ROUTE_SEEDS.map((seed, routeIndex) => {
   const order = routeIndex + 1;
-  seed.countries.forEach(([id, country, flag, locationNames, rewardLandmark]) => {
+  seed.countries.forEach((countrySeed, countryIndex) => {
+    const {
+      id,
+      passportId = id,
+      country,
+      flag,
+      locations: locationNames,
+      rewardLandmark,
+    } = normalizeCountrySeed(countrySeed);
+    if (!passportIndexById.has(passportId)) {
+      passportIndexById.set(passportId, passportIndexById.size);
+    }
     const background = COUNTRY_ART[id] ?? seed.background;
     const locations = makeLocations(id, locationNames, background);
+    const isWorldTourFinal =
+      routeIndex === ROUTE_SEEDS.length - 1 && countryIndex === seed.countries.length - 1;
     countries.push({
       id,
+      passportId,
+      passportIndex: passportIndexById.get(passportId) ?? 0,
       country,
       flag,
       primaryRouteId: seed.id,
@@ -434,8 +628,8 @@ export const TRAVEL_ROUTES: TravelRoute[] = ROUTE_SEEDS.map((seed, routeIndex) =
       locations,
       challenge: {
         id: `${id}-country-challenge`,
-        name: id === 'new-zealand' ? 'WORLD TOUR FINAL' : `${country} Challenge`,
-        emoji: id === 'new-zealand' ? '🌍' : '🏆',
+        name: isWorldTourFinal ? 'WORLD TOUR FINAL' : `${country} Challenge`,
+        emoji: isWorldTourFinal ? '🌍' : '🏆',
         background,
         levelCount: 1,
         startLevel: 20,
@@ -455,7 +649,7 @@ export const TRAVEL_ROUTES: TravelRoute[] = ROUTE_SEEDS.map((seed, routeIndex) =
     emoji: seed.emoji,
     order,
     difficulty: order,
-    countryIds: seed.countries.map(([id]) => id),
+    countryIds: seed.countries.map((countrySeed) => normalizeCountrySeed(countrySeed).id),
     nextRouteIds: ROUTE_SEEDS[routeIndex + 1] ? [ROUTE_SEEDS[routeIndex + 1].id] : [],
     background: seed.background,
     theme: seed.theme,
@@ -470,6 +664,15 @@ export const WORLD_COUNTRIES = countries;
 export const PLAY_ORDER_COUNTRIES = WORLD_COUNTRIES;
 export const COUNTRY_BY_ID = new Map(WORLD_COUNTRIES.map((country) => [country.id, country]));
 export const ROUTE_BY_ID = new Map(TRAVEL_ROUTES.map((route) => [route.id, route]));
+const listedPassportIds = new Set<string>();
+export const PASSPORT_COUNTRIES = WORLD_COUNTRIES.filter((country) => {
+  if (listedPassportIds.has(country.passportId)) return false;
+  listedPassportIds.add(country.passportId);
+  return true;
+});
+export const TOTAL_COUNTRY_STAGES = WORLD_COUNTRIES.length;
+export const TOTAL_COUNTRIES = PASSPORT_COUNTRIES.length;
+export const TOTAL_ROUTES = TRAVEL_ROUTES.length;
 export const TOTAL_DESTINATIONS = WORLD_COUNTRIES.reduce(
   (total, country) => total + country.locations.length,
   0,
@@ -524,8 +727,14 @@ export function isCountryComplete(globalLevel: number, countryId: string) {
   return country ? getCountryProgress(globalLevel, countryId) >= country.levelCount : false;
 }
 
+export function isPassportEarned(globalLevel: number, passportId: string) {
+  return WORLD_COUNTRIES.some(
+    (country) => country.passportId === passportId && isCountryComplete(globalLevel, country.id),
+  );
+}
+
 export function getCompletedCountryCount(globalLevel: number) {
-  return Math.min(WORLD_COUNTRIES.length, Math.floor(getCompletedWorldLevelCount(globalLevel) / 20));
+  return PASSPORT_COUNTRIES.filter((country) => isPassportEarned(globalLevel, country.passportId)).length;
 }
 
 export function getRouteProgress(globalLevel: number, route: TravelRoute) {
@@ -579,7 +788,7 @@ export function resolveTravelLevel(globalLevel: number): TravelDestination {
     locationIndex,
     locationLevel: countryLevel - location.startLevel + 1,
     countryChallenge,
-    worldTourFinal: normalizedLevel === TOTAL_WORLD_LEVELS,
+    worldTourFinal: cycleLevel === TOTAL_WORLD_LEVELS,
   };
 }
 
@@ -604,21 +813,24 @@ export function getTravelLevelCompletion(globalLevel: number): TravelLevelComple
 }
 
 export function assertTravelCatalog() {
-  if (TRAVEL_ROUTES.length !== 14) {
-    throw new Error(`Dünya kataloğu 14 rota olmalı; bulunan: ${TRAVEL_ROUTES.length}`);
+  if (TOTAL_ROUTES < 20) {
+    throw new Error(`Dünya kataloğu en az 20 rota içermeli; bulunan: ${TOTAL_ROUTES}`);
   }
-  if (WORLD_COUNTRIES.length !== 100) {
-    throw new Error(`Dünya kataloğu 100 ülke olmalı; bulunan: ${WORLD_COUNTRIES.length}`);
+  if (TOTAL_COUNTRY_STAGES < 140) {
+    throw new Error(`Dünya kataloğu en az 140 ülke etabı içermeli; bulunan: ${TOTAL_COUNTRY_STAGES}`);
   }
-  if (TOTAL_WORLD_LEVELS !== 2000) {
-    throw new Error(`Ana tur 2.000 level olmalı; bulunan: ${TOTAL_WORLD_LEVELS}`);
+  if (TOTAL_WORLD_LEVELS !== TOTAL_COUNTRY_STAGES * 20) {
+    throw new Error(`Ana tur ülke etabı başına 20 level içermeli; bulunan: ${TOTAL_WORLD_LEVELS}`);
   }
-  if (TOTAL_DESTINATIONS !== 300) {
-    throw new Error(`Dünya kataloğu 300 destinasyon olmalı; bulunan: ${TOTAL_DESTINATIONS}`);
+  if (TOTAL_DESTINATIONS !== TOTAL_COUNTRY_STAGES * 3) {
+    throw new Error(`Her ülke etabı üç destinasyon içermeli; bulunan: ${TOTAL_DESTINATIONS}`);
   }
 
   const ids = new Set(WORLD_COUNTRIES.map((country) => country.id));
   if (ids.size !== WORLD_COUNTRIES.length) throw new Error('Ülke kimlikleri benzersiz olmalı.');
+  if (PASSPORT_COUNTRIES.some((country, index) => country.passportIndex !== index)) {
+    throw new Error('Pasaport kimlikleri ve sıraları tutarlı olmalı.');
+  }
 
   TRAVEL_ROUTES.forEach((route) => {
     if (route.countryIds.length < 7 || route.countryIds.length > 8) {

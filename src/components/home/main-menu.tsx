@@ -19,6 +19,7 @@ import type { LevelData } from '@/game/levels';
 import {
   COUNTRY_BY_ID,
   ROUTE_BY_ID,
+  TOTAL_COUNTRIES,
   TOTAL_WORLD_LEVELS,
   getCompletedCountryCount,
   getCompletedWorldLevelCount,
@@ -305,7 +306,9 @@ export function MainMenu({
                   );
                 })}
               </View>
-              <Text style={styles.discoveryText}>🌍  {completedCountries}/100 ülke keşfedildi</Text>
+              <Text style={styles.discoveryText}>
+                🌍 {completedCountries}/{TOTAL_COUNTRIES} ülke keşfedildi
+              </Text>
             </View>
             <View style={[styles.countryImageFrame, compact && styles.countryImageFrameCompact]}>
               <Image
@@ -396,7 +399,7 @@ export function ProfileScreen({
             {[
               ['★', score.toLocaleString('tr-TR'), 'PUAN'],
               ['✓', `${completedLevels}`, 'TAMAMLANAN PUZZLE'],
-              ['🌍', `${completedCountries}/100`, 'ÜLKE'],
+              ['🌍', `${completedCountries}/${TOTAL_COUNTRIES}`, 'ÜLKE'],
               ['💎', `${gemCount}`, 'MÜCEVHER'],
             ].map(([icon, value, label]) => (
               <View key={label} style={styles.statCard}>
@@ -436,7 +439,9 @@ export function ProfileScreen({
             <Text style={styles.profileActionIcon}>📘</Text>
             <View style={styles.profileActionCopy}>
               <Text style={styles.profileActionTitle}>Seyahat Pasaportu</Text>
-              <Text style={styles.profileActionSubtitle}>{completedCountries}/100 ülke damgası</Text>
+              <Text style={styles.profileActionSubtitle}>
+                {completedCountries}/{TOTAL_COUNTRIES} ülke damgası
+              </Text>
             </View>
             <Text style={styles.profileActionArrow}>›</Text>
           </Pressable>

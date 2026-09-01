@@ -41,10 +41,12 @@ import { getGameLayout } from '@/game/layout';
 import { loadGameProgress, saveGameProgress } from '@/game/progress-storage';
 import {
   COUNTRY_BY_ID,
+  TOTAL_COUNTRIES,
   getCompletedWorldLevelCount,
   getCountryProgress,
   getLocationProgress,
   getTravelLevelCompletion,
+  isPassportEarned,
 } from '@/game/travel';
 import { useBackgroundMusic } from '@/hooks/use-background-music';
 import { useGameSounds, type GameSound } from '@/hooks/use-game-sounds';
@@ -1275,10 +1277,16 @@ export default function HomeScreen() {
             (levelData.countryChallenge &&
               levelData.countryLevel === levelData.countryLevelCount);
           const nextDestination = travelCompletion.nextDestination;
+          const completedCountryRecord = COUNTRY_BY_ID.get(levelData.countryId);
+          const passportReward =
+            completedCountryRecord &&
+            isPassportEarned(completedPuzzleLevel, completedCountryRecord.passportId)
+              ? 'yeni rota mührü'
+              : 'pasaport damgası';
           const completionMessage = travelCompletion.worldTourCompleted
-            ? '100/100 ülke • WORLD TOUR COMPLETED! Golden Compass ve World Explorer kazanıldı'
+            ? `${TOTAL_COUNTRIES}/${TOTAL_COUNTRIES} ülke • WORLD TOUR COMPLETED! Golden Compass ve World Explorer kazanıldı`
             : completedCountry
-              ? `${levelData.country} tamamlandı! Pasaport damgası ve ${COUNTRY_BY_ID.get(levelData.countryId)?.rewardLandmark ?? levelData.country} kartı kazanıldı`
+              ? `${levelData.country} tamamlandı! ${passportReward} ve ${completedCountryRecord?.rewardLandmark ?? levelData.country} kartı kazanıldı`
               : completedLocation
                 ? `${levelData.city} tamamlandı! ${
                     nextDestination.countryChallenge
