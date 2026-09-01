@@ -49,7 +49,7 @@ export type LevelData = {
   emoji: string;
   background: string;
   op: Operation;
-  steps: 2 | 3;
+  steps: 2 | 3 | 4;
   numbers: number[];
   targets: Target[];
   /** Ana hedeflerden bağımsız, tamamlanması zorunlu olmayan mücevher hedefi. */
@@ -93,36 +93,46 @@ function shuffle<T>(items: readonly T[]): T[] {
   return result;
 }
 
-function getLevelRules(level: number): {
+function getLevelRules(level: number, countryChallenge: boolean): {
   op: Operation;
-  steps: 2 | 3;
+  steps: 2 | 3 | 4;
   nodeCount: number;
   targetCount: number;
 } {
+  let rules: {
+    op: Operation;
+    steps: 2 | 3;
+    nodeCount: number;
+    targetCount: number;
+  };
+
   if (level <= 10) {
-    return { op: '+', steps: 2, nodeCount: 5, targetCount: 3 };
-  }
-  if (level <= 30) {
-    return { op: '+', steps: 2, nodeCount: 6, targetCount: 4 };
-  }
-  if (level <= 70) {
+    rules = { op: '+', steps: 2, nodeCount: 5, targetCount: 3 };
+  } else if (level <= 30) {
+    rules = { op: '+', steps: 2, nodeCount: 6, targetCount: 4 };
+  } else if (level <= 70) {
     const op: Operation = level % 2 === 0 ? '+' : '-';
-    return {
+    rules = {
       op,
       steps: op === '+' && level % 3 === 0 ? 3 : 2,
       nodeCount: 7,
       targetCount: 4,
     };
+  } else {
+    const operations: Operation[] = ['+', '-', '*', '/'];
+    const op = operations[level % operations.length];
+    rules = {
+      op,
+      steps: op === '+' ? 3 : 2,
+      nodeCount: 7,
+      targetCount: 4,
+    };
   }
 
-  const operations: Operation[] = ['+', '-', '*', '/'];
-  const op = operations[level % operations.length];
-  return {
-    op,
-    steps: op === '+' ? 3 : 2,
-    nodeCount: 7,
-    targetCount: 4,
-  };
+  if (!countryChallenge || rules.op !== '+') return rules;
+
+  const countryIndex = Math.floor((level - 1) / 20);
+  return { ...rules, steps: countryIndex % 2 === 0 ? 3 : 4 };
 }
 
 function getPool(op: Operation): number[] {
@@ -209,7 +219,8 @@ export function generateLevelData(
   excludedTargetValues: readonly number[] = [],
 ): LevelData {
   const normalizedLevel = Math.max(1, Math.floor(level));
-  const rules = getLevelRules(normalizedLevel);
+  const destination = resolveTravelLevel(normalizedLevel);
+  const rules = getLevelRules(normalizedLevel, destination.countryChallenge);
 
   const excludedValues = new Set(
     excludedTargetValues.filter((value) => Number.isFinite(value)),

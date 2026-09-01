@@ -162,6 +162,47 @@ export function PassportModal({
   );
 }
 
+export function ChallengeIntroModal({
+  visible,
+  country,
+  flag,
+  worldTourFinal,
+  blurTarget,
+  onClose,
+}: {
+  visible: boolean;
+  country: string;
+  flag: string;
+  worldTourFinal: boolean;
+  blurTarget: RefObject<View | null>;
+  onClose: () => void;
+}) {
+  const title = worldTourFinal ? 'WORLD TOUR FINAL CHALLENGE' : 'COUNTRY CHALLENGE';
+
+  return (
+    <GameModal
+      blurTarget={blurTarget}
+      footer={
+        <Pressable
+          accessibilityLabel="Oyuna başla"
+          accessibilityRole="button"
+          onPress={onClose}
+          style={({ pressed }) => [styles.challengeStartButton, pressed && styles.pressed]}>
+          <Text style={styles.challengeStartText}>BAŞLA</Text>
+        </Pressable>
+      }
+      icon="🏆"
+      onClose={onClose}
+      subtitle={`${flag} ${country} • SON OYUN`}
+      title={title}
+      visible={visible}>
+      <View style={styles.challengeIntroHero}>
+        <Text style={styles.challengeIntroTrophy}>🏆</Text>
+      </View>
+    </GameModal>
+  );
+}
+
 export function CountryCompletionModal({
   completedLevel,
   blurTarget,
@@ -436,6 +477,34 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 17,
     fontWeight: '600',
+  },
+  challengeIntroHero: {
+    minHeight: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#F4D37B',
+    backgroundColor: '#2D394B',
+  },
+  challengeIntroTrophy: {
+    fontSize: 58,
+  },
+  challengeStartButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#FFF1B9',
+    backgroundColor: '#D9A62E',
+  },
+  challengeStartText: {
+    color: '#2E261F',
+    fontFamily: FONTS.black,
+    fontSize: 12,
+    fontWeight: '900',
   },
   countryCompleteHero: {
     alignItems: 'center',

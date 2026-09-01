@@ -60,7 +60,7 @@ function isValidLevelData(value: unknown, expectedLevel: number): value is Legac
     return false;
   }
   if (!['+', '-', '*', '/'].includes(String(value.op))) return false;
-  if (value.steps !== 2 && value.steps !== 3) return false;
+  if (value.steps !== 2 && value.steps !== 3 && value.steps !== 4) return false;
   if (
     !Array.isArray(value.numbers) ||
     value.numbers.length < 5 ||
@@ -76,7 +76,7 @@ function isValidLevelData(value: unknown, expectedLevel: number): value is Legac
   const requiredTargetsValid = value.targets.every((target) => {
     if (!isRecord(target)) return false;
     if (!Number.isFinite(target.value)) return false;
-    if (target.steps !== 2 && target.steps !== 3) return false;
+    if (target.steps !== 2 && target.steps !== 3 && target.steps !== 4) return false;
     if (!['+', '-', '*', '/'].includes(String(target.op))) return false;
     return findSolutionIndices(target as LevelData['targets'][number], value.numbers as number[]) !== null;
   });

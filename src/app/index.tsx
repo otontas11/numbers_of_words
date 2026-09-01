@@ -16,7 +16,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CountryCompletionModal, PassportModal } from '@/components/game/game-modals';
+import {
+  ChallengeIntroModal,
+  CountryCompletionModal,
+  PassportModal,
+} from '@/components/game/game-modals';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
 import { MainMenu, ProfileScreen } from '@/components/home/main-menu';
@@ -729,17 +733,75 @@ function JourneyStrip({ level, levelData }: { level: number; levelData: LevelDat
   const country = COUNTRY_BY_ID.get(levelData.countryId);
   const operation = OPERATION_DETAILS[levelData.op];
   const countryProgress = country ? getCountryProgress(level, country.id) : 0;
+  const challengeProgress = Math.max(0, Math.min(1, countryProgress - 19));
+  const [challengePulse] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    challengePulse.stopAnimation();
+    if (!levelData.countryChallenge) {
+      challengePulse.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(challengePulse, {
+          toValue: 1,
+          duration: 720,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(challengePulse, {
+          toValue: 0,
+          duration: 720,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [challengePulse, levelData.countryChallenge]);
 
   return (
     <LinearGradient
-      colors={['rgba(62,100,114,0.94)', 'rgba(38,63,77,0.93)']}
+      colors={
+        levelData.countryChallenge
+          ? ['rgba(116,78,24,0.97)', 'rgba(47,57,69,0.97)']
+          : ['rgba(62,100,114,0.94)', 'rgba(38,63,77,0.93)']
+      }
       end={{ x: 0, y: 1 }}
       start={{ x: 0, y: 0 }}
-      style={styles.journeyStrip}>
+      style={[styles.journeyStrip, levelData.countryChallenge && styles.journeyStripChallenge]}>
       <View style={styles.journeyTopRow}>
-        <Text numberOfLines={1} style={styles.journeyCountry}>
-          ✦ {levelData.flag} {levelData.country}
-        </Text>
+        <View style={styles.journeyCountryGroup}>
+          <Text numberOfLines={1} style={styles.journeyCountry}>
+            ✦ {levelData.flag} {levelData.country}
+          </Text>
+          {levelData.countryChallenge ? (
+            <Animated.Text
+              numberOfLines={1}
+              style={[
+                styles.journeyChallengeLabel,
+                {
+                  opacity: challengePulse.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.7, 1],
+                  }),
+                  transform: [
+                    {
+                      scale: challengePulse.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.06],
+                      }),
+                    },
+                  ],
+                },
+              ]}>
+              CHALLENGE
+            </Animated.Text>
+          ) : null}
+        </View>
         <View style={styles.journeyOperationChip}>
           <Text numberOfLines={1} style={styles.journeyOperationText}>
             {operation.name.toLocaleUpperCase('tr-TR')} • {operation.symbol}
@@ -747,7 +809,6 @@ function JourneyStrip({ level, levelData }: { level: number; levelData: LevelDat
         </View>
         <View style={styles.journeyCountChip}>
           <Text style={styles.journeyCountText}>
-            {levelData.countryChallenge ? '🏆 ' : ''}
             {countryProgress}/{country?.levelCount ?? 20}
           </Text>
         </View>
@@ -762,7 +823,9 @@ function JourneyStrip({ level, levelData }: { level: number; levelData: LevelDat
           const fillWidth = `${(progress / location.levelCount) * 100}%` as `${number}%`;
 
           return (
-            <View key={location.id} style={styles.cityStepGroup}>
+            <View
+              key={location.id}
+              style={[styles.cityStepGroup, { flex: location.levelCount }]}>
               <View style={styles.cityStepLine}>
                 <Text
                   numberOfLines={2}
@@ -790,6 +853,30 @@ function JourneyStrip({ level, levelData }: { level: number; levelData: LevelDat
             </View>
           );
         })}
+        <View
+          accessibilityLabel={`Challenge ilerlemesi ${challengeProgress}/1`}
+          style={[styles.cityStepGroup, styles.challengeStepGroup]}>
+          <View style={[styles.cityStepLine, styles.challengeStepLine]}>
+            <Text
+              style={[
+                styles.challengeStepIcon,
+                levelData.countryChallenge && styles.challengeStepActive,
+              ]}>
+              🏆
+            </Text>
+          </View>
+          <View style={[styles.cityProgressTrack, styles.challengeProgressTrack]}>
+            <LinearGradient
+              colors={['#D9A62E', '#FFE196']}
+              end={{ x: 1, y: 0 }}
+              start={{ x: 0, y: 0 }}
+              style={[
+                styles.cityProgressFill,
+                { width: challengeProgress === 1 ? '100%' : '0%' },
+              ]}
+            />
+          </View>
+        </View>
       </View>
     </LinearGradient>
   );
@@ -818,6 +905,7 @@ export default function HomeScreen() {
   const [destinationTransition, setDestinationTransition] =
     useState<DestinationTransitionState | null>(null);
   const [countryCompletionLevel, setCountryCompletionLevel] = useState<number | null>(null);
+  const [challengeIntroVisible, setChallengeIntroVisible] = useState(false);
   const [resultFlights, setResultFlights] = useState<ResultFlight[]>([]);
   const [flyingTargets, setFlyingTargets] = useState<Set<number>>(() => new Set());
   const [bonusFlying, setBonusFlying] = useState(false);
@@ -945,6 +1033,7 @@ export default function HomeScreen() {
       activeScreen === 'home' ||
       passportVisible ||
       settingsVisible ||
+      challengeIntroVisible ||
       countryCompletionLevel !== null
     ) {
       return;
@@ -954,7 +1043,13 @@ export default function HomeScreen() {
       return true;
     });
     return () => subscription.remove();
-  }, [activeScreen, countryCompletionLevel, passportVisible, settingsVisible]);
+  }, [
+    activeScreen,
+    challengeIntroVisible,
+    countryCompletionLevel,
+    passportVisible,
+    settingsVisible,
+  ]);
 
   const triggerEffect = useCallback(
     (kind: GameSound) => {
@@ -1096,8 +1191,10 @@ export default function HomeScreen() {
     clearTimer(feedbackTimer);
     clearTimer(hintTimer);
     clearTimer(landingTimer);
+    const nextLevelData = generateLevelData(nextLevel, previousTargetValues);
     setLevel(nextLevel);
-    setLevelData(generateLevelData(nextLevel, previousTargetValues));
+    setLevelData(nextLevelData);
+    setChallengeIntroVisible(nextLevelData.countryChallenge);
     levelScorePending.current = 0;
     setSolvedTargets(new Set());
     setBonusSolved(false);
@@ -1352,8 +1449,9 @@ export default function HomeScreen() {
 
   const openGame = useCallback(() => {
     setActiveScreen('game');
+    setChallengeIntroVisible(levelData.countryChallenge);
     triggerEffect('select1');
-  }, [triggerEffect]);
+  }, [levelData.countryChallenge, triggerEffect]);
 
   const continueAfterCountryCompletion = useCallback(() => {
     if (countryCompletionLevel === null) return;
@@ -1401,6 +1499,14 @@ export default function HomeScreen() {
         blurTarget={blurTarget}
         completedLevel={countryCompletionLevel}
         onContinue={continueAfterCountryCompletion}
+      />
+      <ChallengeIntroModal
+        blurTarget={blurTarget}
+        country={levelData.country}
+        flag={levelData.flag}
+        onClose={() => setChallengeIntroVisible(false)}
+        visible={challengeIntroVisible}
+        worldTourFinal={levelData.worldTourFinal}
       />
     </>
   );
@@ -1842,18 +1948,47 @@ const styles = StyleSheet.create({
     shadowRadius: 7,
     elevation: 7,
   },
+  journeyStripChallenge: {
+    borderWidth: 2,
+    borderColor: '#FFE196',
+    shadowColor: '#D9A62E',
+    shadowOpacity: 0.38,
+  },
   journeyTopRow: {
     minHeight: 22,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
   },
-  journeyCountry: {
+  journeyCountryGroup: {
     flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  journeyCountry: {
+    flexShrink: 1,
     color: '#FFE196',
     fontFamily: FONTS.black,
     fontSize: 12,
     lineHeight: 15,
+    fontWeight: '900',
+  },
+  journeyChallengeLabel: {
+    flexShrink: 0,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    overflow: 'hidden',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFE196',
+    color: '#FFE196',
+    backgroundColor: 'rgba(35,45,57,0.78)',
+    fontFamily: FONTS.black,
+    fontSize: 7,
+    lineHeight: 10,
+    letterSpacing: 0.5,
     fontWeight: '900',
   },
   journeyOperationChip: {
@@ -1896,7 +2031,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     marginTop: 5,
-    gap: 6,
+    gap: 3,
   },
   cityStepGroup: {
     flex: 1,
@@ -1944,6 +2079,24 @@ const styles = StyleSheet.create({
   cityProgressFill: {
     height: '100%',
     borderRadius: 8,
+  },
+  challengeStepGroup: {
+    flex: 1,
+    minWidth: 17,
+  },
+  challengeStepLine: {
+    justifyContent: 'center',
+  },
+  challengeStepIcon: {
+    opacity: 0.5,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  challengeStepActive: {
+    opacity: 1,
+  },
+  challengeProgressTrack: {
+    backgroundColor: 'rgba(126,96,42,0.72)',
   },
   scrollView: {
     flex: 1,

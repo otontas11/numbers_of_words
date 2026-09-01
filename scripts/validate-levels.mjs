@@ -136,6 +136,9 @@ for (let run = 0; run < RUN_COUNT; run += 1) {
     if (data.countryChallenge !== (data.countryLevel === 20)) {
       throw new Error(`Seviye ${level}: Country Challenge konumu hatalı.`);
     }
+    if (data.countryChallenge && data.op === '+' && ![3, 4].includes(data.steps)) {
+      throw new Error(`Seviye ${level}: toplama Challenge adımı 3 veya 4 değil.`);
+    }
 
     const completion = getTravelLevelCompletion(level);
     const expectedLocationCompletion = [7, 14, 19].includes(data.countryLevel);
