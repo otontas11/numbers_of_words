@@ -36,6 +36,7 @@ const WORLD_BACKGROUND = require('../../../assets/images/img/bg.png');
 type MapLayer = 'world' | 'route';
 
 type JourneyMapProps = {
+  active: boolean;
   level: number;
   levelData: LevelData;
   onBack: () => void;
@@ -278,6 +279,7 @@ function CountryCard({
 }
 
 export function JourneyMap({
+  active,
   level,
   levelData,
   onBack,
@@ -316,12 +318,13 @@ export function JourneyMap({
   }, [layer, onBack]);
 
   useEffect(() => {
+    if (!active) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       goBack();
       return true;
     });
     return () => subscription.remove();
-  }, [goBack]);
+  }, [active, goBack]);
 
   const openRoute = (route: TravelRoute) => {
     if (!isRouteUnlocked(level, route)) {

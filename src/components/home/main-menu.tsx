@@ -31,6 +31,7 @@ const HOME_BACKGROUND = require('../../../assets/images/img/bg.png');
 const HOME_LOGO = require('../../../assets/images/img/number_of_wonders.png');
 
 type MainMenuProps = {
+  active: boolean;
   currentLevel: number;
   gemCount: number;
   levelData: LevelData;
@@ -82,6 +83,7 @@ function ResourcePill({
 }
 
 export function MainMenu({
+  active,
   currentLevel,
   gemCount,
   levelData,
@@ -101,6 +103,11 @@ export function MainMenu({
   const routeProgress = route ? getRouteProgress(currentLevel, route) : 0;
 
   useEffect(() => {
+    if (!active) {
+      pulse.stopAnimation();
+      orbit.stopAnimation();
+      return;
+    }
     const pulseAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
@@ -131,7 +138,7 @@ export function MainMenu({
       pulseAnimation.stop();
       orbitAnimation.stop();
     };
-  }, [orbit, pulse]);
+  }, [active, orbit, pulse]);
 
   return (
     <View style={styles.screen}>
@@ -341,7 +348,6 @@ export function ProfileScreen({
   currentLevel,
   gemCount,
   levelData,
-  onBack,
   onOpenPassport,
   onPlay,
   score,
@@ -350,7 +356,6 @@ export function ProfileScreen({
   currentLevel: number;
   gemCount: number;
   levelData: LevelData;
-  onBack: () => void;
   onOpenPassport: () => void;
   onPlay: () => void;
   score: number;
@@ -364,15 +369,7 @@ export function ProfileScreen({
     <LinearGradient colors={['#EAF5F5', '#F7EEDC', '#E6D0A9']} style={styles.profileScreen}>
       <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
         <View style={styles.profileHeader}>
-          <Pressable
-            accessibilityLabel="Ana sayfaya dön"
-            accessibilityRole="button"
-            onPress={onBack}
-            style={({ pressed }) => [styles.profileBack, pressed && styles.pressed]}>
-            <Text style={styles.profileBackText}>‹</Text>
-          </Pressable>
           <Text style={styles.profileHeaderTitle}>PROFİL</Text>
-          <View style={styles.profileHeaderSpacer} />
         </View>
 
         <ScrollView
@@ -577,11 +574,8 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.78, transform: [{ scale: 0.95 }] },
 
   profileScreen: { flex: 1 },
-  profileHeader: { height: 58, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  profileBack: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: '#2D4B58' },
-  profileBackText: { marginTop: -4, color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 36, lineHeight: 38 },
+  profileHeader: { height: 58, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center' },
   profileHeaderTitle: { color: '#253947', fontFamily: FONTS.extraBold, fontSize: 16, letterSpacing: 1.7, fontWeight: '800' },
-  profileHeaderSpacer: { width: 44 },
   profileScroll: { width: '100%', maxWidth: 512, alignSelf: 'center', paddingHorizontal: 16, paddingBottom: 26 },
   profileHero: { height: 226, marginTop: 8, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', borderRadius: 26, paddingBottom: 22, shadowColor: '#2D2219', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.24, shadowRadius: 10, elevation: 7 },
   avatar: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center', borderRadius: 38, borderWidth: 4, borderColor: '#F5D779', backgroundColor: '#FFF8E8' },

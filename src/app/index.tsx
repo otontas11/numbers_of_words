@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PIConfetti } from 'react-native-fast-confetti';
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import {
   Animated,
   BackHandler,
@@ -50,6 +50,11 @@ import {
 } from '@/game/travel';
 import { useBackgroundMusic } from '@/hooks/use-background-music';
 import { useGameSounds, type GameSound } from '@/hooks/use-game-sounds';
+
+const PersistentMainMenu = memo(MainMenu);
+const PersistentProfileScreen = memo(ProfileScreen);
+const PersistentPassportCollection = memo(PassportCollection);
+const PersistentJourneyMap = memo(JourneyMap);
 
 type FeedbackTone = 'live' | 'success' | 'bonus' | 'info';
 type AppScreen = 'home' | 'game' | 'profile' | 'travel' | 'collection';
@@ -898,6 +903,9 @@ export default function HomeScreen() {
   const [hintedTarget, setHintedTarget] = useState<number | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [activeScreen, setActiveScreen] = useState<AppScreen>('home');
+  const [mountedShellScreens, setMountedShellScreens] = useState<Set<AppScreen>>(
+    () => new Set(['home']),
+  );
   const [effectsEnabled, setEffectsEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(false);
   const [musicVolume, setMusicVolume] = useState(0.5);
@@ -913,6 +921,25 @@ export default function HomeScreen() {
   const [landedTarget, setLandedTarget] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const blurTarget = useRef<View>(null);
+  const navigateToScreen = useCallback((screen: AppScreen) => {
+    if (screen !== 'game') {
+      setMountedShellScreens((current) => {
+        if (current.has(screen)) return current;
+        const next = new Set(current);
+        next.add(screen);
+        return next;
+      });
+    }
+    setActiveScreen(screen);
+  }, []);
+  const navigateHome = useCallback(() => navigateToScreen('home'), [navigateToScreen]);
+  const navigateProfile = useCallback(() => navigateToScreen('profile'), [navigateToScreen]);
+  const navigateCollection = useCallback(
+    () => navigateToScreen('collection'),
+    [navigateToScreen],
+  );
+  const navigateTravel = useCallback(() => navigateToScreen('travel'), [navigateToScreen]);
+  const openSettings = useCallback(() => setSettingsVisible(true), []);
   const resultLayerRef = useRef<View>(null);
   const resultSourceRef = useRef<View>(null);
   const targetCardRefs = useRef<(View | null)[]>([]);
@@ -1032,6 +1059,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (
       activeScreen === 'home' ||
+      activeScreen === 'travel' ||
       settingsVisible ||
       challengeIntroVisible ||
       countryCompletionLevel !== null
@@ -1039,7 +1067,7 @@ export default function HomeScreen() {
       return;
     }
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      setActiveScreen('home');
+      navigateToScreen('home');
       return true;
     });
     return () => subscription.remove();
@@ -1047,6 +1075,7 @@ export default function HomeScreen() {
     activeScreen,
     challengeIntroVisible,
     countryCompletionLevel,
+    navigateToScreen,
     settingsVisible,
   ]);
 
@@ -1453,9 +1482,9 @@ export default function HomeScreen() {
   );
 
   const openGame = useCallback(() => {
-    setActiveScreen('game');
+    navigateToScreen('game');
     triggerEffect('select1');
-  }, [triggerEffect]);
+  }, [navigateToScreen, triggerEffect]);
 
   const continueAfterCountryCompletion = useCallback(() => {
     if (countryCompletionLevel === null) return;
@@ -1466,7 +1495,7 @@ export default function HomeScreen() {
         ? levelData.targets.map((target) => target.value)
         : [];
     startLevel(completion.nextDestination.globalLevel, previousTargetValues);
-    setActiveScreen('game');
+    navigateToScreen('game');
     showTimedFeedback(
       {
         text: completion.worldTourCompleted
@@ -1476,7 +1505,7 @@ export default function HomeScreen() {
       },
       1800,
     );
-  }, [countryCompletionLevel, levelData, showTimedFeedback, startLevel]);
+  }, [countryCompletionLevel, levelData, navigateToScreen, showTimedFeedback, startLevel]);
 
   if (!hydrated) return <View style={styles.screen} />;
 
@@ -1509,76 +1538,93 @@ export default function HomeScreen() {
     </>
   );
 
-  if (activeScreen === 'home') {
-    return (
-      <View style={styles.screen}>
-        <BlurTargetView ref={blurTarget} style={styles.screen}>
-          <MainMenu
-            currentLevel={displayedProgressLevel}
-            gemCount={gemCount}
-            levelData={levelData}
-            onOpenCollection={() => setActiveScreen('collection')}
-            onOpenProfile={() => setActiveScreen('profile')}
-            onOpenSettings={() => setSettingsVisible(true)}
-            onOpenTravel={() => setActiveScreen('travel')}
-            onPlay={openGame}
-            score={score}
-          />
-        </BlurTargetView>
-        {overlays}
-      </View>
-    );
-  }
+  const persistentScreens = (
+    <View
+      accessibilityElementsHidden={activeScreen === 'game'}
+      importantForAccessibility={activeScreen === 'game' ? 'no-hide-descendants' : 'auto'}
+      key="persistent-screens"
+      pointerEvents={activeScreen === 'game' ? 'none' : 'auto'}
+      style={[styles.screen, activeScreen === 'game' && styles.hiddenScreen]}>
+      <BlurTargetView ref={activeScreen === 'game' ? undefined : blurTarget} style={styles.screen}>
+          {activeScreen === 'home' || mountedShellScreens.has('home') ? (
+            <View
+              accessibilityElementsHidden={activeScreen !== 'home'}
+              importantForAccessibility={activeScreen === 'home' ? 'auto' : 'no-hide-descendants'}
+              pointerEvents={activeScreen === 'home' ? 'auto' : 'none'}
+              style={[styles.screen, activeScreen !== 'home' && styles.hiddenScreen]}>
+              <PersistentMainMenu
+                active={activeScreen === 'home'}
+                currentLevel={displayedProgressLevel}
+                gemCount={gemCount}
+                levelData={levelData}
+                onOpenCollection={navigateCollection}
+                onOpenProfile={navigateProfile}
+                onOpenSettings={openSettings}
+                onOpenTravel={navigateTravel}
+                onPlay={openGame}
+                score={score}
+              />
+            </View>
+          ) : null}
 
-  if (activeScreen === 'profile') {
-    return (
-      <View style={styles.screen}>
-        <BlurTargetView ref={blurTarget} style={styles.screen}>
-          <ProfileScreen
-            bonusCount={bonusCount}
-            currentLevel={displayedProgressLevel}
-            gemCount={gemCount}
-            levelData={levelData}
-            onBack={() => setActiveScreen('home')}
-            onOpenPassport={() => setActiveScreen('collection')}
-            onPlay={openGame}
-            score={score}
-          />
-        </BlurTargetView>
-        {overlays}
-      </View>
-    );
-  }
+          {activeScreen === 'profile' || mountedShellScreens.has('profile') ? (
+            <View
+              accessibilityElementsHidden={activeScreen !== 'profile'}
+              importantForAccessibility={activeScreen === 'profile' ? 'auto' : 'no-hide-descendants'}
+              pointerEvents={activeScreen === 'profile' ? 'auto' : 'none'}
+              style={[styles.screen, activeScreen !== 'profile' && styles.hiddenScreen]}>
+              <PersistentProfileScreen
+                bonusCount={bonusCount}
+                currentLevel={displayedProgressLevel}
+                gemCount={gemCount}
+                levelData={levelData}
+                onOpenPassport={navigateCollection}
+                onPlay={openGame}
+                score={score}
+              />
+            </View>
+          ) : null}
 
-  if (activeScreen === 'collection') {
-    return (
-      <View style={styles.screen}>
-        <BlurTargetView ref={blurTarget} style={styles.screen}>
-          <PassportCollection
-            currentLevel={displayedProgressLevel}
-            onHome={() => setActiveScreen('home')}
-            onMap={() => setActiveScreen('travel')}
-            onTasks={() => setActiveScreen('profile')}
-          />
-        </BlurTargetView>
-        {overlays}
-      </View>
-    );
-  }
+          {activeScreen === 'collection' || mountedShellScreens.has('collection') ? (
+            <View
+              accessibilityElementsHidden={activeScreen !== 'collection'}
+              importantForAccessibility={activeScreen === 'collection' ? 'auto' : 'no-hide-descendants'}
+              pointerEvents={activeScreen === 'collection' ? 'auto' : 'none'}
+              style={[styles.screen, activeScreen !== 'collection' && styles.hiddenScreen]}>
+              <PersistentPassportCollection
+                currentLevel={displayedProgressLevel}
+                onHome={navigateHome}
+                onMap={navigateTravel}
+                onTasks={navigateProfile}
+              />
+            </View>
+          ) : null}
 
-  if (activeScreen === 'travel') {
+          {activeScreen === 'travel' || mountedShellScreens.has('travel') ? (
+            <View
+              accessibilityElementsHidden={activeScreen !== 'travel'}
+              importantForAccessibility={activeScreen === 'travel' ? 'auto' : 'no-hide-descendants'}
+              pointerEvents={activeScreen === 'travel' ? 'auto' : 'none'}
+              style={[styles.screen, activeScreen !== 'travel' && styles.hiddenScreen]}>
+              <PersistentJourneyMap
+                active={activeScreen === 'travel'}
+                level={level}
+                levelData={levelData}
+                onBack={navigateHome}
+                onContinue={openGame}
+                onOpenPassport={navigateCollection}
+                onOpenTasks={navigateProfile}
+              />
+            </View>
+          ) : null}
+      </BlurTargetView>
+    </View>
+  );
+
+  if (activeScreen !== 'game') {
     return (
       <View style={styles.screen}>
-        <BlurTargetView ref={blurTarget} style={styles.screen}>
-          <JourneyMap
-            level={level}
-            levelData={levelData}
-            onBack={() => setActiveScreen('home')}
-            onContinue={openGame}
-            onOpenPassport={() => setActiveScreen('collection')}
-            onOpenTasks={() => setActiveScreen('profile')}
-          />
-        </BlurTargetView>
+        {persistentScreens}
         {overlays}
       </View>
     );
@@ -1586,6 +1632,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
+      {persistentScreens}
       <BlurTargetView ref={blurTarget} style={styles.screen}>
         <Image
           contentFit="cover"
@@ -1606,7 +1653,7 @@ export default function HomeScreen() {
                 accessibilityLabel="Ana sayfaya dön"
                 accessibilityRole="button"
                 hitSlop={5}
-                onPress={() => setActiveScreen('home')}
+                onPress={navigateHome}
                 style={({ pressed }) => [
                   styles.skyControl,
                   pressed && styles.buttonPressed,
@@ -1773,6 +1820,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#73C7EE',
+  },
+  hiddenScreen: {
+    display: 'none',
   },
   backgroundImage: {
     position: 'absolute',
