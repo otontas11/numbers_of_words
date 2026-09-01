@@ -1515,7 +1515,6 @@ export default function HomeScreen() {
       <View style={styles.screen}>
         <BlurTargetView ref={blurTarget} style={styles.screen}>
           <MainMenu
-            bonusCount={bonusCount}
             currentLevel={displayedProgressLevel}
             gemCount={gemCount}
             levelData={levelData}

@@ -25,9 +25,9 @@ import {
 } from '@/game/travel';
 
 const HOME_BACKGROUND = require('../../../assets/images/img/bg.png');
+const HOME_LOGO = require('../../../assets/images/img/number_of_wonders.png');
 
 type MainMenuProps = {
-  bonusCount: number;
   currentLevel: number;
   gemCount: number;
   levelData: LevelData;
@@ -56,7 +56,7 @@ function RoundAction({
       onPress={onPress}
       style={({ pressed }) => [styles.bottomAction, pressed && styles.pressed]}>
       <LinearGradient
-        colors={['rgba(52,72,83,0.98)', 'rgba(25,42,53,0.98)']}
+        colors={['#FFFDF9', '#F6EEE3']}
         style={styles.bottomActionIcon}>
         <Text style={styles.bottomActionEmoji}>{icon}</Text>
       </LinearGradient>
@@ -65,8 +65,46 @@ function RoundAction({
   );
 }
 
+function ResourcePill({
+  accessibilityLabel,
+  icon,
+  label,
+  value,
+  onPress,
+  compact,
+}: {
+  accessibilityLabel: string;
+  icon: string;
+  label: string;
+  value: string;
+  onPress: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.resourcePill,
+        compact && styles.resourcePillCompact,
+        pressed && styles.pressed,
+      ]}>
+      <Text style={[styles.resourceIcon, compact && styles.resourceIconCompact]}>{icon}</Text>
+      <View style={styles.resourceCopy}>
+        <Text numberOfLines={1} style={styles.resourceLabel}>{label}</Text>
+        <Text numberOfLines={1} style={[styles.resourceValue, compact && styles.resourceValueCompact]}>
+          {value}
+        </Text>
+      </View>
+      <View style={[styles.resourcePlus, compact && styles.resourcePlusCompact]}>
+        <Text style={styles.resourcePlusText}>+</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 export function MainMenu({
-  bonusCount,
   currentLevel,
   gemCount,
   levelData,
@@ -79,10 +117,12 @@ export function MainMenu({
   const [pulse] = useState(() => new Animated.Value(0));
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const compact = height < 700;
+  const compact = height < 760;
   const country = COUNTRY_BY_ID.get(levelData.countryId);
   const route = ROUTE_BY_ID.get(levelData.routeId);
   const countryProgress = country ? getCountryProgress(currentLevel, country.id) : 0;
+  const completedCountries = getCompletedCountryCount(currentLevel);
+  const progressStep = Math.min(4, Math.floor(countryProgress / 4));
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -114,41 +154,53 @@ export function MainMenu({
         style={StyleSheet.absoluteFill}
       />
       <LinearGradient
-        colors={['rgba(7,19,31,0.38)', 'rgba(9,25,37,0.16)', 'rgba(7,20,31,0.79)']}
-        locations={[0, 0.46, 1]}
+        colors={['rgba(255,255,255,0.12)', 'rgba(255,255,255,0)', 'rgba(255,248,235,0.78)']}
+        locations={[0, 0.64, 1]}
         style={StyleSheet.absoluteFill}
       />
 
       <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
         <View style={[styles.topBar, compact && styles.topBarCompact]}>
-          <View accessibilityLabel={`${score} puan`} style={styles.scorePill}>
-            <View style={styles.scoreCoin}><Text style={styles.scoreCoinText}>★</Text></View>
-            <View>
-              <Text style={styles.scoreLabel}>PUAN</Text>
-              <Text style={styles.scoreValue}>{score.toLocaleString('tr-TR')}</Text>
-            </View>
+          <View style={styles.resourceRow}>
+            <ResourcePill
+              accessibilityLabel={`${score} puan`}
+              compact={compact}
+              icon="★"
+              label="PUAN"
+              onPress={onOpenProfile}
+              value={score.toLocaleString('tr-TR')}
+            />
+            <ResourcePill
+              accessibilityLabel={`${gemCount} mücevher`}
+              compact={compact}
+              icon="💎"
+              label="ELMAS"
+              onPress={onOpenProfile}
+              value={gemCount.toLocaleString('tr-TR')}
+            />
           </View>
 
           <Pressable
             accessibilityLabel="Oyun ayarlarını aç"
             accessibilityRole="button"
             onPress={onOpenSettings}
-            style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}>
+            style={({ pressed }) => [
+              styles.settingsButton,
+              compact && styles.settingsButtonCompact,
+              pressed && styles.pressed,
+            ]}>
             <Text style={styles.settingsIcon}>⚙</Text>
           </Pressable>
         </View>
 
-        <View style={[styles.brandBlock, compact && styles.brandBlockCompact]} pointerEvents="none">
-          <Text style={styles.brandEyebrow}>NUMBER OF</Text>
-          <Text style={[styles.brandTitle, compact && styles.brandTitleCompact]}>WONDERS</Text>
-          <Text style={styles.routeName}>{route?.emoji ?? '🧭'} {route?.name ?? 'Dünya Turu'}</Text>
-        </View>
-
-        <View style={styles.playArea}>
-          <View style={[styles.destinationPill, compact && styles.destinationPillCompact]}>
-            <Text style={styles.destinationCountry}>{levelData.flag} {levelData.country}</Text>
-            <Text style={styles.destinationDivider}>•</Text>
-            <Text numberOfLines={1} style={styles.destinationCity}>{levelData.emoji} {levelData.city}</Text>
+        <View style={styles.homeContent}>
+          <View style={[styles.brandBlock, compact && styles.brandBlockCompact]} pointerEvents="none">
+            <Image
+              cachePolicy="memory-disk"
+              contentFit="contain"
+              source={HOME_LOGO}
+              style={[styles.brandLogo, compact && styles.brandLogoCompact]}
+            />
           </View>
 
           <View style={[styles.playButtonStack, compact && styles.playButtonStackCompact]}>
@@ -166,7 +218,7 @@ export function MainMenu({
             />
             <Pressable
               accessibilityHint="Kaldığın sayı bulmacasını açar"
-              accessibilityLabel={`Bölüm ${levelData.locationLevel}, devam et`}
+              accessibilityLabel={`Bölüm ${currentLevel}, devam et`}
               accessibilityRole="button"
               onPress={onPlay}
               style={({ pressed }) => [
@@ -174,51 +226,69 @@ export function MainMenu({
                 compact && styles.playButtonFrameCompact,
                 pressed && styles.playPressed,
               ]}>
-              <LinearGradient
-                colors={['#FFF0A8', '#EDB53D', '#B97715']}
+                <LinearGradient
+                  colors={['#FFF9D7', '#E6B84E', '#B87916']}
                 end={{ x: 0.65, y: 1 }}
                 start={{ x: 0.2, y: 0 }}
                 style={styles.playButtonBorder}>
                 <LinearGradient
                   colors={['#3F6975', '#1C3948']}
                   style={styles.playButtonInner}>
-                  <Text style={styles.playCaption}>BÖLÜM</Text>
+                  <Text style={styles.playCompass}>✥</Text>
                   <Text style={[styles.playLevel, compact && styles.playLevelCompact]}>
-                    {levelData.locationLevel}
+                    {currentLevel}.
                   </Text>
-                  <View style={styles.playContinueRow}>
-                    <Text style={styles.playTriangle}>▶</Text>
-                    <Text style={styles.playContinue}>DEVAM ET</Text>
-                  </View>
+                  <Text style={styles.playCaption}>BÖLÜM</Text>
                 </LinearGradient>
               </LinearGradient>
             </Pressable>
           </View>
 
-          <View style={[styles.progressCard, compact && styles.progressCardCompact]}>
-            <View style={styles.progressCopy}>
-              <Text style={styles.progressTitle}>{levelData.city}</Text>
-              <Text style={styles.progressValue}>
-                {levelData.locationLevel}/{levelData.locationLevelCount} puzzle
+          <Pressable
+            accessibilityLabel={`${levelData.country} rotasını aç`}
+            accessibilityRole="button"
+            onPress={onOpenTravel}
+            style={({ pressed }) => [
+              styles.countryCard,
+              compact && styles.countryCardCompact,
+              pressed && styles.cardPressed,
+            ]}>
+            <View style={styles.countryCopy}>
+              <Text numberOfLines={1} style={[styles.countryTitle, compact && styles.countryTitleCompact]}>
+                {levelData.country.toLocaleUpperCase('tr-TR')}
               </Text>
+              <Text numberOfLines={1} style={styles.routeTitle}>
+                {route?.name?.toLocaleUpperCase('tr-TR') ?? 'DÜNYA ROTASI'}
+              </Text>
+              <View style={styles.ornamentRow}>
+                <View style={styles.ornamentLine} />
+                <Text style={styles.ornament}>✣</Text>
+                <View style={styles.ornamentLine} />
+              </View>
+              <View style={styles.stepRow}>
+                {[0, 1, 2, 3, 4].map((step) => (
+                  <View key={step} style={styles.stepItem}>
+                    {step > 0 ? <View style={styles.stepConnector} /> : null}
+                    <View style={[styles.stepDot, step <= progressStep && styles.stepDotDone]}>
+                      <Text style={styles.stepDotText}>{step < progressStep ? '✓' : step === progressStep ? '●' : ''}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.discoveryText}>🌍  {completedCountries}/100 ülke keşfedildi</Text>
             </View>
-            <View style={styles.progressTrack}>
-              <LinearGradient
-                colors={['#F5CA5A', '#FFF0A2']}
-                end={{ x: 1, y: 0 }}
-                start={{ x: 0, y: 0 }}
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${Math.max(4, (countryProgress / 20) * 100)}%` as `${number}%`,
-                  },
-                ]}
+            <View style={[styles.countryImageFrame, compact && styles.countryImageFrameCompact]}>
+              <Image
+                cachePolicy="memory-disk"
+                contentFit="cover"
+                source={{ uri: levelData.background }}
+                style={[StyleSheet.absoluteFill, styles.countryImage]}
               />
+              <View style={styles.mapPin}>
+                <Text style={styles.mapPinDot}>●</Text>
+              </View>
             </View>
-            <Text style={styles.bonusText}>
-              💎 {gemCount} Mücevher  •  ⭐ {bonusCount} Bonus Keşif
-            </Text>
-          </View>
+          </Pressable>
         </View>
 
         <View
@@ -228,19 +298,28 @@ export function MainMenu({
             { paddingBottom: Math.max(2, insets.bottom * 0.12) },
           ]}>
           <RoundAction
-            accessibilityLabel="Profil sayfasını aç"
-            icon="👤"
-            label="PROFİL"
+            accessibilityLabel="Seyahat haritasını aç"
+            icon="✥"
+            label="HARİTA"
+            onPress={onOpenTravel}
+          />
+          <RoundAction
+            accessibilityLabel="Oyuna devam et"
+            icon="⚔"
+            label="OYNA"
+            onPress={onPlay}
+          />
+          <RoundAction
+            accessibilityLabel="Koleksiyonu aç"
+            icon="▣"
+            label="KOLEKSİYON"
             onPress={onOpenProfile}
           />
-          <View style={styles.bottomCenterMark} pointerEvents="none">
-            <Text style={styles.bottomCenterEmoji}>🧭</Text>
-          </View>
           <RoundAction
-            accessibilityLabel="Seyahat rotalarını aç"
-            icon="🌍"
-            label="SEYAHAT"
-            onPress={onOpenTravel}
+            accessibilityLabel="Görevleri aç"
+            icon="▤"
+            label="GÖREVLER"
+            onPress={onOpenProfile}
           />
         </View>
       </SafeAreaView>
@@ -370,106 +449,121 @@ export function ProfileScreen({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0B2532' },
+  screen: { flex: 1, backgroundColor: '#7FCFF3' },
   safeArea: { flex: 1 },
   topBar: {
-    height: 62,
-    paddingHorizontal: 16,
+    height: 64,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 9,
   },
-  topBarCompact: { height: 52 },
-  scorePill: {
-    minWidth: 112,
-    height: 48,
-    paddingHorizontal: 9,
-    paddingRight: 14,
+  topBarCompact: { height: 52, paddingHorizontal: 8, gap: 6 },
+  resourceRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  resourcePill: {
+    flex: 1,
+    minWidth: 78,
+    maxWidth: 118,
+    height: 46,
+    paddingLeft: 6,
+    paddingRight: 5,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,239,184,0.78)',
-    backgroundColor: 'rgba(25,44,54,0.91)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 7,
-    elevation: 6,
-  },
-  scoreCoin: {
-    width: 33,
-    height: 33,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 17,
+    gap: 5,
+    borderRadius: 23,
     borderWidth: 2,
-    borderColor: '#FFF1A8',
-    backgroundColor: '#D99A24',
+    borderColor: '#E2B65C',
+    backgroundColor: 'rgba(255,253,249,0.94)',
+    shadowColor: '#8E5D17',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.23,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  scoreCoinText: { color: '#FFF8CA', fontSize: 17 },
-  scoreLabel: { color: '#BFD1D4', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1, fontWeight: '700' },
-  scoreValue: { marginTop: 1, color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 14, fontWeight: '800' },
+  resourcePillCompact: { minWidth: 69, height: 40, paddingLeft: 4, gap: 3 },
+  resourceIcon: {
+    width: 28,
+    color: '#C98314',
+    fontFamily: FONTS.extraBold,
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: '800',
+    textAlign: 'center',
+    textShadowColor: '#FFF1A8',
+    textShadowRadius: 3,
+  },
+  resourceIconCompact: { width: 23, fontSize: 20 },
+  resourceCopy: { flex: 1, minWidth: 0, justifyContent: 'center' },
+  resourceLabel: { color: '#A46E20', fontFamily: FONTS.bold, fontSize: 6.5, lineHeight: 8, letterSpacing: 0.5, fontWeight: '700' },
+  resourceValue: { color: '#173E72', fontFamily: FONTS.extraBold, fontSize: 13, lineHeight: 16, fontWeight: '800' },
+  resourceValueCompact: { fontSize: 11 },
+  resourcePlus: { width: 23, height: 23, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 2, borderColor: '#C98D28', backgroundColor: '#FFFEFA' },
+  resourcePlusCompact: { width: 20, height: 20, borderRadius: 10 },
+  resourcePlusText: { marginTop: -2, color: '#18467A', fontFamily: FONTS.extraBold, fontSize: 20, lineHeight: 21, fontWeight: '800' },
   settingsButton: {
     width: 48,
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: 'rgba(222,243,244,0.84)',
-    backgroundColor: 'rgba(30,53,65,0.92)',
-    shadowColor: '#000',
+    borderWidth: 2,
+    borderColor: '#E8B94D',
+    backgroundColor: '#245C91',
+    shadowColor: '#76521B',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 7,
+    shadowOpacity: 0.24,
+    shadowRadius: 5,
     elevation: 6,
   },
-  settingsIcon: { color: '#FFFFFF', fontSize: 26, lineHeight: 29 },
-  brandBlock: { alignItems: 'center', paddingTop: 4 },
-  brandBlockCompact: { paddingTop: 0 },
-  brandEyebrow: { color: '#E8F4F1', fontFamily: FONTS.extraBold, fontSize: 12, letterSpacing: 5.2, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.55)', textShadowRadius: 6 },
-  brandTitle: { marginTop: -1, color: '#FFF3AF', fontFamily: FONTS.extraBold, fontSize: 31, letterSpacing: 1.6, fontWeight: '800', textShadowColor: 'rgba(27,42,48,0.9)', textShadowOffset: { width: 0, height: 3 }, textShadowRadius: 6 },
-  brandTitleCompact: { fontSize: 26, lineHeight: 31 },
-  routeName: { marginTop: 5, color: '#F5FBFA', fontFamily: FONTS.bold, fontSize: 10.5, letterSpacing: 0.7, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 4 },
-  playArea: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', paddingTop: 4 },
-  destinationPill: { maxWidth: '88%', minHeight: 33, marginBottom: 17, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.45)', backgroundColor: 'rgba(19,42,53,0.82)' },
-  destinationPillCompact: { minHeight: 30, marginBottom: 7 },
-  destinationCountry: { color: '#FFE99B', fontFamily: FONTS.extraBold, fontSize: 11, fontWeight: '800' },
-  destinationDivider: { color: '#9AB1B7', fontFamily: FONTS.bold, fontSize: 11 },
-  destinationCity: { flexShrink: 1, color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 11, fontWeight: '700' },
-  playButtonStack: { width: 200, height: 200, alignItems: 'center', justifyContent: 'center' },
-  playButtonStackCompact: { width: 164, height: 164 },
-  playGlow: { position: 'absolute', width: 190, height: 190, borderRadius: 95, backgroundColor: '#FFD85F', shadowColor: '#FFE583', shadowOpacity: 0.9, shadowRadius: 34, elevation: 4 },
-  playGlowCompact: { width: 154, height: 154, borderRadius: 77 },
-  playButtonFrame: { width: 174, height: 174, borderRadius: 87, shadowColor: '#000', shadowOffset: { width: 0, height: 9 }, shadowOpacity: 0.38, shadowRadius: 14, elevation: 14 },
-  playButtonFrameCompact: { width: 144, height: 144, borderRadius: 72 },
+  settingsButtonCompact: { width: 40, height: 40, borderRadius: 20 },
+  settingsIcon: { color: '#FFF4CC', fontSize: 26, lineHeight: 29 },
+  homeContent: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 12 },
+  brandBlock: { width: '100%', alignItems: 'center', justifyContent: 'center' },
+  brandBlockCompact: { marginTop: -4 },
+  brandLogo: { width: '78%', maxWidth: 410, aspectRatio: 2.04 },
+  brandLogoCompact: { width: '66%', maxWidth: 300 },
+  playButtonStack: { width: 154, height: 154, alignItems: 'center', justifyContent: 'center' },
+  playButtonStackCompact: { width: 124, height: 124 },
+  playGlow: { position: 'absolute', width: 148, height: 148, borderRadius: 74, backgroundColor: '#FFF2B2', shadowColor: '#FFFFFF', shadowOpacity: 0.95, shadowRadius: 30, elevation: 4 },
+  playGlowCompact: { width: 119, height: 119, borderRadius: 60 },
+  playButtonFrame: { width: 138, height: 138, borderRadius: 69, shadowColor: '#265782', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.34, shadowRadius: 11, elevation: 12 },
+  playButtonFrameCompact: { width: 110, height: 110, borderRadius: 55 },
   playPressed: { transform: [{ scale: 0.96 }], opacity: 0.95 },
-  playButtonBorder: { flex: 1, padding: 8, borderRadius: 87 },
-  playButtonInner: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 79, borderWidth: 2, borderColor: 'rgba(255,255,255,0.44)' },
-  playCaption: { color: '#D8E9E9', fontFamily: FONTS.extraBold, fontSize: 12, letterSpacing: 2.4, fontWeight: '800' },
-  playLevel: { marginTop: -2, color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 51, lineHeight: 58, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.25)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 3 },
-  playLevelCompact: { fontSize: 39, lineHeight: 44 },
-  playContinueRow: { marginTop: 0, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  playTriangle: { color: '#FFE883', fontSize: 11 },
-  playContinue: { color: '#FFE883', fontFamily: FONTS.extraBold, fontSize: 10, letterSpacing: 0.8, fontWeight: '800' },
-  progressCard: { width: '82%', maxWidth: 380, marginTop: 20, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(255,255,255,0.37)', backgroundColor: 'rgba(17,38,48,0.82)' },
-  progressCardCompact: { marginTop: 8, paddingVertical: 7 },
-  progressCopy: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  progressTitle: { color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 11, fontWeight: '700' },
-  progressValue: { color: '#D3E4E5', fontFamily: FONTS.semibold, fontSize: 9.5, fontWeight: '600' },
-  progressTrack: { height: 6, marginTop: 7, overflow: 'hidden', borderRadius: 4, backgroundColor: 'rgba(111,138,145,0.58)' },
-  progressFill: { height: '100%', borderRadius: 4 },
-  bonusText: { marginTop: 7, color: '#FFE99B', fontFamily: FONTS.bold, fontSize: 9.5, fontWeight: '700', textAlign: 'center' },
-  bottomBar: { height: 103, marginHorizontal: 14, marginBottom: 6, paddingHorizontal: 21, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 31, borderWidth: 1.5, borderColor: 'rgba(232,246,246,0.72)', backgroundColor: 'rgba(17,37,48,0.92)', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.32, shadowRadius: 10, elevation: 10 },
-  bottomBarCompact: { height: 91 },
-  bottomAction: { width: 96, alignItems: 'center', justifyContent: 'center' },
-  bottomActionIcon: { width: 55, height: 55, alignItems: 'center', justifyContent: 'center', borderRadius: 28, borderWidth: 1.5, borderColor: '#D9EEEE' },
-  bottomActionEmoji: { fontSize: 25 },
-  bottomActionLabel: { marginTop: 6, color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 9, letterSpacing: 1.1, fontWeight: '800' },
-  bottomCenterMark: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 27, borderWidth: 1, borderColor: 'rgba(241,211,128,0.55)', backgroundColor: 'rgba(233,183,67,0.15)' },
-  bottomCenterEmoji: { fontSize: 25, opacity: 0.9 },
+  playButtonBorder: { flex: 1, padding: 6, borderRadius: 69 },
+  playButtonInner: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 63, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.68)' },
+  playCompass: { color: '#F5D270', fontFamily: FONTS.bold, fontSize: 21, lineHeight: 24 },
+  playCaption: { marginTop: -2, color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 11, letterSpacing: 1.1, fontWeight: '700' },
+  playLevel: { marginTop: -3, color: '#FFFFFF', fontFamily: FONTS.medium, fontSize: 39, lineHeight: 45, fontWeight: '500', textShadowColor: 'rgba(0,0,0,0.25)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 3 },
+  playLevelCompact: { fontSize: 31, lineHeight: 35 },
+  countryCard: { width: '84%', maxWidth: 440, minHeight: 144, paddingLeft: 24, paddingRight: 12, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', borderRadius: 28, borderWidth: 2, borderColor: '#E2B65C', backgroundColor: 'rgba(255,251,246,0.95)', shadowColor: '#456E80', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.26, shadowRadius: 12, elevation: 9 },
+  countryCardCompact: { width: '86%', minHeight: 116, paddingLeft: 18, paddingVertical: 9, borderRadius: 23 },
+  cardPressed: { opacity: 0.93, transform: [{ scale: 0.985 }] },
+  countryCopy: { flex: 1, minWidth: 0, alignItems: 'center', paddingRight: 8 },
+  countryTitle: { color: '#173E72', fontFamily: FONTS.extraBold, fontSize: 21, fontWeight: '800', textAlign: 'center' },
+  countryTitleCompact: { fontSize: 17 },
+  routeTitle: { marginTop: 3, color: '#B97825', fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.8, fontWeight: '700', textAlign: 'center' },
+  ornamentRow: { width: '72%', marginTop: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  ornamentLine: { flex: 1, height: 1, backgroundColor: '#D6AB57' },
+  ornament: { color: '#D19A34', fontSize: 10 },
+  stepRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  stepItem: { flexDirection: 'row', alignItems: 'center' },
+  stepConnector: { width: 10, height: 1.5, backgroundColor: '#54789B' },
+  stepDot: { width: 17, height: 17, alignItems: 'center', justifyContent: 'center', borderRadius: 9, borderWidth: 1.5, borderColor: '#57799B', backgroundColor: '#FFFFFF' },
+  stepDotDone: { borderColor: '#D69B2B', backgroundColor: '#1A6096' },
+  stepDotText: { color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 9, lineHeight: 11, fontWeight: '700' },
+  discoveryText: { marginTop: 9, color: '#234C78', fontFamily: FONTS.semibold, fontSize: 9.5, fontWeight: '600', textAlign: 'center' },
+  countryImageFrame: { width: 112, height: 112, overflow: 'visible', borderRadius: 56, borderWidth: 3, borderColor: '#DBA643', backgroundColor: '#9EDCF4', shadowColor: '#B07B22', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
+  countryImageFrameCompact: { width: 92, height: 92, borderRadius: 46 },
+  countryImage: { borderRadius: 999 },
+  mapPin: { position: 'absolute', top: -17, left: '50%', width: 24, height: 30, marginLeft: -12, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 3, borderRadius: 13, borderWidth: 2, borderColor: '#B67A16', backgroundColor: '#F4B739', transform: [{ rotate: '45deg' }] },
+  mapPinDot: { color: '#FFF8DA', fontSize: 10, lineHeight: 12, transform: [{ rotate: '-45deg' }] },
+  bottomBar: { height: 101, marginHorizontal: 5, marginBottom: 2, paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+  bottomBarCompact: { height: 82 },
+  bottomAction: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
+  bottomActionIcon: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 29, borderWidth: 1.8, borderColor: '#E1B55B', shadowColor: '#7A684E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 5, elevation: 4 },
+  bottomActionEmoji: { color: '#255A8C', fontFamily: FONTS.extraBold, fontSize: 28, fontWeight: '800' },
+  bottomActionLabel: { marginTop: 6, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 9, letterSpacing: 0.2, fontWeight: '800', textAlign: 'center' },
   pressed: { opacity: 0.78, transform: [{ scale: 0.95 }] },
 
   profileScreen: { flex: 1 },
