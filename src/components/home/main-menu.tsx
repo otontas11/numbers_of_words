@@ -23,6 +23,7 @@ import {
   getCompletedCountryCount,
   getCompletedWorldLevelCount,
   getCountryProgress,
+  getRouteProgress,
 } from '@/game/travel';
 
 const HOME_BACKGROUND = require('../../../assets/images/img/bg.png');
@@ -91,16 +92,15 @@ export function MainMenu({
   onPlay,
 }: MainMenuProps) {
   const [pulse] = useState(() => new Animated.Value(0));
+  const [orbit] = useState(() => new Animated.Value(0));
   const { height } = useWindowDimensions();
   const compact = height < 760;
-  const country = COUNTRY_BY_ID.get(levelData.countryId);
   const route = ROUTE_BY_ID.get(levelData.routeId);
-  const countryProgress = country ? getCountryProgress(currentLevel, country.id) : 0;
   const completedCountries = getCompletedCountryCount(currentLevel);
-  const progressStep = Math.min(4, Math.floor(countryProgress / 4));
+  const routeProgress = route ? getRouteProgress(currentLevel, route) : 0;
 
   useEffect(() => {
-    const animation = Animated.loop(
+    const pulseAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
           toValue: 1,
@@ -116,9 +116,21 @@ export function MainMenu({
         }),
       ]),
     );
-    animation.start();
-    return () => animation.stop();
-  }, [pulse]);
+    const orbitAnimation = Animated.loop(
+      Animated.timing(orbit, {
+        toValue: 1,
+        duration: 1800,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    pulseAnimation.start();
+    orbitAnimation.start();
+    return () => {
+      pulseAnimation.stop();
+      orbitAnimation.stop();
+    };
+  }, [orbit, pulse]);
 
   return (
     <View style={styles.screen}>
@@ -219,15 +231,10 @@ export function MainMenu({
             </Pressable>
           </View>
 
-          <Pressable
-            accessibilityLabel={`${levelData.country} rotasını aç`}
-            accessibilityRole="button"
-            onPress={onOpenTravel}
-            style={({ pressed }) => [
-              styles.countryCard,
-              compact && styles.countryCardCompact,
-              pressed && styles.cardPressed,
-            ]}>
+          <View
+            accessible
+            accessibilityLabel={`${route?.name ?? 'Dünya rotası'}, ${routeProgress}/${route?.countryIds.length ?? 0} ülke tamamlandı`}
+            style={[styles.countryCard, compact && styles.countryCardCompact]}>
             <View style={styles.countryCopy}>
               <Text numberOfLines={1} style={[styles.countryTitle, compact && styles.countryTitleCompact]}>
                 {levelData.country.toLocaleUpperCase('tr-TR')}
@@ -241,14 +248,62 @@ export function MainMenu({
                 <View style={styles.ornamentLine} />
               </View>
               <View style={styles.stepRow}>
-                {[0, 1, 2, 3, 4].map((step) => (
-                  <View key={step} style={styles.stepItem}>
-                    {step > 0 ? <View style={styles.stepConnector} /> : null}
-                    <View style={[styles.stepDot, step <= progressStep && styles.stepDotDone]}>
-                      <Text style={styles.stepDotText}>{step < progressStep ? '✓' : step === progressStep ? '●' : ''}</Text>
+                {route?.countryIds.map((countryId, countryIndex) => {
+                  const routeCountry = COUNTRY_BY_ID.get(countryId);
+                  const done = countryIndex < routeProgress;
+                  const active = countryId === levelData.countryId;
+                  return (
+                    <View key={countryId} style={styles.stepItem}>
+                      {countryIndex > 0 ? (
+                        <View
+                          style={[
+                            styles.stepConnector,
+                            countryIndex <= routeProgress && styles.stepConnectorDone,
+                          ]}
+                        />
+                      ) : null}
+                      <Animated.View
+                        accessible
+                        accessibilityLabel={`${routeCountry?.country ?? countryId}, ${done ? 'tamamlandı' : active ? 'mevcut ülke' : 'henüz açılmadı'}`}
+                        style={[
+                          styles.stepDot,
+                          done && styles.stepDotDone,
+                          active && styles.stepDotActive,
+                          active && {
+                            transform: [
+                              {
+                                scale: pulse.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [1.12, 1.34],
+                                }),
+                              },
+                            ],
+                          },
+                        ]}>
+                        <Text style={styles.stepDotText}>{routeCountry?.flag ?? '•'}</Text>
+                        {active ? (
+                          <Animated.View
+                            pointerEvents="none"
+                            style={[
+                              styles.stepActiveOrbit,
+                              {
+                                transform: [
+                                  {
+                                    rotate: orbit.interpolate({
+                                      inputRange: [0, 1],
+                                      outputRange: ['0deg', '360deg'],
+                                    }),
+                                  },
+                                ],
+                              },
+                            ]}>
+                            <View style={styles.stepActiveMarker} />
+                          </Animated.View>
+                        ) : null}
+                      </Animated.View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
               <Text style={styles.discoveryText}>🌍  {completedCountries}/100 ülke keşfedildi</Text>
             </View>
@@ -263,7 +318,7 @@ export function MainMenu({
                 <Text style={styles.mapPinDot}>●</Text>
               </View>
             </View>
-          </Pressable>
+          </View>
         </View>
 
       </SafeAreaView>
@@ -498,12 +553,16 @@ const styles = StyleSheet.create({
   ornamentRow: { width: '72%', marginTop: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   ornamentLine: { flex: 1, height: 1, backgroundColor: '#D6AB57' },
   ornament: { color: '#D19A34', fontSize: 10 },
-  stepRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  stepRow: { width: '100%', marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   stepItem: { flexDirection: 'row', alignItems: 'center' },
-  stepConnector: { width: 10, height: 1.5, backgroundColor: '#54789B' },
+  stepConnector: { width: 6, height: 1.5, backgroundColor: '#AAB5BE' },
+  stepConnectorDone: { backgroundColor: '#D19A34' },
   stepDot: { width: 17, height: 17, alignItems: 'center', justifyContent: 'center', borderRadius: 9, borderWidth: 1.5, borderColor: '#57799B', backgroundColor: '#FFFFFF' },
   stepDotDone: { borderColor: '#D69B2B', backgroundColor: '#1A6096' },
-  stepDotText: { color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 9, lineHeight: 11, fontWeight: '700' },
+  stepDotActive: { zIndex: 3, borderWidth: 2.4, borderColor: '#F2B62F', backgroundColor: '#DDF6FF', shadowColor: '#159FE3', shadowOpacity: 0.95, shadowRadius: 7, elevation: 6 },
+  stepDotText: { color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 10, lineHeight: 12, fontWeight: '700' },
+  stepActiveOrbit: { position: 'absolute', top: -8, left: -8, width: 29, height: 29 },
+  stepActiveMarker: { position: 'absolute', top: 0, left: 11.5, width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: '#FFFFFF', backgroundColor: '#F2B62F' },
   discoveryText: { marginTop: 9, color: '#234C78', fontFamily: FONTS.semibold, fontSize: 9.5, fontWeight: '600', textAlign: 'center' },
   countryImageFrame: { width: 112, height: 112, overflow: 'visible', borderRadius: 56, borderWidth: 3, borderColor: '#DBA643', backgroundColor: '#9EDCF4', shadowColor: '#B07B22', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
   countryImageFrameCompact: { width: 92, height: 92, borderRadius: 46 },
