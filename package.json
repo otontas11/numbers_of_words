@@ -43,7 +43,9 @@
     "@types/react": "~19.2.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
-    "typescript": "~6.0.3"
+    "sharp": "^0.35.2",
+    "typescript": "~6.0.3",
+    "wrangler": "^4.128.0"
   },
   "scripts": {
     "start": "expo start --go",
@@ -55,6 +57,9 @@
     "devices:android": "node ./scripts/run-real-devices.mjs android",
     "devices:ios": "node ./scripts/run-real-devices.mjs ios",
     "sounds:generate": "./scripts/generate-sounds.sh",
+    "cloudflare:upload-images": "node ./scripts/sync-content-images-to-r2.mjs --bucket numbers-of-wonders-assets",
+    "cloudflare:types-assets": "wrangler types cloudflare/assets-worker/worker-configuration.d.ts --config cloudflare/assets-worker/wrangler.jsonc",
+    "cloudflare:deploy-assets": "wrangler deploy --config cloudflare/assets-worker/wrangler.jsonc",
     "validate:levels": "node --experimental-strip-types ./scripts/validate-levels.mjs",
     "web": "expo start --web",
     "lint": "expo lint"

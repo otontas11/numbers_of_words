@@ -13,10 +13,13 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { ClickSoundProvider } from '@/hooks/use-click-sound';
+import { useContentImageCache } from '@/hooks/use-content-image-cache';
 
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  useContentImageCache();
+
   const [fontsLoaded, fontError] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
