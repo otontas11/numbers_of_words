@@ -3,11 +3,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
-  Easing,
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,11 +17,8 @@ import type { LevelData } from '@/game/levels';
 import {
   COUNTRY_BY_ID,
   ROUTE_BY_ID,
-  TOTAL_WORLD_LEVELS,
   TRAVEL_ROUTES,
   WORLD_COUNTRIES,
-  getCompletedCountryCount,
-  getCompletedWorldLevelCount,
   getCountryProgress,
   getLocationProgress,
   isCountryComplete,
@@ -32,31 +27,21 @@ import {
   isRouteComplete,
   isRouteUnlocked,
   routeCountries,
-  routeLeg,
   type TravelCountry,
-  type TravelLocation,
   type TravelRoute,
 } from '@/game/travel';
 
-const HERO_HEIGHT = 268;
 const WORLD_BACKGROUND = require('../../../assets/images/img/bg.png');
-const CITY_LOGO = require('../../../assets/images/img/number_of_wonders.png');
-type MapLayer = 'world' | 'route' | 'country';
+type MapLayer = 'world' | 'route';
 
 type JourneyMapProps = {
   level: number;
   levelData: LevelData;
-  bonusCount: number;
-  gemCount: number;
   onBack: () => void;
   onContinue: () => void;
   onOpenPassport: () => void;
-  onOpenSettings: () => void;
+  onOpenTasks: () => void;
 };
-
-function percent(value: number, total: number) {
-  return `${Math.max(0, Math.min(100, total > 0 ? (value / total) * 100 : 0))}%` as `${number}%`;
-}
 
 function Entrance({ children, delay = 0 }: { children: ReactNode; delay?: number }) {
   const [opacity] = useState(() => new Animated.Value(0));
@@ -82,47 +67,6 @@ function Entrance({ children, delay = 0 }: { children: ReactNode; delay?: number
       }}>
       {children}
     </Animated.View>
-  );
-}
-
-function StateChip({
-  active,
-  complete,
-  label,
-  unlocked,
-}: {
-  active: boolean;
-  complete: boolean;
-  label: string;
-  unlocked: boolean;
-}) {
-  return (
-    <View
-      style={[
-        styles.stateChip,
-        !unlocked
-          ? styles.stateLocked
-          : complete
-            ? styles.stateComplete
-            : active
-              ? styles.stateActive
-              : styles.stateAvailable,
-      ]}>
-      <Text style={styles.stateText}>{!unlocked ? '🔒 KİLİTLİ' : complete ? '✓ TAMAMLANDI' : label}</Text>
-    </View>
-  );
-}
-
-function ProgressBar({ progress, total }: { progress: number; total: number }) {
-  return (
-    <View style={styles.progressTrack}>
-      <LinearGradient
-        colors={['#DCA83A', '#FFE394']}
-        end={{ x: 1, y: 0 }}
-        start={{ x: 0, y: 0 }}
-        style={[styles.progressFill, { width: percent(progress, total) }]}
-      />
-    </View>
   );
 }
 
@@ -274,211 +218,70 @@ function CountryCard({
     <Entrance delay={index * 50}>
       <Pressable
         accessibilityHint={active ? 'Mevcut sayı bulmacasını açar' : undefined}
-        accessibilityLabel={`${country.country}, ${country.locations
-          .map((location) => location.name)
-          .join(', ')}, ${progress}/${country.levelCount}`}
+        accessibilityLabel={`${country.country}, ${progress}/${country.levelCount} bölüm`}
         accessibilityRole="button"
+        accessibilityState={{ disabled: !unlocked }}
+        disabled={!unlocked}
         onPress={onPress}
         style={({ pressed }) => [
-          styles.countryCard,
-          index % 2 === 0 ? styles.cardLeft : styles.cardRight,
-          active && styles.cardGlow,
+          styles.routeCountryCard,
+          active && styles.routeCountryCardActive,
+          !unlocked && styles.routeCountryCardLocked,
           pressed && styles.pressed,
         ]}>
-        <Image
-          cachePolicy="memory-disk"
-          contentFit="cover"
-          source={{ uri: country.background }}
-          style={StyleSheet.absoluteFill}
-          transition={160}
-        />
-        <LinearGradient
-          colors={['rgba(0,0,0,0.03)', 'rgba(18,26,36,0.96)']}
-          locations={[0.1, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-        {!unlocked ? <View style={styles.lockedOverlay} /> : null}
-        <View style={styles.cardContent}>
-          <View style={styles.cardTopRow}>
-            <View style={styles.numberChip}>
-              <Text style={styles.numberChipText}>
-                {String(country.worldIndex + 1).padStart(2, '0')}. ÜLKE {country.flag}
-              </Text>
-            </View>
-            <StateChip
-              active={active}
-              complete={complete}
-              label={active ? '▶ DEVAM ET' : `${progress}/20`}
-              unlocked={unlocked}
-            />
-          </View>
-          <View style={styles.cardSpacer} />
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={styles.countryName}>
-            {country.country}
-          </Text>
-          <View accessibilityLabel={`${country.country} şehirleri`} style={styles.countryLocations}>
-            {country.locations.map((location) => (
-              <View key={location.id} style={styles.countryLocationChip}>
-                <Text
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.72}
-                  numberOfLines={2}
-                  style={styles.countryLocationText}>
-                  {location.emoji} {location.name}
-                </Text>
-              </View>
-            ))}
-          </View>
-          <ProgressBar progress={progress} total={country.levelCount} />
-          <DestinationRail country={country} level={level} />
-        </View>
-        <View style={[styles.cardBorder, active && styles.activeBorder]} />
-      </Pressable>
-    </Entrance>
-  );
-}
-
-function CityCard({
-  active,
-  country,
-  index,
-  level,
-  location,
-  onPress,
-}: {
-  active: boolean;
-  country: TravelCountry;
-  index: number;
-  level: number;
-  location: TravelLocation;
-  onPress: () => void;
-}) {
-  const progress = getLocationProgress(level, country, location);
-  const unlocked = isLocationUnlocked(level, country, location);
-  const complete = progress >= location.levelCount;
-  const currentStep = Math.min(3, Math.floor((progress / Math.max(1, location.levelCount)) * 3));
-
-  return (
-    <Entrance delay={index * 70}>
-      <Pressable
-        accessibilityLabel={`${location.name}, ${progress}/${location.levelCount} bölüm`}
-        accessibilityRole="button"
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.cityCard,
-          active && styles.cityCardActive,
-          !unlocked && styles.cityCardLocked,
-          pressed && styles.pressed,
-        ]}>
-        <View style={styles.cityImageFrame}>
+        <View style={styles.routeCountryImageFrame}>
           <Image
             cachePolicy="memory-disk"
             contentFit="cover"
-            source={{ uri: location.background }}
-            style={[StyleSheet.absoluteFill, styles.cityImage]}
+            source={{ uri: country.background }}
+            style={[StyleSheet.absoluteFill, styles.routeCountryImage]}
             transition={160}
           />
-          {!unlocked ? <View style={styles.cityImageShade} /> : null}
-        </View>
-        <View style={styles.cityCardContent}>
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.74}
-            numberOfLines={1}
-            style={[styles.cityName, !unlocked && styles.cityNameLocked]}>
-            {location.name}
-          </Text>
-          <View style={styles.cityProgressRow}>
-            <View style={styles.cityStageRail}>
-              {[0, 1, 2].map((step) => (
-                <Fragment key={step}>
-                  {step > 0 ? (
-                    <View style={[styles.cityStageLine, unlocked && step <= currentStep && styles.cityStageLineDone]} />
-                  ) : null}
-                  <View
-                    style={[
-                      styles.cityStageDot,
-                      unlocked && step < currentStep && styles.cityStageDotDone,
-                      unlocked && step === currentStep && !complete && styles.cityStageDotActive,
-                    ]}>
-                    <Text style={styles.cityStageDotText}>
-                      {unlocked && (step < currentStep || complete) ? '✓' : ''}
-                    </Text>
-                  </View>
-                </Fragment>
-              ))}
-            </View>
-            <View style={[styles.cityCompass, active && styles.cityCompassActive]}>
-              <Text style={styles.cityCompassText}>{unlocked ? '✥' : '🔒'}</Text>
-            </View>
+          {!unlocked ? <View style={styles.routeCountryImageShade} /> : null}
+          <View style={styles.routeCountryNumber}>
+            <Text style={styles.routeCountryNumberText}>{index + 1}</Text>
           </View>
+        </View>
+        <View style={styles.routeCountryContent}>
+          <View style={styles.routeCountryTitleRow}>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}
+              numberOfLines={1}
+              style={[styles.routeCountryName, !unlocked && styles.routeCountryTextLocked]}>
+              {country.flag} {country.country}
+            </Text>
+            <Text style={[styles.routeCountryCount, !unlocked && styles.routeCountryTextLocked]}>
+              {unlocked ? `${progress}/${country.levelCount}` : '🔒'}
+            </Text>
+          </View>
+          <Text style={[styles.routeCountryCaption, !unlocked && styles.routeCountryTextLocked]}>
+            {!unlocked ? 'Önceki ülkeyi tamamlayarak aç' : complete ? 'Ülke tamamlandı' : active ? 'Mevcut yolculuk' : 'Keşfedilmeye hazır'}
+          </Text>
+          <DestinationRail country={country} level={level} />
+          {active && !complete ? (
+            <LinearGradient colors={['#FFF3A7', '#EAAF35', '#C27B13']} style={styles.routeCountryContinue}>
+              <Text style={styles.routeCountryContinueText}>DEVAM ET</Text>
+            </LinearGradient>
+          ) : null}
         </View>
       </Pressable>
     </Entrance>
-  );
-}
-
-function TravelConnector({
-  active,
-  index,
-  route,
-}: {
-  active: boolean;
-  index: number;
-  route: TravelRoute;
-}) {
-  const leg = routeLeg(route, index);
-  const [arrival] = useState(() => new Animated.Value(active ? 0 : 1));
-
-  useEffect(() => {
-    if (!active) return;
-    const animation = Animated.timing(arrival, {
-      toValue: 1,
-      duration: 800,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [active, arrival]);
-
-  return (
-    <View style={[styles.transport, { transform: [{ translateX: index % 2 === 0 ? 38 : -38 }] }]}>
-      <View style={styles.transportLine} />
-      <Animated.View
-        style={[
-          styles.transportChip,
-          active && {
-            opacity: arrival,
-            transform: [
-              { translateY: arrival.interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) },
-            ],
-          },
-        ]}>
-        <Text style={styles.transportLabel}>{leg.label}</Text>
-        <View style={styles.transportSeparator} />
-        <Text style={styles.transportDistance}>{leg.distance}</Text>
-      </Animated.View>
-    </View>
   );
 }
 
 export function JourneyMap({
   level,
   levelData,
-  bonusCount,
-  gemCount,
   onBack,
   onContinue,
   onOpenPassport,
-  onOpenSettings,
+  onOpenTasks,
 }: JourneyMapProps) {
-  const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const [layer, setLayer] = useState<MapLayer>('world');
   const [selectedRouteId, setSelectedRouteId] = useState(levelData.routeId);
-  const [selectedCountryId, setSelectedCountryId] = useState(levelData.countryId);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -488,12 +291,7 @@ export function JourneyMap({
   const activeRoute = ROUTE_BY_ID.get(levelData.routeId) ?? TRAVEL_ROUTES[0];
   const selectedRoute = ROUTE_BY_ID.get(selectedRouteId) ?? activeRoute;
   const activeCountry = COUNTRY_BY_ID.get(levelData.countryId) ?? WORLD_COUNTRIES[0];
-  const selectedCountry = COUNTRY_BY_ID.get(selectedCountryId) ?? activeCountry;
   const selectedRouteCountries = useMemo(() => routeCountries(selectedRoute), [selectedRoute]);
-  const completedCountries = getCompletedCountryCount(level);
-  const completedLevels = getCompletedWorldLevelCount(level);
-  const mapWidth = Math.min(width, 512);
-  const heroHeight = HERO_HEIGHT + insets.top;
 
   const showNotice = useCallback((message: string) => {
     setNotice(message);
@@ -503,10 +301,6 @@ export function JourneyMap({
   }, []);
 
   const goBack = () => {
-    if (layer === 'country') {
-      setLayer('route');
-      return;
-    }
     if (layer === 'route') {
       setLayer('world');
       return;
@@ -521,11 +315,6 @@ export function JourneyMap({
       return;
     }
     setSelectedRouteId(route.id);
-    if (route.id === activeRoute.id) {
-      setSelectedCountryId(activeCountry.id);
-      setLayer('country');
-      return;
-    }
     setLayer('route');
   };
 
@@ -534,138 +323,16 @@ export function JourneyMap({
       showNotice('Bu ülke seyahat rotasında henüz açılmadı');
       return;
     }
-    setSelectedCountryId(country.id);
-    setLayer('country');
-  };
-
-  const openLocation = (country: TravelCountry, location: TravelLocation) => {
-    if (!isLocationUnlocked(level, country, location)) {
-      showNotice('Önce bir önceki şehrin bölümlerini tamamla');
-      return;
-    }
-    if (country.id === activeCountry.id && location.id === levelData.locationId) {
+    if (country.id === activeCountry.id) {
       onContinue();
       return;
     }
     showNotice(
-      getLocationProgress(level, country, location) >= location.levelCount
-        ? `${location.name} tamamlandı ✓`
-        : `Mevcut şehir: ${levelData.city}`,
+      isCountryComplete(level, country.id)
+        ? `${country.country} tamamlandı ✓ • Mevcut yolculuk: ${activeCountry.country}`
+        : `Mevcut ülke: ${activeCountry.country}`,
     );
   };
-
-  const heroBackground = selectedRoute.background;
-  const heroEyebrow =
-    layer === 'world'
-      ? `🌍 ${completedCountries}/100 ÜLKE KEŞFEDİLDİ`
-      : `${selectedRoute.emoji} ROTA ${selectedRoute.order}/14`;
-  const heroTitle =
-    layer === 'world'
-      ? 'Dünya Yolculuğu'
-      : selectedRoute.name;
-  const heroSubtitle =
-    layer === 'world'
-      ? 'Sayıları çöz, yeni rotaları aydınlat ve dünyayı keşfet.'
-      : selectedRoute.theme;
-
-  const primaryTitle = 'OYUNA DEVAM ET';
-  const primarySubtitle = levelData.countryChallenge
-    ? `${activeCountry.flag} ${activeCountry.country} • ${levelData.city}`
-    : `${activeCountry.flag} ${activeCountry.country} • ${levelData.emoji} ${levelData.city} • ${levelData.locationLevel}/${levelData.locationLevelCount}`;
-  const primaryProgress = {
-    value: getCountryProgress(level, activeCountry.id),
-    total: activeCountry.levelCount,
-  };
-
-  if (layer === 'country') {
-    return (
-      <View style={styles.worldScreen}>
-        <Image
-          cachePolicy="memory-disk"
-          contentFit="cover"
-          source={WORLD_BACKGROUND}
-          style={StyleSheet.absoluteFill}
-        />
-        <LinearGradient
-          colors={['rgba(255,255,255,0.04)', 'rgba(255,255,255,0.12)', 'rgba(24,91,130,0.24)']}
-          locations={[0, 0.5, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-
-        <View style={[styles.cityHeader, { height: 250 + insets.top, paddingTop: insets.top + 7 }]}>
-          <View style={[styles.cityHeaderControls, { top: insets.top + 10 }]}>
-            <Pressable
-              accessibilityLabel="Rota listesine dön"
-              accessibilityRole="button"
-              onPress={goBack}
-              style={({ pressed }) => [styles.cityHeaderButton, pressed && styles.pressed]}>
-              <Text style={styles.cityBackText}>‹</Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Oyun ayarlarını aç"
-              accessibilityRole="button"
-              onPress={onOpenSettings}
-              style={({ pressed }) => [styles.cityHeaderButton, pressed && styles.pressed]}>
-              <Text style={styles.citySettingsText}>⚙</Text>
-            </Pressable>
-          </View>
-          <Image
-            cachePolicy="memory-disk"
-            contentFit="contain"
-            source={CITY_LOGO}
-            style={styles.cityLogo}
-          />
-          <View style={styles.countryPlaque}>
-            <Text style={styles.countryPlaqueSymbol}>{selectedCountry.flag}</Text>
-            <Text
-              adjustsFontSizeToFit
-              minimumFontScale={0.72}
-              numberOfLines={1}
-              style={styles.countryPlaqueTitle}>
-              {selectedCountry.country.toLocaleUpperCase('tr-TR')}
-            </Text>
-            <View style={styles.countryPlaqueSubtitleRow}>
-              <View style={styles.countryPlaqueLine} />
-              <Text style={styles.countryPlaqueSubtitle}>Şehirler</Text>
-              <View style={styles.countryPlaqueLine} />
-            </View>
-          </View>
-        </View>
-
-        <ScrollView
-          ref={scrollRef}
-          bounces={false}
-          contentContainerStyle={[styles.cityList, { paddingBottom: 116 + insets.bottom }]}
-          overScrollMode="never"
-          showsVerticalScrollIndicator={false}>
-          {selectedCountry.locations.map((location, index) => (
-            <CityCard
-              active={selectedCountry.id === activeCountry.id && location.id === levelData.locationId}
-              country={selectedCountry}
-              index={index}
-              key={location.id}
-              level={level}
-              location={location}
-              onPress={() => openLocation(selectedCountry, location)}
-            />
-          ))}
-        </ScrollView>
-
-        <AppFooter
-          activeItem="map"
-          onCollection={onOpenPassport}
-          onMap={goBack}
-          onPlay={onContinue}
-          onTasks={onOpenPassport}
-        />
-        {notice ? (
-          <View pointerEvents="none" style={[styles.notice, { top: insets.top + 72 }]}>
-            <Text style={styles.noticeText}>{notice}</Text>
-          </View>
-        ) : null}
-      </View>
-    );
-  }
 
   if (layer === 'world') {
     return (
@@ -706,9 +373,9 @@ export function JourneyMap({
         <AppFooter
           activeItem="map"
           onCollection={onOpenPassport}
+          onHome={onBack}
           onMap={() => {}}
-          onPlay={onContinue}
-          onTasks={onOpenPassport}
+          onTasks={onOpenTasks}
         />
 
         {notice ? (
@@ -721,133 +388,66 @@ export function JourneyMap({
   }
 
   return (
-    <LinearGradient colors={['#FBF7EE', '#F3E7D3', '#E7D3B4']} style={styles.screen}>
+    <View style={styles.worldScreen}>
+      <Image
+        cachePolicy="memory-disk"
+        contentFit="cover"
+        source={WORLD_BACKGROUND}
+        style={StyleSheet.absoluteFill}
+      />
+      <LinearGradient
+        colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.18)', 'rgba(17,77,121,0.28)']}
+        locations={[0, 0.48, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+
       <ScrollView
         ref={scrollRef}
         bounces={false}
-        contentContainerStyle={{ paddingBottom: 116 + insets.bottom }}
+        contentContainerStyle={[
+          styles.routeCountryList,
+          { paddingTop: insets.top + 14, paddingBottom: 116 + insets.bottom },
+        ]}
         overScrollMode="never"
         showsVerticalScrollIndicator={false}>
-        <View style={[styles.mapCanvas, { width: mapWidth }]}>
-          <View style={[styles.hero, { height: heroHeight }]}>
-            <Image
-              cachePolicy="memory-disk"
-              contentFit="cover"
-              source={{ uri: heroBackground }}
-              style={StyleSheet.absoluteFill}
-              transition={160}
-            />
-            <LinearGradient
-              colors={['rgba(0,0,0,0.04)', 'rgba(25,34,47,0.30)', 'rgba(29,36,49,0.94)']}
-              locations={[0, 0.45, 1]}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={[styles.heroControls, { top: insets.top + 14 }]}>
-              <View style={styles.heroControlGroup}>
-                <Pressable
-                  accessibilityLabel="Dünya rotalarına dön"
-                  accessibilityRole="button"
-                  onPress={goBack}
-                  style={({ pressed }) => [styles.heroRoundControl, pressed && styles.pressed]}>
-                  <Text style={styles.backText}>‹</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityLabel="Seyahat pasaportunu aç"
-                  accessibilityRole="button"
-                  onPress={onOpenPassport}
-                  style={({ pressed }) => [styles.heroPassport, pressed && styles.pressed]}>
-                  <Text style={styles.heroControlText}>📘 Pasaport</Text>
-                  <View style={styles.heroCount}>
-                    <Text style={styles.heroCountText}>{completedCountries}/100</Text>
-                  </View>
-                </Pressable>
-              </View>
-              <Pressable
-                accessibilityLabel="Oyun ayarlarını aç"
-                accessibilityRole="button"
-                onPress={onOpenSettings}
-                style={({ pressed }) => [styles.heroRoundControl, pressed && styles.pressed]}>
-                <Text style={styles.heroSettingsText}>⚙</Text>
-              </Pressable>
-            </View>
-            <View style={styles.heroCopy}>
-              <Text style={styles.heroEyebrow}>{heroEyebrow}</Text>
-              <Text numberOfLines={2} adjustsFontSizeToFit style={styles.heroTitle}>{heroTitle}</Text>
-              <Text numberOfLines={2} style={styles.heroSubtitle}>{heroSubtitle}</Text>
-            </View>
-          </View>
-
-          <Pressable
-            accessibilityHint="Rota ve ülke ekranlarını atlayarak mevcut puzzle'ı açar"
-            accessibilityLabel={`${primaryTitle}, ${primarySubtitle}`}
-            accessibilityRole="button"
-            onPress={onContinue}
-            style={({ pressed }) => [styles.continueCard, pressed && styles.pressed]}>
-            <View style={styles.continueRow}>
-              <View style={styles.continueIcon}><Text style={styles.continueIconText}>▶</Text></View>
-              <View style={styles.continueCopy}>
-                <Text numberOfLines={1} adjustsFontSizeToFit style={styles.continueTitle}>{primaryTitle}</Text>
-                <Text numberOfLines={1} style={styles.continueSubtitle}>{primarySubtitle}</Text>
-              </View>
-              <View style={styles.continueArrow}><Text style={styles.continueArrowText}>›</Text></View>
-            </View>
-            <ProgressBar progress={primaryProgress.value} total={primaryProgress.total} />
-            <View style={styles.continueFooter}>
-              <Text style={styles.overallProgress}>
-                Ülke {getCountryProgress(level, activeCountry.id)}/{activeCountry.levelCount} • Dünya {completedLevels}/{TOTAL_WORLD_LEVELS}
-              </Text>
-              <Text style={styles.bonusProgress}>
-                💎 {gemCount} Mücevher • ⭐ {bonusCount} Bonus Keşif
-              </Text>
-            </View>
-          </Pressable>
-
-          <View style={styles.headingRow}>
-            <View style={styles.headingCopy}>
-              <Text style={styles.heading}>ÜLKE ROTASI</Text>
-              <Text style={styles.headingCaption}>
-                {selectedRoute.countryIds.length} ülke • {selectedRoute.countryIds.length * 20} puzzle
-              </Text>
-            </View>
-            <Text style={styles.compass}>🧭</Text>
-          </View>
-
-          <View style={styles.list}>
-            {selectedRouteCountries.map((country, index) => (
-                  <View key={country.id}>
-                    {index > 0 ? (
-                      <TravelConnector
-                        active={country.id === activeCountry.id}
-                        index={index - 1}
-                        route={selectedRoute}
-                      />
-                    ) : null}
-                    <CountryCard
-                      active={country.id === activeCountry.id}
-                      country={country}
-                      index={index}
-                      level={level}
-                      onPress={() => openCountry(country)}
-                    />
-                  </View>
-                ))}
-          </View>
+        <View style={styles.routeSummary}>
+          <Text style={styles.routeSummaryEyebrow}>ROTA {selectedRoute.order}</Text>
+          <Text
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+            numberOfLines={1}
+            style={styles.routeSummaryTitle}>
+            {selectedRoute.emoji} {selectedRoute.name}
+          </Text>
+          <Text style={styles.routeSummaryCaption}>
+            {selectedRoute.countryIds.length} ülke • {selectedRoute.countryIds.length * 20} bölüm
+          </Text>
         </View>
+        {selectedRouteCountries.map((country, index) => (
+          <CountryCard
+            active={country.id === activeCountry.id}
+            country={country}
+            index={index}
+            key={country.id}
+            level={level}
+            onPress={() => openCountry(country)}
+          />
+        ))}
       </ScrollView>
 
+      <AppFooter
+        activeItem="map"
+        onCollection={onOpenPassport}
+        onHome={onBack}
+        onMap={goBack}
+        onTasks={onOpenTasks}
+      />
       {notice ? (
         <View pointerEvents="none" style={[styles.notice, { top: insets.top + 72 }]}>
           <Text style={styles.noticeText}>{notice}</Text>
         </View>
       ) : null}
-      <AppFooter
-        activeItem="map"
-        onCollection={onOpenPassport}
-        onMap={goBack}
-        onPlay={onContinue}
-        onTasks={onOpenPassport}
-      />
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -875,7 +475,8 @@ const styles = StyleSheet.create({
   cityCardContent: { minHeight: 112, justifyContent: 'center', paddingLeft: 8 },
   cityName: { color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 24, fontWeight: '800' },
   cityNameLocked: { color: '#7A7E81' },
-  cityProgressRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cityLockedLabel: { marginTop: 3, color: '#888B8E', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.5, fontWeight: '700' },
+  cityProgressRow: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
   cityStageRail: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   cityStageLine: { flex: 1, height: 1.5, backgroundColor: '#B9B9B4' },
   cityStageLineDone: { backgroundColor: '#C79530' },
@@ -935,6 +536,27 @@ const styles = StyleSheet.create({
   worldStageDotText: { color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 9, lineHeight: 11, fontWeight: '700' },
   worldContinueButton: { minWidth: 78, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, borderWidth: 1, borderColor: '#C8891B', shadowColor: '#A46B0E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
   worldContinueText: { color: '#71430B', fontFamily: FONTS.extraBold, fontSize: 10, fontWeight: '800' },
+  routeCountryList: { width: '100%', maxWidth: 512, alignSelf: 'center', paddingHorizontal: 14 },
+  routeSummary: { minHeight: 94, marginBottom: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, borderWidth: 1.8, borderColor: '#D6AD51', backgroundColor: 'rgba(255,253,249,0.96)', shadowColor: '#2D6178', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.24, shadowRadius: 8, elevation: 6 },
+  routeSummaryEyebrow: { color: '#B17820', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.2, fontWeight: '700' },
+  routeSummaryTitle: { marginTop: 3, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 21, fontWeight: '800', textAlign: 'center' },
+  routeSummaryCaption: { marginTop: 3, color: '#66737D', fontFamily: FONTS.semibold, fontSize: 9.5, fontWeight: '600' },
+  routeCountryCard: { minHeight: 146, marginBottom: 11, padding: 11, flexDirection: 'row', alignItems: 'center', borderRadius: 25, borderWidth: 1.7, borderColor: '#D6B25B', backgroundColor: 'rgba(255,253,249,0.96)', shadowColor: '#2D6178', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.24, shadowRadius: 8, elevation: 6 },
+  routeCountryCardActive: { borderWidth: 2.4, borderColor: '#F0C54E', shadowColor: '#EAB738', shadowOpacity: 0.58, shadowRadius: 11, elevation: 9 },
+  routeCountryCardLocked: { borderColor: '#C7C7C2', backgroundColor: 'rgba(248,248,246,0.94)' },
+  routeCountryImageFrame: { width: 108, height: 108, borderRadius: 54, borderWidth: 2.2, borderColor: '#C28B2C', backgroundColor: '#CFE8F0', shadowColor: '#73511B', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.24, shadowRadius: 4, elevation: 4 },
+  routeCountryImage: { borderRadius: 54 },
+  routeCountryImageShade: { ...StyleSheet.absoluteFill, borderRadius: 54, backgroundColor: 'rgba(230,231,229,0.58)' },
+  routeCountryNumber: { position: 'absolute', top: -9, left: -6, width: 35, height: 35, alignItems: 'center', justifyContent: 'center', borderRadius: 18, borderWidth: 2, borderColor: '#E5BA54', backgroundColor: '#1D5387' },
+  routeCountryNumberText: { color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 16, fontWeight: '800' },
+  routeCountryContent: { flex: 1, minWidth: 0, alignSelf: 'stretch', justifyContent: 'center', paddingLeft: 14 },
+  routeCountryTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  routeCountryName: { flex: 1, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 18, fontWeight: '800' },
+  routeCountryCount: { color: '#1D5790', fontFamily: FONTS.extraBold, fontSize: 15, fontWeight: '800' },
+  routeCountryCaption: { marginTop: 3, color: '#66737D', fontFamily: FONTS.medium, fontSize: 9.5 },
+  routeCountryTextLocked: { color: '#7B7E80' },
+  routeCountryContinue: { position: 'absolute', right: 0, bottom: 0, minWidth: 74, height: 29, alignItems: 'center', justifyContent: 'center', borderRadius: 15, borderWidth: 1, borderColor: '#C8891B' },
+  routeCountryContinueText: { color: '#71430B', fontFamily: FONTS.extraBold, fontSize: 9, fontWeight: '800' },
   worldBottomBar: { position: 'absolute', left: 10, right: 10, bottom: 0, minHeight: 91, paddingTop: 9, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around', borderTopLeftRadius: 34, borderTopRightRadius: 34, borderWidth: 1.5, borderBottomWidth: 0, borderColor: '#E4BD59', shadowColor: '#143350', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 12 },
   worldNavAction: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
   worldNavIcon: { color: '#D9E1EB', fontFamily: FONTS.extraBold, fontSize: 29, lineHeight: 34, fontWeight: '800' },

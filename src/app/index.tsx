@@ -1556,14 +1556,12 @@ export default function HomeScreen() {
       <View style={styles.screen}>
         <BlurTargetView ref={blurTarget} style={styles.screen}>
           <JourneyMap
-            bonusCount={bonusCount}
-            gemCount={gemCount}
             level={level}
             levelData={levelData}
             onBack={() => setActiveScreen('home')}
             onContinue={openGame}
             onOpenPassport={() => setPassportVisible(true)}
-            onOpenSettings={() => setSettingsVisible(true)}
+            onOpenTasks={() => setActiveScreen('profile')}
           />
         </BlurTargetView>
         {overlays}

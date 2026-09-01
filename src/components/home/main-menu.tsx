@@ -268,9 +268,10 @@ export function MainMenu({
 
       </SafeAreaView>
       <AppFooter
+        activeItem="home"
         onCollection={onOpenCollection}
+        onHome={() => {}}
         onMap={onOpenTravel}
-        onPlay={onPlay}
         onTasks={onOpenProfile}
       />
     </View>
