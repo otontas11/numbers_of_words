@@ -1449,9 +1449,8 @@ export default function HomeScreen() {
 
   const openGame = useCallback(() => {
     setActiveScreen('game');
-    setChallengeIntroVisible(levelData.countryChallenge);
     triggerEffect('select1');
-  }, [levelData.countryChallenge, triggerEffect]);
+  }, [triggerEffect]);
 
   const continueAfterCountryCompletion = useCallback(() => {
     if (countryCompletionLevel === null) return;

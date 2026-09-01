@@ -24,7 +24,7 @@ import {
   getCountryProgress,
 } from '@/game/travel';
 
-const FALLBACK_BACKGROUND = require('../../../assets/images/game-sky-background.png');
+const HOME_BACKGROUND = require('../../../assets/images/img/bg.png');
 
 type MainMenuProps = {
   bonusCount: number;
@@ -107,13 +107,11 @@ export function MainMenu({
 
   return (
     <View style={styles.screen}>
-      <Image contentFit="cover" source={FALLBACK_BACKGROUND} style={StyleSheet.absoluteFill} />
       <Image
         cachePolicy="memory-disk"
         contentFit="cover"
-        source={{ uri: levelData.background }}
+        source={HOME_BACKGROUND}
         style={StyleSheet.absoluteFill}
-        transition={160}
       />
       <LinearGradient
         colors={['rgba(7,19,31,0.38)', 'rgba(9,25,37,0.16)', 'rgba(7,20,31,0.79)']}
