@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
+  BackHandler,
   ScrollView,
   StyleSheet,
   Text,
@@ -214,6 +215,7 @@ function CountryCard({
   const progress = getCountryProgress(level, country.id);
   const unlocked = isCountryUnlocked(level, country.id);
   const complete = isCountryComplete(level, country.id);
+  const cityNames = country.locations.map((location) => location.name).join(' • ');
   return (
     <Entrance delay={index * 50}>
       <Pressable
@@ -258,6 +260,11 @@ function CountryCard({
           <Text style={[styles.routeCountryCaption, !unlocked && styles.routeCountryTextLocked]}>
             {!unlocked ? 'Önceki ülkeyi tamamlayarak aç' : complete ? 'Ülke tamamlandı' : active ? 'Mevcut yolculuk' : 'Keşfedilmeye hazır'}
           </Text>
+          <Text
+            numberOfLines={2}
+            style={[styles.routeCountryCities, !unlocked && styles.routeCountryTextLocked]}>
+            📍 {cityNames}
+          </Text>
           <DestinationRail country={country} level={level} />
           {active && !complete ? (
             <LinearGradient colors={['#FFF3A7', '#EAAF35', '#C27B13']} style={styles.routeCountryContinue}>
@@ -300,13 +307,21 @@ export function JourneyMap({
     }, 1900);
   }, []);
 
-  const goBack = () => {
+  const goBack = useCallback(() => {
     if (layer === 'route') {
       setLayer('world');
       return;
     }
     onBack();
-  };
+  }, [layer, onBack]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      goBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [goBack]);
 
   const openRoute = (route: TravelRoute) => {
     if (!isRouteUnlocked(level, route)) {
@@ -411,6 +426,14 @@ export function JourneyMap({
         overScrollMode="never"
         showsVerticalScrollIndicator={false}>
         <View style={styles.routeSummary}>
+          <Pressable
+            accessibilityLabel="Rota listesine dön"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={goBack}
+            style={({ pressed }) => [styles.routeBackButton, pressed && styles.pressed]}>
+            <Text style={styles.routeBackIcon}>‹</Text>
+          </Pressable>
           <Text style={styles.routeSummaryEyebrow}>ROTA {selectedRoute.order}</Text>
           <Text
             adjustsFontSizeToFit
@@ -538,25 +561,28 @@ const styles = StyleSheet.create({
   worldContinueText: { color: '#71430B', fontFamily: FONTS.extraBold, fontSize: 10, fontWeight: '800' },
   routeCountryList: { width: '100%', maxWidth: 512, alignSelf: 'center', paddingHorizontal: 14 },
   routeSummary: { minHeight: 94, marginBottom: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, borderWidth: 1.8, borderColor: '#D6AD51', backgroundColor: 'rgba(255,253,249,0.96)', shadowColor: '#2D6178', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.24, shadowRadius: 8, elevation: 6 },
+  routeBackButton: { position: 'absolute', left: 10, top: 10, zIndex: 2, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, borderWidth: 1.8, borderColor: '#E6BB58', backgroundColor: '#245A90', shadowColor: '#5C3D0E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 4, elevation: 5 },
+  routeBackIcon: { marginTop: -4, color: '#FFF4C7', fontFamily: FONTS.bold, fontSize: 32, lineHeight: 34, fontWeight: '700' },
   routeSummaryEyebrow: { color: '#B17820', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.2, fontWeight: '700' },
   routeSummaryTitle: { marginTop: 3, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 21, fontWeight: '800', textAlign: 'center' },
   routeSummaryCaption: { marginTop: 3, color: '#66737D', fontFamily: FONTS.semibold, fontSize: 9.5, fontWeight: '600' },
-  routeCountryCard: { minHeight: 146, marginBottom: 11, padding: 11, flexDirection: 'row', alignItems: 'center', borderRadius: 25, borderWidth: 1.7, borderColor: '#D6B25B', backgroundColor: 'rgba(255,253,249,0.96)', shadowColor: '#2D6178', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.24, shadowRadius: 8, elevation: 6 },
+  routeCountryCard: { minHeight: 122, marginBottom: 8, padding: 8, flexDirection: 'row', alignItems: 'center', borderRadius: 22, borderWidth: 1.7, borderColor: '#D6B25B', backgroundColor: 'rgba(255,253,249,0.96)', shadowColor: '#2D6178', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.22, shadowRadius: 7, elevation: 5 },
   routeCountryCardActive: { borderWidth: 2.4, borderColor: '#F0C54E', shadowColor: '#EAB738', shadowOpacity: 0.58, shadowRadius: 11, elevation: 9 },
   routeCountryCardLocked: { borderColor: '#C7C7C2', backgroundColor: 'rgba(248,248,246,0.94)' },
-  routeCountryImageFrame: { width: 108, height: 108, borderRadius: 54, borderWidth: 2.2, borderColor: '#C28B2C', backgroundColor: '#CFE8F0', shadowColor: '#73511B', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.24, shadowRadius: 4, elevation: 4 },
-  routeCountryImage: { borderRadius: 54 },
-  routeCountryImageShade: { ...StyleSheet.absoluteFill, borderRadius: 54, backgroundColor: 'rgba(230,231,229,0.58)' },
-  routeCountryNumber: { position: 'absolute', top: -9, left: -6, width: 35, height: 35, alignItems: 'center', justifyContent: 'center', borderRadius: 18, borderWidth: 2, borderColor: '#E5BA54', backgroundColor: '#1D5387' },
-  routeCountryNumberText: { color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 16, fontWeight: '800' },
-  routeCountryContent: { flex: 1, minWidth: 0, alignSelf: 'stretch', justifyContent: 'center', paddingLeft: 14 },
+  routeCountryImageFrame: { width: 88, height: 88, borderRadius: 44, borderWidth: 2, borderColor: '#C28B2C', backgroundColor: '#CFE8F0', shadowColor: '#73511B', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 4, elevation: 4 },
+  routeCountryImage: { borderRadius: 44 },
+  routeCountryImageShade: { ...StyleSheet.absoluteFill, borderRadius: 44, backgroundColor: 'rgba(230,231,229,0.58)' },
+  routeCountryNumber: { position: 'absolute', top: -7, left: -5, width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 15, borderWidth: 1.8, borderColor: '#E5BA54', backgroundColor: '#1D5387' },
+  routeCountryNumberText: { color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 13, fontWeight: '800' },
+  routeCountryContent: { flex: 1, minWidth: 0, alignSelf: 'stretch', justifyContent: 'center', paddingLeft: 11 },
   routeCountryTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  routeCountryName: { flex: 1, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 18, fontWeight: '800' },
-  routeCountryCount: { color: '#1D5790', fontFamily: FONTS.extraBold, fontSize: 15, fontWeight: '800' },
-  routeCountryCaption: { marginTop: 3, color: '#66737D', fontFamily: FONTS.medium, fontSize: 9.5 },
+  routeCountryName: { flex: 1, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 16, fontWeight: '800' },
+  routeCountryCount: { color: '#1D5790', fontFamily: FONTS.extraBold, fontSize: 13, fontWeight: '800' },
+  routeCountryCaption: { marginTop: 1, color: '#66737D', fontFamily: FONTS.medium, fontSize: 8.5 },
+  routeCountryCities: { marginTop: 2, paddingRight: 2, color: '#385B79', fontFamily: FONTS.semibold, fontSize: 8.5, lineHeight: 11, fontWeight: '600' },
   routeCountryTextLocked: { color: '#7B7E80' },
-  routeCountryContinue: { position: 'absolute', right: 0, bottom: 0, minWidth: 74, height: 29, alignItems: 'center', justifyContent: 'center', borderRadius: 15, borderWidth: 1, borderColor: '#C8891B' },
-  routeCountryContinueText: { color: '#71430B', fontFamily: FONTS.extraBold, fontSize: 9, fontWeight: '800' },
+  routeCountryContinue: { position: 'absolute', right: 0, bottom: 0, minWidth: 66, height: 25, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: '#C8891B' },
+  routeCountryContinueText: { color: '#71430B', fontFamily: FONTS.extraBold, fontSize: 8, fontWeight: '800' },
   worldBottomBar: { position: 'absolute', left: 10, right: 10, bottom: 0, minHeight: 91, paddingTop: 9, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around', borderTopLeftRadius: 34, borderTopRightRadius: 34, borderWidth: 1.5, borderBottomWidth: 0, borderColor: '#E4BD59', shadowColor: '#143350', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 12 },
   worldNavAction: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
   worldNavIcon: { color: '#D9E1EB', fontFamily: FONTS.extraBold, fontSize: 29, lineHeight: 34, fontWeight: '800' },
@@ -655,14 +681,14 @@ const styles = StyleSheet.create({
   cardFooterText: { marginTop: 5, color: '#E8EDF3', fontFamily: FONTS.semibold, fontSize: 9.2, fontWeight: '600' },
   progressTrack: { height: 5, marginTop: 8, overflow: 'hidden', borderRadius: 3, backgroundColor: 'rgba(15,23,42,0.28)' },
   progressFill: { height: '100%', borderRadius: 3 },
-  stageRail: { height: 26, marginTop: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  stageCircle: { width: 23, height: 23, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1.5 },
+  stageRail: { height: 21, marginTop: 3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  stageCircle: { width: 19, height: 19, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1.3 },
   stageDone: { borderColor: '#F9D96F', backgroundColor: '#B47B12' },
   stageActive: { borderColor: '#A7F3D0', backgroundColor: '#087A59' },
   stageLocked: { borderColor: '#6B7280', backgroundColor: '#374151' },
-  stageText: { color: '#D1D5DB', fontFamily: FONTS.extraBold, fontSize: 9, fontWeight: '800' },
+  stageText: { color: '#D1D5DB', fontFamily: FONTS.extraBold, fontSize: 8, fontWeight: '800' },
   stageActiveText: { color: '#FFF' },
-  stageConnector: { width: 22, height: 2, backgroundColor: '#64748B' },
+  stageConnector: { width: 17, height: 1.5, backgroundColor: '#64748B' },
   stageConnectorDone: { backgroundColor: '#D9AF46' },
   transport: { height: 56, alignItems: 'center', justifyContent: 'center' },
   transportLine: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: 'rgba(174,135,51,0.48)' },
