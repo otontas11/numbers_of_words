@@ -159,7 +159,7 @@ function RouteCard({
           contentFit="cover"
           source={{ uri: route.background }}
           style={StyleSheet.absoluteFill}
-          transition={420}
+          transition={160}
         />
         <LinearGradient
           colors={['rgba(11,18,26,0.10)', 'rgba(19,27,38,0.94)']}
@@ -262,7 +262,7 @@ function CountryCard({
           contentFit="cover"
           source={{ uri: country.background }}
           style={StyleSheet.absoluteFill}
-          transition={420}
+          transition={160}
         />
         <LinearGradient
           colors={['rgba(0,0,0,0.03)', 'rgba(18,26,36,0.96)']}
@@ -464,7 +464,7 @@ export function JourneyMap({
               contentFit="cover"
               source={layer === 'world' ? WORLD_MAP_IMAGE : { uri: heroBackground }}
               style={StyleSheet.absoluteFill}
-              transition={700}
+              transition={160}
             />
             <LinearGradient
               colors={['rgba(0,0,0,0.04)', 'rgba(25,34,47,0.30)', 'rgba(29,36,49,0.94)']}

@@ -113,7 +113,7 @@ export function MainMenu({
         contentFit="cover"
         source={{ uri: levelData.background }}
         style={StyleSheet.absoluteFill}
-        transition={700}
+        transition={160}
       />
       <LinearGradient
         colors={['rgba(7,19,31,0.38)', 'rgba(9,25,37,0.16)', 'rgba(7,20,31,0.79)']}
