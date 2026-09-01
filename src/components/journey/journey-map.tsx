@@ -2,9 +2,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  Animated,
   BackHandler,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   View,
@@ -45,31 +44,8 @@ type JourneyMapProps = {
   onOpenTasks: () => void;
 };
 
-function Entrance({ children, delay = 0 }: { children: ReactNode; delay?: number }) {
-  const [opacity] = useState(() => new Animated.Value(0));
-
-  useEffect(() => {
-    const animation = Animated.timing(opacity, {
-      toValue: 1,
-      delay: Math.min(delay, 420),
-      duration: 360,
-      useNativeDriver: true,
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [delay, opacity]);
-
-  return (
-    <Animated.View
-      style={{
-        opacity,
-        transform: [
-          { translateY: opacity.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) },
-        ],
-      }}>
-      {children}
-    </Animated.View>
-  );
+function Entrance({ children }: { children: ReactNode }) {
+  return <View>{children}</View>;
 }
 
 function RouteCard({
@@ -93,7 +69,7 @@ function RouteCard({
   const currentStep = Math.min(4, Math.floor((progress / Math.max(1, total)) * 5));
 
   return (
-    <Entrance delay={index * 42}>
+    <Entrance>
       <Pressable
         accessibilityLabel={`${route.name}, ${progress}/${total} bölüm`}
         accessibilityRole="button"
@@ -110,7 +86,6 @@ function RouteCard({
             contentFit="cover"
             source={{ uri: route.background }}
             style={[StyleSheet.absoluteFill, styles.worldRouteImage]}
-            transition={160}
           />
           {!unlocked ? <View style={styles.worldRouteImageShade} /> : null}
           <View style={styles.worldRouteNumber}>
@@ -218,7 +193,7 @@ function CountryCard({
   const complete = isCountryComplete(level, country.id);
   const cityNames = country.locations.map((location) => location.name).join(' • ');
   return (
-    <Entrance delay={index * 50}>
+    <Entrance>
       <Pressable
         accessibilityHint={active ? 'Mevcut sayı bulmacasını açar' : undefined}
         accessibilityLabel={`${country.country}, ${progress}/${country.levelCount} bölüm`}
@@ -238,7 +213,6 @@ function CountryCard({
             contentFit="cover"
             source={{ uri: country.background }}
             style={[StyleSheet.absoluteFill, styles.routeCountryImage]}
-            transition={160}
           />
           {!unlocked ? <View style={styles.routeCountryImageShade} /> : null}
           <View style={styles.routeCountryNumber}>
@@ -288,13 +262,18 @@ export function JourneyMap({
   onOpenTasks,
 }: JourneyMapProps) {
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const worldListRef = useRef<FlatList<TravelRoute>>(null);
+  const countryListRef = useRef<FlatList<TravelCountry>>(null);
   const [layer, setLayer] = useState<MapLayer>('world');
   const [selectedRouteId, setSelectedRouteId] = useState(levelData.routeId);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ animated: false, y: 0 });
+    if (layer === 'world') {
+      worldListRef.current?.scrollToOffset({ animated: false, offset: 0 });
+      return;
+    }
+    countryListRef.current?.scrollToOffset({ animated: false, offset: 0 });
   }, [layer, selectedRouteId]);
 
   const activeRoute = ROUTE_BY_ID.get(levelData.routeId) ?? TRAVEL_ROUTES[0];
@@ -367,26 +346,31 @@ export function JourneyMap({
           style={StyleSheet.absoluteFill}
         />
 
-        <ScrollView
-          ref={scrollRef}
+        <FlatList
+          ref={worldListRef}
           bounces={false}
           contentContainerStyle={[
             styles.worldList,
             { paddingTop: insets.top + 14, paddingBottom: 116 + insets.bottom },
           ]}
+          data={TRAVEL_ROUTES}
+          initialNumToRender={5}
+          keyExtractor={(route) => route.id}
+          maxToRenderPerBatch={5}
           overScrollMode="never"
-          showsVerticalScrollIndicator={false}>
-          {TRAVEL_ROUTES.map((route, index) => (
+          removeClippedSubviews
+          renderItem={({ item: route, index }) => (
             <RouteCard
               active={route.id === activeRoute.id}
               index={index}
-              key={route.id}
               level={level}
               onPress={() => openRoute(route)}
               route={route}
             />
-          ))}
-        </ScrollView>
+          )}
+          showsVerticalScrollIndicator={false}
+          windowSize={5}
+        />
 
         <AppFooter
           activeItem="map"
@@ -419,47 +403,53 @@ export function JourneyMap({
         style={StyleSheet.absoluteFill}
       />
 
-      <ScrollView
-        ref={scrollRef}
+      <FlatList
+        ref={countryListRef}
         bounces={false}
         contentContainerStyle={[
           styles.routeCountryList,
           { paddingTop: insets.top + 14, paddingBottom: 116 + insets.bottom },
         ]}
+        data={selectedRouteCountries}
+        initialNumToRender={8}
+        keyExtractor={(country) => country.id}
+        ListHeaderComponent={
+          <View style={styles.routeSummary}>
+            <Pressable
+              accessibilityLabel="Rota listesine dön"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={goBack}
+              style={({ pressed }) => [styles.routeBackButton, pressed && styles.pressed]}>
+              <Text style={styles.routeBackIcon}>‹</Text>
+            </Pressable>
+            <Text style={styles.routeSummaryEyebrow}>ROTA {selectedRoute.order}</Text>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              numberOfLines={1}
+              style={styles.routeSummaryTitle}>
+              {selectedRoute.emoji} {selectedRoute.name}
+            </Text>
+            <Text style={styles.routeSummaryCaption}>
+              {selectedRoute.countryIds.length} ülke • {selectedRoute.countryIds.length * 20} bölüm
+            </Text>
+          </View>
+        }
         overScrollMode="never"
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.routeSummary}>
-          <Pressable
-            accessibilityLabel="Rota listesine dön"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={goBack}
-            style={({ pressed }) => [styles.routeBackButton, pressed && styles.pressed]}>
-            <Text style={styles.routeBackIcon}>‹</Text>
-          </Pressable>
-          <Text style={styles.routeSummaryEyebrow}>ROTA {selectedRoute.order}</Text>
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.75}
-            numberOfLines={1}
-            style={styles.routeSummaryTitle}>
-            {selectedRoute.emoji} {selectedRoute.name}
-          </Text>
-          <Text style={styles.routeSummaryCaption}>
-            {selectedRoute.countryIds.length} ülke • {selectedRoute.countryIds.length * 20} bölüm
-          </Text>
-        </View>
-        {selectedRouteCountries.map((country, index) => (
+        removeClippedSubviews
+        renderItem={({ item: country, index }) => (
           <CountryCard
             active={country.id === activeCountry.id}
             country={country}
             index={index}
-            key={country.id}
             level={level}
             onPress={() => openCountry(country)}
           />
-        ))}
-      </ScrollView>
+        )}
+        showsVerticalScrollIndicator={false}
+        windowSize={5}
+      />
 
       <AppFooter
         activeItem="map"

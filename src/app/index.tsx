@@ -8,6 +8,7 @@ import {
   Animated,
   BackHandler,
   Easing,
+  InteractionManager,
   ScrollView,
   StyleSheet,
   Text,
@@ -631,10 +632,12 @@ function useAnimatedCounter(value: number) {
 }
 
 function PulsingGems({
+  active,
   count,
   compact,
   measureRef,
 }: {
+  active: boolean;
   count: number;
   compact: boolean;
   measureRef?: MutableRefObject<View | null>;
@@ -643,6 +646,11 @@ function PulsingGems({
   const { displayValue, gain, gainOpacity, gainScale, gainTranslateY } = useAnimatedCounter(count);
 
   useEffect(() => {
+    if (!active) {
+      pulse.stopAnimation();
+      pulse.setValue(0);
+      return;
+    }
     const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1, duration: 1000, useNativeDriver: true }),
@@ -651,7 +659,7 @@ function PulsingGems({
     );
     animation.start();
     return () => animation.stop();
-  }, [pulse]);
+  }, [active, pulse]);
 
   return (
     <Animated.View
@@ -736,7 +744,15 @@ function getFeedbackColors(tone: FeedbackTone) {
   return { background: 'rgba(61,127,145,0.97)', border: '#D8EFF1', text: '#FFFFFF' };
 }
 
-function JourneyStrip({ level, levelData }: { level: number; levelData: LevelData }) {
+function JourneyStrip({
+  active,
+  level,
+  levelData,
+}: {
+  active: boolean;
+  level: number;
+  levelData: LevelData;
+}) {
   const country = COUNTRY_BY_ID.get(levelData.countryId);
   const operation = OPERATION_DETAILS[levelData.op];
   const countryProgress = country ? getCountryProgress(level, country.id) : 0;
@@ -745,7 +761,7 @@ function JourneyStrip({ level, levelData }: { level: number; levelData: LevelDat
 
   useEffect(() => {
     challengePulse.stopAnimation();
-    if (!levelData.countryChallenge) {
+    if (!active || !levelData.countryChallenge) {
       challengePulse.setValue(0);
       return;
     }
@@ -768,7 +784,7 @@ function JourneyStrip({ level, levelData }: { level: number; levelData: LevelDat
     );
     animation.start();
     return () => animation.stop();
-  }, [challengePulse, levelData.countryChallenge]);
+  }, [active, challengePulse, levelData.countryChallenge]);
 
   return (
     <LinearGradient
@@ -922,14 +938,12 @@ export default function HomeScreen() {
   const [hydrated, setHydrated] = useState(false);
   const blurTarget = useRef<View>(null);
   const navigateToScreen = useCallback((screen: AppScreen) => {
-    if (screen !== 'game') {
-      setMountedShellScreens((current) => {
-        if (current.has(screen)) return current;
-        const next = new Set(current);
-        next.add(screen);
-        return next;
-      });
-    }
+    setMountedShellScreens((current) => {
+      if (current.has(screen)) return current;
+      const next = new Set(current);
+      next.add(screen);
+      return next;
+    });
     setActiveScreen(screen);
   }, []);
   const navigateHome = useCallback(() => navigateToScreen('home'), [navigateToScreen]);
@@ -1055,6 +1069,19 @@ export default function HomeScreen() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (!hydrated || mountedShellScreens.has('game')) return;
+    const task = InteractionManager.runAfterInteractions(() => {
+      setMountedShellScreens((current) => {
+        if (current.has('game')) return current;
+        const next = new Set(current);
+        next.add('game');
+        return next;
+      });
+    });
+    return () => task.cancel();
+  }, [hydrated, mountedShellScreens]);
 
   useEffect(() => {
     if (
@@ -1621,19 +1648,16 @@ export default function HomeScreen() {
     </View>
   );
 
-  if (activeScreen !== 'game') {
-    return (
-      <View style={styles.screen}>
-        {persistentScreens}
-        {overlays}
-      </View>
-    );
-  }
-
   return (
     <View style={styles.screen}>
       {persistentScreens}
-      <BlurTargetView ref={blurTarget} style={styles.screen}>
+      {activeScreen === 'game' || mountedShellScreens.has('game') ? (
+      <BlurTargetView
+        accessibilityElementsHidden={activeScreen !== 'game'}
+        importantForAccessibility={activeScreen === 'game' ? 'auto' : 'no-hide-descendants'}
+        pointerEvents={activeScreen === 'game' ? 'auto' : 'none'}
+        ref={activeScreen === 'game' ? blurTarget : undefined}
+        style={[styles.gameScreenLayer, activeScreen !== 'game' && styles.gameScreenHidden]}>
         <Image
           contentFit="cover"
           source={GAME_SKY_BACKGROUND}
@@ -1671,6 +1695,7 @@ export default function HomeScreen() {
                 compactHeader && styles.headerSideCompact,
               ]}>
               <PulsingGems
+                active={activeScreen === 'game'}
                 compact={compactHeader}
                 count={gemCount}
                 measureRef={gemTargetRef}
@@ -1687,7 +1712,11 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <JourneyStrip level={displayedProgressLevel} levelData={levelData} />
+          <JourneyStrip
+            active={activeScreen === 'game'}
+            level={displayedProgressLevel}
+            levelData={levelData}
+          />
 
           <ScrollView
             automaticallyAdjustContentInsets={false}
@@ -1811,6 +1840,7 @@ export default function HomeScreen() {
         <Celebration visible={celebrating} />
         <DestinationTransition transition={destinationTransition} />
       </BlurTargetView>
+      ) : null}
       {overlays}
     </View>
   );
@@ -1822,6 +1852,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#73C7EE',
   },
   hiddenScreen: {
+    display: 'none',
+  },
+  gameScreenLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: '#73C7EE',
+  },
+  gameScreenHidden: {
     display: 'none',
   },
   backgroundImage: {
