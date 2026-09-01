@@ -19,8 +19,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ChallengeIntroModal,
   CountryCompletionModal,
-  PassportModal,
 } from '@/components/game/game-modals';
+import { PassportCollection } from '@/components/collection/passport-collection';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
 import { MainMenu, ProfileScreen } from '@/components/home/main-menu';
@@ -50,7 +50,7 @@ import { useBackgroundMusic } from '@/hooks/use-background-music';
 import { useGameSounds, type GameSound } from '@/hooks/use-game-sounds';
 
 type FeedbackTone = 'live' | 'success' | 'bonus' | 'info';
-type AppScreen = 'home' | 'game' | 'profile' | 'travel';
+type AppScreen = 'home' | 'game' | 'profile' | 'travel' | 'collection';
 
 type Feedback = {
   text: string;
@@ -894,7 +894,6 @@ export default function HomeScreen() {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [hintIndices, setHintIndices] = useState<number[]>([]);
   const [hintedTarget, setHintedTarget] = useState<number | null>(null);
-  const [passportVisible, setPassportVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [activeScreen, setActiveScreen] = useState<AppScreen>('home');
   const [effectsEnabled, setEffectsEnabled] = useState(true);
@@ -1031,7 +1030,6 @@ export default function HomeScreen() {
   useEffect(() => {
     if (
       activeScreen === 'home' ||
-      passportVisible ||
       settingsVisible ||
       challengeIntroVisible ||
       countryCompletionLevel !== null
@@ -1047,7 +1045,6 @@ export default function HomeScreen() {
     activeScreen,
     challengeIntroVisible,
     countryCompletionLevel,
-    passportVisible,
     settingsVisible,
   ]);
 
@@ -1477,12 +1474,6 @@ export default function HomeScreen() {
 
   const overlays = (
     <>
-      <PassportModal
-        blurTarget={blurTarget}
-        currentLevel={displayedProgressLevel}
-        onClose={() => setPassportVisible(false)}
-        visible={passportVisible}
-      />
       <SettingsModal
         blurTarget={blurTarget}
         effectsEnabled={effectsEnabled}
@@ -1518,7 +1509,7 @@ export default function HomeScreen() {
             currentLevel={displayedProgressLevel}
             gemCount={gemCount}
             levelData={levelData}
-            onOpenCollection={() => setPassportVisible(true)}
+            onOpenCollection={() => setActiveScreen('collection')}
             onOpenProfile={() => setActiveScreen('profile')}
             onOpenSettings={() => setSettingsVisible(true)}
             onOpenTravel={() => setActiveScreen('travel')}
@@ -1541,9 +1532,25 @@ export default function HomeScreen() {
             gemCount={gemCount}
             levelData={levelData}
             onBack={() => setActiveScreen('home')}
-            onOpenPassport={() => setPassportVisible(true)}
+            onOpenPassport={() => setActiveScreen('collection')}
             onPlay={openGame}
             score={score}
+          />
+        </BlurTargetView>
+        {overlays}
+      </View>
+    );
+  }
+
+  if (activeScreen === 'collection') {
+    return (
+      <View style={styles.screen}>
+        <BlurTargetView ref={blurTarget} style={styles.screen}>
+          <PassportCollection
+            currentLevel={displayedProgressLevel}
+            onHome={() => setActiveScreen('home')}
+            onMap={() => setActiveScreen('travel')}
+            onTasks={() => setActiveScreen('profile')}
           />
         </BlurTargetView>
         {overlays}
@@ -1560,7 +1567,7 @@ export default function HomeScreen() {
             levelData={levelData}
             onBack={() => setActiveScreen('home')}
             onContinue={openGame}
-            onOpenPassport={() => setPassportVisible(true)}
+            onOpenPassport={() => setActiveScreen('collection')}
             onOpenTasks={() => setActiveScreen('profile')}
           />
         </BlurTargetView>
