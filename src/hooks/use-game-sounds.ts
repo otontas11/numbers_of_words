@@ -1,10 +1,7 @@
-import {
-  setAudioModeAsync,
-  setIsAudioActiveAsync,
-  useAudioPlayer,
-  type AudioPlayer,
-} from 'expo-audio';
-import { useCallback, useEffect } from 'react';
+import { useAudioPlayer } from 'expo-audio';
+import { useCallback } from 'react';
+
+import { replayAudioPlayer } from '@/hooks/audio-session';
 
 export type GameSound =
   | 'select1'
@@ -26,34 +23,6 @@ const PLAYER_OPTIONS = {
   keepAudioSessionActive: true,
   updateInterval: 1000,
 } as const;
-
-function replay(player: AudioPlayer, volume = 1) {
-  try {
-    // `AudioPlayer.isLoaded` Android'de yalnız STATE_READY için true döner.
-    // Kısa bir efekt bittiğinde ExoPlayer STATE_ENDED durumuna geçer; eski
-    // erken dönüş bu yüzden aynı sesi sonraki seçimlerde tamamen susturuyordu.
-    // `play()` yükleme sürerken playWhenReady davranışı gösterdiğinden burada
-    // hazır olmayan ilk dokunuşu da düşürmemeliyiz.
-    player.volume = volume;
-    if (player.currentTime > 0.001) {
-      const seekResult = player.seekTo(0);
-      void Promise.resolve(seekResult)
-        .then(() => player.play())
-        .catch(() => {
-          // Seek köprüsü hata verse bile bir sonraki native play denemesini yap.
-          try {
-            player.play();
-          } catch {
-            // Bir efekt hatası oyunun dokunma akışını kesmemelidir.
-          }
-        });
-      return;
-    }
-    player.play();
-  } catch {
-    // Bir efekt hatası oyunun dokunma akışını kesmemelidir.
-  }
-}
 
 export function useGameSounds(enabled: boolean) {
   const selectOnePlayer = useAudioPlayer(
@@ -110,19 +79,6 @@ export function useGameSounds(enabled: boolean) {
     PLAYER_OPTIONS,
   );
 
-  useEffect(() => {
-    void (async () => {
-      await setAudioModeAsync({
-        interruptionMode: 'mixWithOthers',
-        playsInSilentMode: true,
-        shouldPlayInBackground: false,
-      });
-      // Fast Refresh veya native lifecycle sonrasında kapanmış olabilecek ses
-      // oturumunu oyun tekrar öne geldiğinde kesin olarak etkinleştir.
-      await setIsAudioActiveAsync(true);
-    })().catch(() => undefined);
-  }, []);
-
   return useCallback(
     (sound: GameSound, force = false) => {
       if (!enabled && !force) return;
@@ -159,7 +115,10 @@ export function useGameSounds(enabled: boolean) {
       if (!player) return;
 
       // Bölüm sonu konfetiyle birlikte kısa ve hafif bir kutlama sesi çal.
-      replay(player, sound === 'levelComplete' ? 0.35 : sound === 'points' ? 0.65 : 1);
+      replayAudioPlayer(
+        player,
+        sound === 'levelComplete' ? 0.35 : sound === 'points' ? 0.65 : 1,
+      );
     },
     [
       bonusPlayer,

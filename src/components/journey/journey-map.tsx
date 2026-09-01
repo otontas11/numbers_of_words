@@ -34,12 +34,14 @@ import {
   routeCountries,
   routeLeg,
   type TravelCountry,
+  type TravelLocation,
   type TravelRoute,
 } from '@/game/travel';
 
 const HERO_HEIGHT = 268;
 const WORLD_BACKGROUND = require('../../../assets/images/img/bg.png');
-type MapLayer = 'world' | 'route';
+const CITY_LOGO = require('../../../assets/images/img/number_of_wonders.png');
+type MapLayer = 'world' | 'route' | 'country';
 
 type JourneyMapProps = {
   level: number;
@@ -336,6 +338,86 @@ function CountryCard({
   );
 }
 
+function CityCard({
+  active,
+  country,
+  index,
+  level,
+  location,
+  onPress,
+}: {
+  active: boolean;
+  country: TravelCountry;
+  index: number;
+  level: number;
+  location: TravelLocation;
+  onPress: () => void;
+}) {
+  const progress = getLocationProgress(level, country, location);
+  const unlocked = isLocationUnlocked(level, country, location);
+  const complete = progress >= location.levelCount;
+  const currentStep = Math.min(3, Math.floor((progress / Math.max(1, location.levelCount)) * 3));
+
+  return (
+    <Entrance delay={index * 70}>
+      <Pressable
+        accessibilityLabel={`${location.name}, ${progress}/${location.levelCount} bölüm`}
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.cityCard,
+          active && styles.cityCardActive,
+          !unlocked && styles.cityCardLocked,
+          pressed && styles.pressed,
+        ]}>
+        <View style={styles.cityImageFrame}>
+          <Image
+            cachePolicy="memory-disk"
+            contentFit="cover"
+            source={{ uri: location.background }}
+            style={[StyleSheet.absoluteFill, styles.cityImage]}
+            transition={160}
+          />
+          {!unlocked ? <View style={styles.cityImageShade} /> : null}
+        </View>
+        <View style={styles.cityCardContent}>
+          <Text
+            adjustsFontSizeToFit
+            minimumFontScale={0.74}
+            numberOfLines={1}
+            style={[styles.cityName, !unlocked && styles.cityNameLocked]}>
+            {location.name}
+          </Text>
+          <View style={styles.cityProgressRow}>
+            <View style={styles.cityStageRail}>
+              {[0, 1, 2].map((step) => (
+                <Fragment key={step}>
+                  {step > 0 ? (
+                    <View style={[styles.cityStageLine, unlocked && step <= currentStep && styles.cityStageLineDone]} />
+                  ) : null}
+                  <View
+                    style={[
+                      styles.cityStageDot,
+                      unlocked && step < currentStep && styles.cityStageDotDone,
+                      unlocked && step === currentStep && !complete && styles.cityStageDotActive,
+                    ]}>
+                    <Text style={styles.cityStageDotText}>
+                      {unlocked && (step < currentStep || complete) ? '✓' : ''}
+                    </Text>
+                  </View>
+                </Fragment>
+              ))}
+            </View>
+            <View style={[styles.cityCompass, active && styles.cityCompassActive]}>
+              <Text style={styles.cityCompassText}>{unlocked ? '✥' : '🔒'}</Text>
+            </View>
+          </View>
+        </View>
+      </Pressable>
+    </Entrance>
+  );
+}
+
 function TravelConnector({
   active,
   index,
@@ -396,6 +478,7 @@ export function JourneyMap({
   const scrollRef = useRef<ScrollView>(null);
   const [layer, setLayer] = useState<MapLayer>('world');
   const [selectedRouteId, setSelectedRouteId] = useState(levelData.routeId);
+  const [selectedCountryId, setSelectedCountryId] = useState(levelData.countryId);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -405,6 +488,7 @@ export function JourneyMap({
   const activeRoute = ROUTE_BY_ID.get(levelData.routeId) ?? TRAVEL_ROUTES[0];
   const selectedRoute = ROUTE_BY_ID.get(selectedRouteId) ?? activeRoute;
   const activeCountry = COUNTRY_BY_ID.get(levelData.countryId) ?? WORLD_COUNTRIES[0];
+  const selectedCountry = COUNTRY_BY_ID.get(selectedCountryId) ?? activeCountry;
   const selectedRouteCountries = useMemo(() => routeCountries(selectedRoute), [selectedRoute]);
   const completedCountries = getCompletedCountryCount(level);
   const completedLevels = getCompletedWorldLevelCount(level);
@@ -419,6 +503,10 @@ export function JourneyMap({
   }, []);
 
   const goBack = () => {
+    if (layer === 'country') {
+      setLayer('route');
+      return;
+    }
     if (layer === 'route') {
       setLayer('world');
       return;
@@ -433,6 +521,11 @@ export function JourneyMap({
       return;
     }
     setSelectedRouteId(route.id);
+    if (route.id === activeRoute.id) {
+      setSelectedCountryId(activeCountry.id);
+      setLayer('country');
+      return;
+    }
     setLayer('route');
   };
 
@@ -441,14 +534,23 @@ export function JourneyMap({
       showNotice('Bu ülke seyahat rotasında henüz açılmadı');
       return;
     }
-    if (country.id === activeCountry.id) {
+    setSelectedCountryId(country.id);
+    setLayer('country');
+  };
+
+  const openLocation = (country: TravelCountry, location: TravelLocation) => {
+    if (!isLocationUnlocked(level, country, location)) {
+      showNotice('Önce bir önceki şehrin bölümlerini tamamla');
+      return;
+    }
+    if (country.id === activeCountry.id && location.id === levelData.locationId) {
       onContinue();
       return;
     }
     showNotice(
-      isCountryComplete(level, country.id)
-        ? `${country.country} tamamlandı ✓ • Mevcut yolculuk: ${activeCountry.country}`
-        : `Mevcut ülke: ${activeCountry.country}`,
+      getLocationProgress(level, country, location) >= location.levelCount
+        ? `${location.name} tamamlandı ✓`
+        : `Mevcut şehir: ${levelData.city}`,
     );
   };
 
@@ -474,6 +576,96 @@ export function JourneyMap({
     value: getCountryProgress(level, activeCountry.id),
     total: activeCountry.levelCount,
   };
+
+  if (layer === 'country') {
+    return (
+      <View style={styles.worldScreen}>
+        <Image
+          cachePolicy="memory-disk"
+          contentFit="cover"
+          source={WORLD_BACKGROUND}
+          style={StyleSheet.absoluteFill}
+        />
+        <LinearGradient
+          colors={['rgba(255,255,255,0.04)', 'rgba(255,255,255,0.12)', 'rgba(24,91,130,0.24)']}
+          locations={[0, 0.5, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+
+        <View style={[styles.cityHeader, { height: 250 + insets.top, paddingTop: insets.top + 7 }]}>
+          <View style={[styles.cityHeaderControls, { top: insets.top + 10 }]}>
+            <Pressable
+              accessibilityLabel="Rota listesine dön"
+              accessibilityRole="button"
+              onPress={goBack}
+              style={({ pressed }) => [styles.cityHeaderButton, pressed && styles.pressed]}>
+              <Text style={styles.cityBackText}>‹</Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Oyun ayarlarını aç"
+              accessibilityRole="button"
+              onPress={onOpenSettings}
+              style={({ pressed }) => [styles.cityHeaderButton, pressed && styles.pressed]}>
+              <Text style={styles.citySettingsText}>⚙</Text>
+            </Pressable>
+          </View>
+          <Image
+            cachePolicy="memory-disk"
+            contentFit="contain"
+            source={CITY_LOGO}
+            style={styles.cityLogo}
+          />
+          <View style={styles.countryPlaque}>
+            <Text style={styles.countryPlaqueSymbol}>{selectedCountry.flag}</Text>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}
+              numberOfLines={1}
+              style={styles.countryPlaqueTitle}>
+              {selectedCountry.country.toLocaleUpperCase('tr-TR')}
+            </Text>
+            <View style={styles.countryPlaqueSubtitleRow}>
+              <View style={styles.countryPlaqueLine} />
+              <Text style={styles.countryPlaqueSubtitle}>Şehirler</Text>
+              <View style={styles.countryPlaqueLine} />
+            </View>
+          </View>
+        </View>
+
+        <ScrollView
+          ref={scrollRef}
+          bounces={false}
+          contentContainerStyle={[styles.cityList, { paddingBottom: 116 + insets.bottom }]}
+          overScrollMode="never"
+          showsVerticalScrollIndicator={false}>
+          {selectedCountry.locations.map((location, index) => (
+            <CityCard
+              active={selectedCountry.id === activeCountry.id && location.id === levelData.locationId}
+              country={selectedCountry}
+              index={index}
+              key={location.id}
+              level={level}
+              location={location}
+              onPress={() => openLocation(selectedCountry, location)}
+            />
+          ))}
+        </ScrollView>
+
+        <AppFooter
+          activeItem="map"
+          onCollection={onOpenPassport}
+          onMap={goBack}
+          onPlay={onContinue}
+          onTasks={onOpenPassport}
+        />
+        {notice ? (
+          <View pointerEvents="none" style={[styles.notice, { top: insets.top + 72 }]}>
+            <Text style={styles.noticeText}>{notice}</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
 
   if (layer === 'world') {
     return (
@@ -661,6 +853,39 @@ export function JourneyMap({
 
 const styles = StyleSheet.create({
   worldScreen: { flex: 1, backgroundColor: '#78C9EF' },
+  cityHeader: { height: 260, alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 15 },
+  cityHeaderControls: { position: 'absolute', left: 12, right: 12, zIndex: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cityHeaderButton: { width: 43, height: 43, alignItems: 'center', justifyContent: 'center', borderRadius: 22, borderWidth: 1.8, borderColor: '#E3B553', backgroundColor: '#245A90', shadowColor: '#5C3D0E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.26, shadowRadius: 4, elevation: 5 },
+  cityBackText: { marginTop: -4, color: '#FFF4C7', fontFamily: FONTS.bold, fontSize: 34, lineHeight: 36 },
+  citySettingsText: { color: '#FFF4C7', fontSize: 24, lineHeight: 27 },
+  cityLogo: { width: 196, aspectRatio: 2.04, marginTop: 2 },
+  countryPlaque: { width: '82%', maxWidth: 400, minHeight: 116, marginTop: 4, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22, paddingVertical: 10, borderRadius: 25, borderWidth: 1.8, borderColor: '#D3A750', backgroundColor: 'rgba(255,253,249,0.96)', shadowColor: '#376178', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 7 },
+  countryPlaqueSymbol: { fontSize: 25, lineHeight: 30 },
+  countryPlaqueTitle: { marginTop: 1, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 25, letterSpacing: 1.2, fontWeight: '800', textAlign: 'center' },
+  countryPlaqueSubtitleRow: { width: '72%', marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
+  countryPlaqueLine: { flex: 1, height: 1, backgroundColor: '#D0A047' },
+  countryPlaqueSubtitle: { color: '#284C72', fontFamily: FONTS.semibold, fontSize: 13, fontWeight: '600' },
+  cityList: { width: '100%', maxWidth: 512, alignSelf: 'center', paddingHorizontal: 14, paddingTop: 7 },
+  cityCard: { minHeight: 160, marginBottom: 14, marginLeft: 16, padding: 10, paddingLeft: 142, justifyContent: 'center', borderRadius: 25, borderWidth: 1.8, borderColor: '#D3A750', backgroundColor: 'rgba(255,253,249,0.96)', shadowColor: '#356479', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.26, shadowRadius: 8, elevation: 7 },
+  cityCardActive: { borderWidth: 2.4, borderColor: '#F0C34F', shadowColor: '#EAB739', shadowOpacity: 0.52, shadowRadius: 10, elevation: 9 },
+  cityCardLocked: { borderColor: '#BFC4C7', backgroundColor: 'rgba(246,246,244,0.95)' },
+  cityImageFrame: { position: 'absolute', left: -16, top: 7, width: 142, height: 142, borderRadius: 71, borderWidth: 2.3, borderColor: '#C58C29', backgroundColor: '#C8E8F2', shadowColor: '#6E4D18', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.26, shadowRadius: 5, elevation: 6 },
+  cityImage: { borderRadius: 71 },
+  cityImageShade: { ...StyleSheet.absoluteFill, borderRadius: 71, backgroundColor: 'rgba(230,232,231,0.58)' },
+  cityCardContent: { minHeight: 112, justifyContent: 'center', paddingLeft: 8 },
+  cityName: { color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 24, fontWeight: '800' },
+  cityNameLocked: { color: '#7A7E81' },
+  cityProgressRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cityStageRail: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  cityStageLine: { flex: 1, height: 1.5, backgroundColor: '#B9B9B4' },
+  cityStageLineDone: { backgroundColor: '#C79530' },
+  cityStageDot: { width: 25, height: 25, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1.4, borderColor: '#C9A154', backgroundColor: '#FAF9F4' },
+  cityStageDotDone: { borderColor: '#E1B550', backgroundColor: '#1D5A91' },
+  cityStageDotActive: { borderWidth: 2.4, borderColor: '#EBC04E', backgroundColor: '#39A9E6', shadowColor: '#36B9F1', shadowOpacity: 0.8, shadowRadius: 6, elevation: 4 },
+  cityStageDotText: { color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 12, lineHeight: 14, fontWeight: '700' },
+  cityCompass: { width: 43, height: 43, alignItems: 'center', justifyContent: 'center', borderRadius: 22, borderWidth: 1.6, borderColor: '#5F7188', backgroundColor: '#FBFAF5' },
+  cityCompassActive: { borderColor: '#D39B2C', backgroundColor: '#FFF3C7' },
+  cityCompassText: { color: '#244C76', fontFamily: FONTS.extraBold, fontSize: 22, fontWeight: '800' },
   worldHeader: { height: 292, alignItems: 'center', paddingHorizontal: 14 },
   worldHeaderCompact: { height: 244 },
   worldTopBar: { width: '100%', maxWidth: 512, height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 9 },

@@ -1,5 +1,8 @@
 import { useAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
+
+import { ensureAudioSessionActive } from '@/hooks/audio-session';
 
 const MUSIC_SOURCE = require('../../assets/sounds/journey.mp3');
 
@@ -25,10 +28,38 @@ export function useBackgroundMusic(enabled: boolean, volume: number) {
   });
 
   useEffect(() => {
-    try {
-      syncBackgroundPlayer(player, enabled, volume);
-    } catch {
-      // Arka plan müziği oyunun etkileşim akışını hiçbir zaman kesmemelidir.
-    }
+    let cancelled = false;
+
+    const sync = () => {
+      if (!enabled) {
+        try {
+          syncBackgroundPlayer(player, false, volume);
+        } catch {
+          // Arka plan müziği oyunun etkileşim akışını hiçbir zaman kesmemelidir.
+        }
+        return;
+      }
+
+      void ensureAudioSessionActive()
+        .catch(() => undefined)
+        .then(() => {
+          if (cancelled) return;
+          try {
+            syncBackgroundPlayer(player, true, volume);
+          } catch {
+            // Arka plan müziği oyunun etkileşim akışını hiçbir zaman kesmemelidir.
+          }
+        });
+    };
+
+    sync();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') sync();
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
   }, [enabled, player, volume]);
 }
