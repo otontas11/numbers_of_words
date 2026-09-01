@@ -7,11 +7,8 @@ import { SoundPressable as Pressable } from '@/components/common/sound-pressable
 import { FONTS } from '@/constants/fonts';
 import {
   WORLD_COUNTRIES,
-  ROUTE_BY_ID,
-  getCountryProgress,
   getTravelLevelCompletion,
   isCountryComplete,
-  isCountryUnlocked,
   resolveTravelLevel,
 } from '@/game/travel';
 
@@ -98,65 +95,49 @@ export function PassportModal({
   blurTarget: RefObject<View | null>;
   onClose: () => void;
 }) {
+  const earnedCountries = WORLD_COUNTRIES.filter((country) =>
+    isCountryComplete(currentLevel, country.id),
+  );
+
   return (
     <GameModal
       blurTarget={blurTarget}
       footer={
         <Text style={styles.footerText}>
-          Her ülkenin 3 destinasyonu ve Country Challenge&apos;ı tamamlandığında pasaporta
-          vize pulu basılır. Dünya hedefi: 100/100.
+          Her ülkenin 3 destinasyonu ve Country Challenge&apos;ı tamamlandığında yeni bir
+          pasaport kazanılır. Koleksiyon: {earnedCountries.length}/100.
         </Text>
       }
       icon="📘"
       onClose={onClose}
-      subtitle="Kazanılan Ülke Vize Pulları"
-      title="Dünya Seyahat Pasaportu"
+      subtitle={`${earnedCountries.length}/100 kazanılmış pasaport`}
+      title="Pasaport Koleksiyonu"
       visible={visible}>
       <View style={styles.stampGrid}>
-        {WORLD_COUNTRIES.map((country, index) => {
-          const complete = isCountryComplete(currentLevel, country.id);
-          const available = isCountryUnlocked(currentLevel, country.id);
-          const progress = getCountryProgress(currentLevel, country.id);
-          if (complete) {
-            return (
-              <View key={country.country} style={[styles.stamp, styles.stampUnlocked]}>
-                <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
-                  <Defs>
-                    <RadialGradient id={`stamp-${index}`} r="72%">
-                      <Stop offset="0%" stopColor="#FEF3C7" />
-                      <Stop offset="100%" stopColor="#F59E0B" />
-                    </RadialGradient>
-                  </Defs>
-                  <Rect
-                    fill={`url(#stamp-${index})`}
-                    height="100%"
-                    rx={24}
-                    width="100%"
-                  />
-                </Svg>
-                <Text style={styles.stampEmoji}>{country.flag}</Text>
-                <Text style={styles.stampCountry}>{country.country}</Text>
-                <Text style={styles.stampStatus}>VİZE ONAYLANDI ✓</Text>
-              </View>
-            );
-          }
-
-          return (
-            <View
-              key={country.country}
-              style={[styles.stamp, available ? styles.stampCurrent : styles.stampLocked]}>
-              <Text style={styles.stampEmoji}>{available ? country.flag : '🔒'}</Text>
-              <Text style={[styles.stampCountry, !available && styles.lockedText]}>
-                {country.country}
-              </Text>
-              <Text style={[styles.stampStatus, !available && styles.lockedText]}>
-                {available
-                  ? `${progress}/20 • MEVCUT ÜLKE`
-                  : `ROTA ${ROUTE_BY_ID.get(country.primaryRouteId)?.order ?? '—'} • KİLİTLİ`}
-              </Text>
-            </View>
-          );
-        })}
+        {earnedCountries.length === 0 ? (
+          <View style={styles.emptyPassportCollection}>
+            <Text style={styles.emptyPassportIcon}>📘</Text>
+            <Text style={styles.emptyPassportTitle}>Henüz pasaport kazanılmadı</Text>
+            <Text style={styles.emptyPassportText}>
+              Bir ülkenin tüm bölümlerini tamamladığında ilk pasaportun burada yer alacak.
+            </Text>
+          </View>
+        ) : earnedCountries.map((country, index) => (
+          <View key={country.country} style={[styles.stamp, styles.stampUnlocked]}>
+            <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
+              <Defs>
+                <RadialGradient id={`stamp-${index}`} r="72%">
+                  <Stop offset="0%" stopColor="#FEF3C7" />
+                  <Stop offset="100%" stopColor="#F59E0B" />
+                </RadialGradient>
+              </Defs>
+              <Rect fill={`url(#stamp-${index})`} height="100%" rx={24} width="100%" />
+            </Svg>
+            <Text style={styles.stampEmoji}>{country.flag}</Text>
+            <Text style={styles.stampCountry}>{country.country}</Text>
+            <Text style={styles.stampStatus}>PASAPORT KAZANILDI ✓</Text>
+          </View>
+        ))}
       </View>
     </GameModal>
   );
@@ -647,6 +628,34 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     rowGap: 16,
+  },
+  emptyPassportCollection: {
+    width: '100%',
+    minHeight: 210,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#111C31',
+  },
+  emptyPassportIcon: { fontSize: 46 },
+  emptyPassportTitle: {
+    marginTop: 12,
+    color: '#F8FAFC',
+    fontFamily: FONTS.extraBold,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  emptyPassportText: {
+    marginTop: 7,
+    color: '#94A3B8',
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    lineHeight: 17,
+    textAlign: 'center',
   },
   stamp: {
     width: '47.5%',

@@ -13,12 +13,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FONTS } from '@/constants/fonts';
+import { AppFooter } from '@/components/common/app-footer';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import type { LevelData } from '@/game/levels';
 import {
   COUNTRY_BY_ID,
   ROUTE_BY_ID,
-  TOTAL_DESTINATIONS,
   TOTAL_WORLD_LEVELS,
   TRAVEL_ROUTES,
   WORLD_COUNTRIES,
@@ -26,7 +26,6 @@ import {
   getCompletedWorldLevelCount,
   getCountryProgress,
   getLocationProgress,
-  getRouteProgress,
   isCountryComplete,
   isCountryUnlocked,
   isLocationUnlocked,
@@ -39,7 +38,7 @@ import {
 } from '@/game/travel';
 
 const HERO_HEIGHT = 268;
-const WORLD_MAP_IMAGE = require('../../../assets/images/world-tour-map.png');
+const WORLD_BACKGROUND = require('../../../assets/images/img/bg.png');
 type MapLayer = 'world' | 'route';
 
 type JourneyMapProps = {
@@ -138,60 +137,87 @@ function RouteCard({
   onPress: () => void;
   route: TravelRoute;
 }) {
-  const progress = getRouteProgress(level, route);
+  const countries = routeCountries(route);
+  const progress = countries.reduce((sum, country) => sum + getCountryProgress(level, country.id), 0);
+  const total = countries.reduce((sum, country) => sum + country.levelCount, 0);
   const unlocked = isRouteUnlocked(level, route);
   const complete = isRouteComplete(level, route);
+  const currentStep = Math.min(4, Math.floor((progress / Math.max(1, total)) * 5));
 
   return (
     <Entrance delay={index * 42}>
       <Pressable
-        accessibilityLabel={`${route.name}, ${progress}/${route.countryIds.length} ülke`}
+        accessibilityLabel={`${route.name}, ${progress}/${total} bölüm`}
         accessibilityRole="button"
         onPress={onPress}
         style={({ pressed }) => [
-          styles.routeCard,
-          index % 2 === 0 ? styles.cardLeft : styles.cardRight,
-          active && styles.cardGlow,
+          styles.worldRouteCard,
+          active && styles.worldRouteCardActive,
+          !unlocked && styles.worldRouteCardLocked,
           pressed && styles.pressed,
         ]}>
-        <Image
-          cachePolicy="memory-disk"
-          contentFit="cover"
-          source={{ uri: route.background }}
-          style={StyleSheet.absoluteFill}
-          transition={160}
-        />
-        <LinearGradient
-          colors={['rgba(11,18,26,0.10)', 'rgba(19,27,38,0.94)']}
-          locations={[0.08, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-        {!unlocked ? <View style={styles.lockedOverlay} /> : null}
-        <View style={styles.cardContent}>
-          <View style={styles.cardTopRow}>
-            <View style={styles.numberChip}>
-              <Text style={styles.numberChipText}>ROTA {String(route.order).padStart(2, '0')}</Text>
-            </View>
-            <StateChip
-              active={active}
-              complete={complete}
-              label={active ? 'MEVCUT ROTA' : 'AÇIK'}
-              unlocked={unlocked}
-            />
+        <View style={styles.worldRouteImageFrame}>
+          <Image
+            cachePolicy="memory-disk"
+            contentFit="cover"
+            source={{ uri: route.background }}
+            style={[StyleSheet.absoluteFill, styles.worldRouteImage]}
+            transition={160}
+          />
+          {!unlocked ? <View style={styles.worldRouteImageShade} /> : null}
+          <View style={styles.worldRouteNumber}>
+            <Text style={styles.worldRouteNumberText}>{route.order}</Text>
           </View>
-          <View style={styles.cardSpacer} />
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={styles.routeName}>
-            {route.emoji} {route.name}
-          </Text>
-          <Text numberOfLines={1} style={styles.cardCaption}>
-            {route.countryIds.length} ülke • Zorluk {route.difficulty}/14
-          </Text>
-          <ProgressBar progress={progress} total={route.countryIds.length} />
-          <Text numberOfLines={1} style={styles.cardFooterText}>
-            {progress}/{route.countryIds.length} ülke • {route.theme}
-          </Text>
         </View>
-        <View style={[styles.cardBorder, active && styles.activeBorder]} />
+
+        <View style={styles.worldRouteContent}>
+          <View style={styles.worldRouteTitleRow}>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}
+              numberOfLines={1}
+              style={[styles.worldRouteName, !unlocked && styles.worldRouteTextLocked]}>
+              {route.name}
+            </Text>
+            {unlocked ? (
+              <Text style={styles.worldRouteCount}>{progress}/{total}</Text>
+            ) : (
+              <View style={styles.worldLockBadge}>
+                <Text style={styles.worldLockIcon}>♙</Text>
+                <Text style={styles.worldLockText}>KİLİTLİ</Text>
+              </View>
+            )}
+          </View>
+          <Text numberOfLines={1} style={[styles.worldRouteCaption, !unlocked && styles.worldRouteTextLocked]}>
+            {route.theme}.
+          </Text>
+          <View style={styles.worldRouteFooter}>
+            <View style={styles.worldStageRail}>
+              {[0, 1, 2, 3, 4].map((step) => (
+                <Fragment key={step}>
+                  {step > 0 ? (
+                    <View style={[styles.worldStageLine, unlocked && step <= currentStep && styles.worldStageLineDone]} />
+                  ) : null}
+                  <View
+                    style={[
+                      styles.worldStageDot,
+                      unlocked && step < currentStep && styles.worldStageDotDone,
+                      unlocked && step === currentStep && !complete && styles.worldStageDotActive,
+                    ]}>
+                    <Text style={styles.worldStageDotText}>
+                      {unlocked && (step < currentStep || complete) ? '✓' : step === 4 ? '✥' : ''}
+                    </Text>
+                  </View>
+                </Fragment>
+              ))}
+            </View>
+            {active && !complete ? (
+              <LinearGradient colors={['#FFF3A7', '#EAAF35', '#C27B13']} style={styles.worldContinueButton}>
+                <Text style={styles.worldContinueText}>DEVAM ET</Text>
+              </LinearGradient>
+            ) : null}
+          </View>
+        </View>
       </Pressable>
     </Entrance>
   );
@@ -449,12 +475,65 @@ export function JourneyMap({
     total: activeCountry.levelCount,
   };
 
+  if (layer === 'world') {
+    return (
+      <View style={styles.worldScreen}>
+        <Image
+          cachePolicy="memory-disk"
+          contentFit="cover"
+          source={WORLD_BACKGROUND}
+          style={StyleSheet.absoluteFill}
+        />
+        <LinearGradient
+          colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.18)', 'rgba(17,77,121,0.28)']}
+          locations={[0, 0.48, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+
+        <ScrollView
+          ref={scrollRef}
+          bounces={false}
+          contentContainerStyle={[
+            styles.worldList,
+            { paddingTop: insets.top + 14, paddingBottom: 116 + insets.bottom },
+          ]}
+          overScrollMode="never"
+          showsVerticalScrollIndicator={false}>
+          {TRAVEL_ROUTES.map((route, index) => (
+            <RouteCard
+              active={route.id === activeRoute.id}
+              index={index}
+              key={route.id}
+              level={level}
+              onPress={() => openRoute(route)}
+              route={route}
+            />
+          ))}
+        </ScrollView>
+
+        <AppFooter
+          activeItem="map"
+          onCollection={onOpenPassport}
+          onMap={() => {}}
+          onPlay={onContinue}
+          onTasks={onOpenPassport}
+        />
+
+        {notice ? (
+          <View pointerEvents="none" style={[styles.notice, { top: insets.top + 72 }]}>
+            <Text style={styles.noticeText}>{notice}</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
   return (
     <LinearGradient colors={['#FBF7EE', '#F3E7D3', '#E7D3B4']} style={styles.screen}>
       <ScrollView
         ref={scrollRef}
         bounces={false}
-        contentContainerStyle={{ paddingBottom: 28 + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: 116 + insets.bottom }}
         overScrollMode="never"
         showsVerticalScrollIndicator={false}>
         <View style={[styles.mapCanvas, { width: mapWidth }]}>
@@ -462,7 +541,7 @@ export function JourneyMap({
             <Image
               cachePolicy="memory-disk"
               contentFit="cover"
-              source={layer === 'world' ? WORLD_MAP_IMAGE : { uri: heroBackground }}
+              source={{ uri: heroBackground }}
               style={StyleSheet.absoluteFill}
               transition={160}
             />
@@ -474,7 +553,7 @@ export function JourneyMap({
             <View style={[styles.heroControls, { top: insets.top + 14 }]}>
               <View style={styles.heroControlGroup}>
                 <Pressable
-                  accessibilityLabel={layer === 'world' ? 'Ana sayfaya dön' : 'Dünya rotalarına dön'}
+                  accessibilityLabel="Dünya rotalarına dön"
                   accessibilityRole="button"
                   onPress={goBack}
                   style={({ pressed }) => [styles.heroRoundControl, pressed && styles.pressed]}>
@@ -533,31 +612,16 @@ export function JourneyMap({
 
           <View style={styles.headingRow}>
             <View style={styles.headingCopy}>
-              <Text style={styles.heading}>
-                {layer === 'world' ? 'DÜNYA ROTALARI' : 'ÜLKE ROTASI'}
-              </Text>
+              <Text style={styles.heading}>ÜLKE ROTASI</Text>
               <Text style={styles.headingCaption}>
-                {layer === 'world'
-                  ? `14 rota • 100 ülke • ${TOTAL_DESTINATIONS} destinasyon`
-                  : `${selectedRoute.countryIds.length} ülke • ${selectedRoute.countryIds.length * 20} puzzle`}
+                {selectedRoute.countryIds.length} ülke • {selectedRoute.countryIds.length * 20} puzzle
               </Text>
             </View>
             <Text style={styles.compass}>🧭</Text>
           </View>
 
           <View style={styles.list}>
-            {layer === 'world'
-              ? TRAVEL_ROUTES.map((route, index) => (
-                  <RouteCard
-                    active={route.id === activeRoute.id}
-                    index={index}
-                    key={route.id}
-                    level={level}
-                    onPress={() => openRoute(route)}
-                    route={route}
-                  />
-                ))
-              : selectedRouteCountries.map((country, index) => (
+            {selectedRouteCountries.map((country, index) => (
                   <View key={country.id}>
                     {index > 0 ? (
                       <TravelConnector
@@ -584,11 +648,74 @@ export function JourneyMap({
           <Text style={styles.noticeText}>{notice}</Text>
         </View>
       ) : null}
+      <AppFooter
+        activeItem="map"
+        onCollection={onOpenPassport}
+        onMap={goBack}
+        onPlay={onContinue}
+        onTasks={onOpenPassport}
+      />
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  worldScreen: { flex: 1, backgroundColor: '#78C9EF' },
+  worldHeader: { height: 292, alignItems: 'center', paddingHorizontal: 14 },
+  worldHeaderCompact: { height: 244 },
+  worldTopBar: { width: '100%', maxWidth: 512, height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 9 },
+  worldStats: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  topStatPill: { flex: 1, maxWidth: 132, height: 46, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 23, borderWidth: 1.7, borderColor: '#EAC563', backgroundColor: 'rgba(22,64,106,0.94)', shadowColor: '#62400F', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
+  topStatIcon: { width: 29, color: '#F9C547', fontFamily: FONTS.extraBold, fontSize: 22, fontWeight: '800', textAlign: 'center' },
+  topStatCopy: { flex: 1, minWidth: 0 },
+  topStatLabel: { color: '#EACB82', fontFamily: FONTS.bold, fontSize: 6.5, lineHeight: 8, letterSpacing: 0.6, fontWeight: '700' },
+  topStatValue: { color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 13, lineHeight: 17, fontWeight: '800' },
+  topStatPlus: { width: 23, height: 23, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1.6, borderColor: '#EFC862', backgroundColor: '#174676' },
+  topStatPlusText: { marginTop: -2, color: '#FFF5C9', fontFamily: FONTS.extraBold, fontSize: 20, lineHeight: 21, fontWeight: '800' },
+  worldSettings: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, borderWidth: 2, borderColor: '#E8C15A', backgroundColor: '#245A90', shadowColor: '#62400F', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
+  worldSettingsText: { color: '#FFF3C2', fontSize: 26, lineHeight: 29 },
+  worldLogo: { width: 252, aspectRatio: 2.04, marginTop: 7 },
+  worldLogoCompact: { width: 194, marginTop: 0 },
+  worldTitleRow: { width: '100%', maxWidth: 470, marginTop: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  worldTitleLine: { flex: 1, maxWidth: 58, height: 1.3, alignItems: 'flex-end', justifyContent: 'center', backgroundColor: '#D39B2B' },
+  worldTitleDiamond: { width: 8, height: 8, marginRight: -4, borderWidth: 1.2, borderColor: '#D39B2B', backgroundColor: '#B7E9FA', transform: [{ rotate: '45deg' }] },
+  worldTitle: { color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 28, letterSpacing: 1.1, fontWeight: '800', textAlign: 'center', textShadowColor: 'rgba(255,255,255,0.72)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  worldTitleCompact: { fontSize: 22 },
+  worldDiscovery: { marginTop: 3, color: '#32648C', fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.4, fontWeight: '700' },
+  worldList: { width: '100%', maxWidth: 512, alignSelf: 'center', paddingHorizontal: 14, paddingTop: 5 },
+  worldRouteCard: { minHeight: 148, marginBottom: 10, padding: 11, flexDirection: 'row', alignItems: 'center', borderRadius: 25, borderWidth: 1.7, borderColor: '#D6B25B', backgroundColor: 'rgba(255,253,249,0.96)', shadowColor: '#2D6178', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.24, shadowRadius: 8, elevation: 6 },
+  worldRouteCardActive: { borderWidth: 2.4, borderColor: '#F0C54E', shadowColor: '#EAB738', shadowOpacity: 0.58, shadowRadius: 11, elevation: 9 },
+  worldRouteCardLocked: { borderColor: '#C7C7C2', backgroundColor: 'rgba(248,248,246,0.94)' },
+  worldRouteImageFrame: { width: 110, height: 110, borderRadius: 55, borderWidth: 2.2, borderColor: '#C28B2C', backgroundColor: '#CFE8F0', shadowColor: '#73511B', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.24, shadowRadius: 4, elevation: 4 },
+  worldRouteImage: { borderRadius: 55 },
+  worldRouteImageShade: { ...StyleSheet.absoluteFill, borderRadius: 55, backgroundColor: 'rgba(230,231,229,0.56)' },
+  worldRouteNumber: { position: 'absolute', top: -10, left: -7, width: 37, height: 37, alignItems: 'center', justifyContent: 'center', borderRadius: 19, borderWidth: 2, borderColor: '#E5BA54', backgroundColor: '#1D5387', shadowColor: '#5B3B0C', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.24, shadowRadius: 3, elevation: 4 },
+  worldRouteNumberText: { color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 17, fontWeight: '800' },
+  worldRouteContent: { flex: 1, minWidth: 0, alignSelf: 'stretch', justifyContent: 'center', paddingLeft: 14 },
+  worldRouteTitleRow: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  worldRouteName: { flex: 1, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 18, fontWeight: '800' },
+  worldRouteCount: { color: '#1D5790', fontFamily: FONTS.extraBold, fontSize: 16, fontWeight: '800' },
+  worldRouteCaption: { color: '#5E6267', fontFamily: FONTS.medium, fontSize: 9.5, lineHeight: 14 },
+  worldRouteTextLocked: { color: '#777B7F' },
+  worldLockBadge: { minWidth: 48, alignItems: 'center' },
+  worldLockIcon: { color: '#8A8C8E', fontSize: 22, lineHeight: 24 },
+  worldLockText: { marginTop: 1, color: '#77797A', fontFamily: FONTS.bold, fontSize: 8, fontWeight: '700' },
+  worldRouteFooter: { marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  worldStageRail: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  worldStageLine: { flex: 1, height: 1.5, backgroundColor: '#ADB2B7' },
+  worldStageLineDone: { backgroundColor: '#C99932' },
+  worldStageDot: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1.3, borderColor: '#B4B8BC', backgroundColor: '#F1F2F2' },
+  worldStageDotDone: { borderColor: '#D0A13B', backgroundColor: '#1E5B91' },
+  worldStageDotActive: { borderWidth: 2.5, borderColor: '#EAC151', backgroundColor: '#38A7E5', shadowColor: '#31B7F3', shadowOpacity: 0.85, shadowRadius: 6, elevation: 4 },
+  worldStageDotText: { color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 9, lineHeight: 11, fontWeight: '700' },
+  worldContinueButton: { minWidth: 78, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, borderWidth: 1, borderColor: '#C8891B', shadowColor: '#A46B0E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
+  worldContinueText: { color: '#71430B', fontFamily: FONTS.extraBold, fontSize: 10, fontWeight: '800' },
+  worldBottomBar: { position: 'absolute', left: 10, right: 10, bottom: 0, minHeight: 91, paddingTop: 9, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around', borderTopLeftRadius: 34, borderTopRightRadius: 34, borderWidth: 1.5, borderBottomWidth: 0, borderColor: '#E4BD59', shadowColor: '#143350', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 12 },
+  worldNavAction: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
+  worldNavIcon: { color: '#D9E1EB', fontFamily: FONTS.extraBold, fontSize: 29, lineHeight: 34, fontWeight: '800' },
+  worldNavIconActive: { color: '#F5C64F', textShadowColor: '#FFE9A1', textShadowRadius: 5 },
+  worldNavLabel: { marginTop: 3, color: '#9CADC1', fontFamily: FONTS.extraBold, fontSize: 9, letterSpacing: 0.4, fontWeight: '800', textAlign: 'center' },
+  worldNavLabelActive: { color: '#F7D56D' },
   screen: { flex: 1 },
   mapCanvas: { maxWidth: 512, alignSelf: 'center' },
   hero: { width: '100%', overflow: 'hidden', backgroundColor: '#253245' },

@@ -1518,6 +1518,7 @@ export default function HomeScreen() {
             currentLevel={displayedProgressLevel}
             gemCount={gemCount}
             levelData={levelData}
+            onOpenCollection={() => setPassportVisible(true)}
             onOpenProfile={() => setActiveScreen('profile')}
             onOpenSettings={() => setSettingsVisible(true)}
             onOpenTravel={() => setActiveScreen('travel')}

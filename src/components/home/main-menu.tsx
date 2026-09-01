@@ -10,9 +10,10 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FONTS } from '@/constants/fonts';
+import { AppFooter } from '@/components/common/app-footer';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import type { LevelData } from '@/game/levels';
 import {
@@ -32,38 +33,12 @@ type MainMenuProps = {
   gemCount: number;
   levelData: LevelData;
   score: number;
+  onOpenCollection: () => void;
   onOpenProfile: () => void;
   onOpenSettings: () => void;
   onOpenTravel: () => void;
   onPlay: () => void;
 };
-
-function RoundAction({
-  accessibilityLabel,
-  icon,
-  label,
-  onPress,
-}: {
-  accessibilityLabel: string;
-  icon: string;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.bottomAction, pressed && styles.pressed]}>
-      <LinearGradient
-        colors={['#FFFDF9', '#F6EEE3']}
-        style={styles.bottomActionIcon}>
-        <Text style={styles.bottomActionEmoji}>{icon}</Text>
-      </LinearGradient>
-      <Text style={styles.bottomActionLabel}>{label}</Text>
-    </Pressable>
-  );
-}
 
 function ResourcePill({
   accessibilityLabel,
@@ -109,13 +84,13 @@ export function MainMenu({
   gemCount,
   levelData,
   score,
+  onOpenCollection,
   onOpenProfile,
   onOpenSettings,
   onOpenTravel,
   onPlay,
 }: MainMenuProps) {
   const [pulse] = useState(() => new Animated.Value(0));
-  const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const compact = height < 760;
   const country = COUNTRY_BY_ID.get(levelData.countryId);
@@ -193,7 +168,7 @@ export function MainMenu({
           </Pressable>
         </View>
 
-        <View style={styles.homeContent}>
+        <View style={[styles.homeContent, compact && styles.homeContentCompact]}>
           <View style={[styles.brandBlock, compact && styles.brandBlockCompact]} pointerEvents="none">
             <Image
               cachePolicy="memory-disk"
@@ -291,38 +266,13 @@ export function MainMenu({
           </Pressable>
         </View>
 
-        <View
-          style={[
-            styles.bottomBar,
-            compact && styles.bottomBarCompact,
-            { paddingBottom: Math.max(2, insets.bottom * 0.12) },
-          ]}>
-          <RoundAction
-            accessibilityLabel="Seyahat haritasını aç"
-            icon="✥"
-            label="HARİTA"
-            onPress={onOpenTravel}
-          />
-          <RoundAction
-            accessibilityLabel="Oyuna devam et"
-            icon="⚔"
-            label="OYNA"
-            onPress={onPlay}
-          />
-          <RoundAction
-            accessibilityLabel="Koleksiyonu aç"
-            icon="▣"
-            label="KOLEKSİYON"
-            onPress={onOpenProfile}
-          />
-          <RoundAction
-            accessibilityLabel="Görevleri aç"
-            icon="▤"
-            label="GÖREVLER"
-            onPress={onOpenProfile}
-          />
-        </View>
       </SafeAreaView>
+      <AppFooter
+        onCollection={onOpenCollection}
+        onMap={onOpenTravel}
+        onPlay={onPlay}
+        onTasks={onOpenProfile}
+      />
     </View>
   );
 }
@@ -518,7 +468,8 @@ const styles = StyleSheet.create({
   },
   settingsButtonCompact: { width: 40, height: 40, borderRadius: 20 },
   settingsIcon: { color: '#FFF4CC', fontSize: 26, lineHeight: 29 },
-  homeContent: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 12 },
+  homeContent: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 112 },
+  homeContentCompact: { paddingBottom: 92 },
   brandBlock: { width: '100%', alignItems: 'center', justifyContent: 'center' },
   brandBlockCompact: { marginTop: -4 },
   brandLogo: { width: '78%', maxWidth: 410, aspectRatio: 2.04 },
@@ -558,12 +509,6 @@ const styles = StyleSheet.create({
   countryImage: { borderRadius: 999 },
   mapPin: { position: 'absolute', top: -17, left: '50%', width: 24, height: 30, marginLeft: -12, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 3, borderRadius: 13, borderWidth: 2, borderColor: '#B67A16', backgroundColor: '#F4B739', transform: [{ rotate: '45deg' }] },
   mapPinDot: { color: '#FFF8DA', fontSize: 10, lineHeight: 12, transform: [{ rotate: '-45deg' }] },
-  bottomBar: { height: 101, marginHorizontal: 5, marginBottom: 2, paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
-  bottomBarCompact: { height: 82 },
-  bottomAction: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
-  bottomActionIcon: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 29, borderWidth: 1.8, borderColor: '#E1B55B', shadowColor: '#7A684E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 5, elevation: 4 },
-  bottomActionEmoji: { color: '#255A8C', fontFamily: FONTS.extraBold, fontSize: 28, fontWeight: '800' },
-  bottomActionLabel: { marginTop: 6, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 9, letterSpacing: 0.2, fontWeight: '800', textAlign: 'center' },
   pressed: { opacity: 0.78, transform: [{ scale: 0.95 }] },
 
   profileScreen: { flex: 1 },
