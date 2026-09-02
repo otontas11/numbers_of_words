@@ -6,6 +6,7 @@ import { PIConfetti } from 'react-native-fast-confetti';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import {
   Animated,
+  AppState,
   BackHandler,
   Easing,
   InteractionManager,
@@ -31,6 +32,16 @@ import { JourneyMap } from '@/components/journey/journey-map';
 import { countryContentImageUrl } from '@/constants/content-images';
 import { FONTS } from '@/constants/fonts';
 import {
+  ACTIVITY_IDLE_TIMEOUT_MS,
+  HINT_REWARD_AMOUNT,
+  INITIAL_HINT_CREDITS,
+  appendPerformance,
+  ratePuzzlePerformance,
+  recommendDifficultyModifier,
+  type DifficultyModifier,
+  type PuzzlePerformance,
+} from '@/game/adaptive-difficulty';
+import {
   computeResult,
   findSolutionIndices,
   getBonusGemReward,
@@ -53,6 +64,7 @@ import {
   getLocationProgress,
   getTravelLevelCompletion,
   isPassportEarned,
+  resolveTravelLevel,
 } from '@/game/travel';
 import { useBackgroundMusic } from '@/hooks/use-background-music';
 import { useContentImageVersion } from '@/hooks/use-content-image-cache';
@@ -94,6 +106,10 @@ type ResultFlight = {
   fromY: number;
   toX: number;
   toY: number;
+};
+
+type PuzzleActivity = PuzzlePerformance & {
+  lastInteractionAt: number | null;
 };
 
 type DestinationTransitionState = {
@@ -935,6 +951,15 @@ export default function HomeScreen() {
   const [bonusSolved, setBonusSolved] = useState(false);
   const [bonusCount, setBonusCount] = useState(0);
   const [gemCount, setGemCount] = useState(0);
+  const [hintCredits, setHintCredits] = useState(INITIAL_HINT_CREDITS);
+  const [rewardedRouteIds, setRewardedRouteIds] = useState<Set<string>>(() => new Set());
+  const [performanceHistory, setPerformanceHistory] = useState<PuzzlePerformance[]>([]);
+  const [cityDifficultyModifier, setCityDifficultyModifier] =
+    useState<DifficultyModifier>(0);
+  const [cityDifficultyLocationId, setCityDifficultyLocationId] = useState(
+    () => levelData.locationId,
+  );
+  const [consecutiveStruggles, setConsecutiveStruggles] = useState(0);
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [hintIndices, setHintIndices] = useState<number[]>([]);
@@ -982,6 +1007,17 @@ export default function HomeScreen() {
   const bonusCardRef = useRef<View>(null);
   const gemTargetRef = useRef<View>(null);
   const levelScorePending = useRef(0);
+  const performanceHistoryRef = useRef<PuzzlePerformance[]>([]);
+  const cityDifficultyModifierRef = useRef<DifficultyModifier>(0);
+  const cityDifficultyLocationIdRef = useRef(levelData.locationId);
+  const consecutiveStrugglesRef = useRef(0);
+  const gameplayVisibleRef = useRef(false);
+  const puzzleActivityRef = useRef<PuzzleActivity>({
+    activeMs: 0,
+    hintsUsed: 0,
+    wrongAttempts: 0,
+    lastInteractionAt: null,
+  });
   const nextFlightId = useRef(1);
   const discoveredBonuses = useRef(new Set<string>());
   const feedbackTimer = useRef<Timer | null>(null);
@@ -998,6 +1034,94 @@ export default function HomeScreen() {
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
   const levelJustCompleted = hasCompletedRequiredTargets(solvedTargets.size, levelData);
   const displayedProgressLevel = levelData.level + (levelJustCompleted ? 1 : 0);
+  const gameplayVisible =
+    activeScreen === 'game' &&
+    !settingsVisible &&
+    !challengeIntroVisible &&
+    countryCompletionLevel === null &&
+    destinationTransition === null &&
+    !celebrating;
+
+  const pausePuzzleActivity = useCallback(() => {
+    const activity = puzzleActivityRef.current;
+    if (activity.lastInteractionAt === null) return;
+    activity.activeMs += Math.min(
+      Date.now() - activity.lastInteractionAt,
+      ACTIVITY_IDLE_TIMEOUT_MS,
+    );
+    activity.lastInteractionAt = null;
+  }, []);
+
+  const resumePuzzleActivity = useCallback(() => {
+    if (!gameplayVisibleRef.current || AppState.currentState !== 'active') return;
+    puzzleActivityRef.current.lastInteractionAt = Date.now();
+  }, []);
+
+  const markPuzzleActivity = useCallback(() => {
+    if (!gameplayVisibleRef.current || AppState.currentState !== 'active') return;
+    const activity = puzzleActivityRef.current;
+    const now = Date.now();
+    if (activity.lastInteractionAt !== null) {
+      activity.activeMs += Math.min(
+        now - activity.lastInteractionAt,
+        ACTIVITY_IDLE_TIMEOUT_MS,
+      );
+    }
+    activity.lastInteractionAt = now;
+  }, []);
+
+  const resetPuzzleActivity = useCallback(() => {
+    puzzleActivityRef.current = {
+      activeMs: 0,
+      hintsUsed: 0,
+      wrongAttempts: 0,
+      lastInteractionAt:
+        gameplayVisibleRef.current && AppState.currentState === 'active'
+          ? Date.now()
+          : null,
+    };
+  }, []);
+
+  const recordCompletedPuzzlePerformance = useCallback(() => {
+    markPuzzleActivity();
+    const activity = puzzleActivityRef.current;
+    const performance: PuzzlePerformance = {
+      activeMs: activity.activeMs,
+      hintsUsed: activity.hintsUsed,
+      wrongAttempts: activity.wrongAttempts,
+    };
+    const nextHistory = appendPerformance(performanceHistoryRef.current, performance);
+    const struggling = ratePuzzlePerformance(performance) === 'struggling';
+    const nextConsecutiveStruggles = struggling
+      ? Math.min(2, consecutiveStrugglesRef.current + 1)
+      : 0;
+
+    performanceHistoryRef.current = nextHistory;
+    consecutiveStrugglesRef.current = nextConsecutiveStruggles;
+    setPerformanceHistory(nextHistory);
+    setConsecutiveStruggles(nextConsecutiveStruggles);
+    pausePuzzleActivity();
+  }, [markPuzzleActivity, pausePuzzleActivity]);
+
+  useEffect(() => {
+    gameplayVisibleRef.current = gameplayVisible;
+    if (gameplayVisible && AppState.currentState === 'active') {
+      resumePuzzleActivity();
+    } else {
+      pausePuzzleActivity();
+    }
+  }, [gameplayVisible, level, pausePuzzleActivity, resumePuzzleActivity]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && gameplayVisibleRef.current) {
+        resumePuzzleActivity();
+      } else {
+        pausePuzzleActivity();
+      }
+    });
+    return () => subscription.remove();
+  }, [pausePuzzleActivity, resumePuzzleActivity]);
 
   useEffect(() => {
     let active = true;
@@ -1019,6 +1143,7 @@ export default function HomeScreen() {
           ? generateLevelData(
               restoredLevel,
               saved.levelData.targets.map((target) => target.value),
+              saved.cityDifficultyModifier,
             )
           : saved.levelData;
         const legacyDisplayedLevel = saved.levelData.level + (restoredLevelComplete ? 1 : 0);
@@ -1037,6 +1162,16 @@ export default function HomeScreen() {
         setCountryCompletionLevel(restoredCountryCompletion ? saved.level : null);
         setBonusCount(saved.bonusCount);
         setGemCount(saved.gemCount);
+        setHintCredits(saved.hintCredits);
+        setRewardedRouteIds(new Set(saved.rewardedRouteIds));
+        setPerformanceHistory(saved.performanceHistory);
+        performanceHistoryRef.current = saved.performanceHistory;
+        setCityDifficultyModifier(saved.cityDifficultyModifier);
+        cityDifficultyModifierRef.current = saved.cityDifficultyModifier;
+        setCityDifficultyLocationId(saved.cityDifficultyLocationId);
+        cityDifficultyLocationIdRef.current = saved.cityDifficultyLocationId;
+        setConsecutiveStruggles(saved.consecutiveStruggles);
+        consecutiveStrugglesRef.current = saved.consecutiveStruggles;
         setScore(saved.score ?? legacyScore);
         setEffectsEnabled(saved.effectsEnabled);
         setMusicEnabled(saved.musicEnabled);
@@ -1063,6 +1198,12 @@ export default function HomeScreen() {
       bonusSolved,
       bonusCount,
       gemCount,
+      hintCredits,
+      rewardedRouteIds: [...rewardedRouteIds],
+      performanceHistory,
+      cityDifficultyModifier,
+      cityDifficultyLocationId,
+      consecutiveStruggles,
       discoveredBonuses: [...discoveredBonuses.current],
       effectsEnabled,
       musicEnabled,
@@ -1073,6 +1214,7 @@ export default function HomeScreen() {
     bonusSolved,
     effectsEnabled,
     gemCount,
+    hintCredits,
     hydrated,
     level,
     levelData,
@@ -1080,6 +1222,11 @@ export default function HomeScreen() {
     musicVolume,
     score,
     solvedTargets,
+    rewardedRouteIds,
+    performanceHistory,
+    cityDifficultyModifier,
+    cityDifficultyLocationId,
+    consecutiveStruggles,
   ]);
 
   useEffect(
@@ -1268,7 +1415,43 @@ export default function HomeScreen() {
     clearTimer(feedbackTimer);
     clearTimer(hintTimer);
     clearTimer(landingTimer);
-    const nextLevelData = generateLevelData(nextLevel, previousTargetValues);
+    const nextDestination = resolveTravelLevel(nextLevel);
+    const globalCountryIndex = Math.floor((nextLevel - 1) / COUNTRY_LEVEL_COUNT);
+    let nextDifficultyModifier = cityDifficultyModifierRef.current;
+    let nextDifficultyLocationId = cityDifficultyLocationIdRef.current;
+
+    if (globalCountryIndex < 5) {
+      nextDifficultyModifier = 0;
+      consecutiveStrugglesRef.current = 0;
+      if (!nextDestination.countryChallenge) {
+        nextDifficultyLocationId = nextDestination.location.id;
+      }
+    } else if (
+      !nextDestination.countryChallenge &&
+      nextDestination.location.id !== cityDifficultyLocationIdRef.current
+    ) {
+      nextDifficultyModifier = recommendDifficultyModifier(performanceHistoryRef.current);
+      nextDifficultyLocationId = nextDestination.location.id;
+      consecutiveStrugglesRef.current = 0;
+    } else if (
+      !nextDestination.countryChallenge &&
+      consecutiveStrugglesRef.current >= 2
+    ) {
+      nextDifficultyModifier = Math.max(-1, nextDifficultyModifier - 1) as DifficultyModifier;
+      consecutiveStrugglesRef.current = 0;
+    }
+
+    cityDifficultyModifierRef.current = nextDifficultyModifier;
+    cityDifficultyLocationIdRef.current = nextDifficultyLocationId;
+    setCityDifficultyModifier(nextDifficultyModifier);
+    setCityDifficultyLocationId(nextDifficultyLocationId);
+    setConsecutiveStruggles(consecutiveStrugglesRef.current);
+
+    const nextLevelData = generateLevelData(
+      nextLevel,
+      previousTargetValues,
+      nextDifficultyModifier,
+    );
     setLevel(nextLevel);
     setLevelData(nextLevelData);
     setChallengeIntroVisible(nextLevelData.countryChallenge);
@@ -1285,7 +1468,8 @@ export default function HomeScreen() {
     setCelebrating(false);
     setDestinationTransition(null);
     setCountryCompletionLevel(null);
-  }, []);
+    resetPuzzleActivity();
+  }, [resetPuzzleActivity]);
 
   const handlePreview = useCallback(
     (indices: number[]) => {
@@ -1307,6 +1491,7 @@ export default function HomeScreen() {
 
   const handleComplete = useCallback(
     (indices: number[], resultOrigin?: ScreenPoint): WheelSelectionOutcome => {
+      markPuzzleActivity();
       if (indices.length < 2) {
         setFeedback(null);
         return 'invalid';
@@ -1315,6 +1500,7 @@ export default function HomeScreen() {
       const values = indices.map((index) => levelData.numbers[index]);
       const calculation = computeResult(values, levelData.op);
       if (!calculation) {
+        puzzleActivityRef.current.wrongAttempts += 1;
         showTimedFeedback({ text: 'Bu sıra geçerli bir işlem oluşturmuyor', tone: 'info' });
         return 'invalid';
       }
@@ -1344,6 +1530,7 @@ export default function HomeScreen() {
         void launchResultFlight(calculation.result, targetIndex, resultOrigin);
 
         if (hasCompletedRequiredTargets(nextSolved.size, levelData)) {
+          recordCompletedPuzzlePerformance();
           // Mesaj ve seyahat sınırı, paralel UI state'inden değil gerçekten çözülen
           // puzzle'ın kendi level kimliğinden hesaplanır. Böylece örneğin Atina 1/8,
           // gecikmiş bir state güncellemesi yüzünden 8/8 gibi değerlendirilemez.
@@ -1474,6 +1661,7 @@ export default function HomeScreen() {
         );
         return 'bonus';
       } else {
+        puzzleActivityRef.current.wrongAttempts += 1;
         showTimedFeedback({ text: 'Bu kombinasyonu zaten keşfettin', tone: 'info' });
         return 'invalid';
       }
@@ -1483,6 +1671,8 @@ export default function HomeScreen() {
       launchGemFlight,
       launchResultFlight,
       levelData,
+      markPuzzleActivity,
+      recordCompletedPuzzlePerformance,
       showTimedFeedback,
       solvedTargets,
       startLevel,
@@ -1491,6 +1681,14 @@ export default function HomeScreen() {
   );
 
   const handleHint = useCallback(() => {
+    markPuzzleActivity();
+    if (hintCredits <= 0) {
+      showTimedFeedback(
+        { text: 'İpucu kredin bitti • Ödüllü reklam veya yeni rota ile +3 kazan', tone: 'info' },
+        1800,
+      );
+      return;
+    }
     const targetIndex = levelData.targets.findIndex((_, index) => !solvedTargets.has(index));
     if (targetIndex < 0) return;
     const solution = findSolutionIndices(levelData.targets[targetIndex], levelData.numbers);
@@ -1500,6 +1698,8 @@ export default function HomeScreen() {
     }
 
     clearTimer(hintTimer);
+    setHintCredits((credits) => Math.max(0, credits - 1));
+    puzzleActivityRef.current.hintsUsed += 1;
     setHintIndices(solution);
     setHintedTarget(targetIndex);
     triggerEffect('hint');
@@ -1509,20 +1709,22 @@ export default function HomeScreen() {
       setHintedTarget(null);
       hintTimer.current = null;
     }, 1800);
-  }, [levelData, showTimedFeedback, solvedTargets, triggerEffect]);
+  }, [hintCredits, levelData, markPuzzleActivity, showTimedFeedback, solvedTargets, triggerEffect]);
 
   const handleWheelNodeAdded = useCallback(
     (selectionCount: number) => {
+      markPuzzleActivity();
       triggerEffect(getNodeSelectionSound(selectionCount));
     },
-    [triggerEffect],
+    [markPuzzleActivity, triggerEffect],
   );
 
   const handleWheelShuffle = useCallback(() => {
+    markPuzzleActivity();
     setHintIndices([]);
     setHintedTarget(null);
     triggerEffect('shuffle');
-  }, [triggerEffect]);
+  }, [markPuzzleActivity, triggerEffect]);
 
   const handleEffectsChange = useCallback(
     (enabled: boolean) => {
@@ -1546,18 +1748,38 @@ export default function HomeScreen() {
       levelData.level === countryCompletionLevel
         ? levelData.targets.map((target) => target.value)
         : [];
+    const unlockedRouteId = completion.nextDestination.route.id;
+    const earnedRouteHints =
+      !completion.worldTourCompleted &&
+      unlockedRouteId !== levelData.routeId &&
+      !rewardedRouteIds.has(unlockedRouteId);
+
+    if (earnedRouteHints) {
+      setHintCredits((credits) => credits + HINT_REWARD_AMOUNT);
+      setRewardedRouteIds((current) => new Set(current).add(unlockedRouteId));
+    }
+
     startLevel(completion.nextDestination.globalLevel, previousTargetValues);
     navigateToScreen('game');
     showTimedFeedback(
       {
         text: completion.worldTourCompleted
           ? '🌍 Master World Tour başladı!'
-          : `${completion.nextDestination.country.flag} ${completion.nextDestination.country.country} açıldı • ${completion.nextDestination.location.name}`,
+          : `${completion.nextDestination.country.flag} ${completion.nextDestination.country.country} açıldı • ${completion.nextDestination.location.name}${
+              earnedRouteHints ? ` • Yeni rota ödülü: +${HINT_REWARD_AMOUNT} ipucu` : ''
+            }`,
         tone: 'success',
       },
       1800,
     );
-  }, [countryCompletionLevel, levelData, navigateToScreen, showTimedFeedback, startLevel]);
+  }, [
+    countryCompletionLevel,
+    levelData,
+    navigateToScreen,
+    rewardedRouteIds,
+    showTimedFeedback,
+    startLevel,
+  ]);
 
   if (!hydrated) return <View style={styles.screen} />;
 
@@ -1830,6 +2052,7 @@ export default function HomeScreen() {
                 style={styles.wheelContainer}>
                 <NumberWheel
                   key={`${level}-${wheelSize}`}
+                  hintCredits={hintCredits}
                   hintIndices={hintIndices}
                   numbers={levelData.numbers}
                   onComplete={handleComplete}

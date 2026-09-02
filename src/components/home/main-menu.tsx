@@ -515,7 +515,9 @@ export function ProfileScreen({
             />
             <View style={styles.avatar}><Text style={styles.avatarText}>{levelData.flag}</Text></View>
             <Text style={styles.explorerName}>Dünya Gezgini</Text>
-            <Text style={styles.explorerLocation}>{levelData.country} • {levelData.city}</Text>
+            <Text style={styles.explorerLocation}>
+              Seviye {currentLevel} • {levelData.country} • {levelData.city}
+            </Text>
           </View>
 
           <View style={styles.statsGrid}>
@@ -555,6 +557,7 @@ export function ProfileScreen({
               />
             </View>
             <Text style={styles.worldProgress}>Dünya turu: {completedLevels}/{TOTAL_WORLD_LEVELS}</Text>
+            <Text style={styles.worldProgress}>Oyuncu seviyesi: {currentLevel}</Text>
             <Text style={styles.worldProgress}>⭐ {bonusCount} bonus kombinasyon keşfedildi</Text>
           </View>
 

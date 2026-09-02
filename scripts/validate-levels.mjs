@@ -4,10 +4,16 @@ import {
   generateLevelData,
   getBonusGemReward,
   getCombinationKey,
+  getLevelNumberDifficulty,
   getTargetScore,
   hasCompletedRequiredTargets,
   normalizeLevelData,
 } from '../src/game/levels.ts';
+import {
+  appendPerformance,
+  ratePuzzlePerformance,
+  recommendDifficultyModifier,
+} from '../src/game/adaptive-difficulty.ts';
 import {
   COUNTRY_CHALLENGE_LEVEL,
   COUNTRY_LEVEL_COUNT,
@@ -34,6 +40,30 @@ const TRAINING_CITY_OPERATIONS = [
 let checkedLevelCount = 0;
 
 assertTravelCatalog();
+
+const strongPerformance = { activeMs: 30_000, hintsUsed: 0, wrongAttempts: 1 };
+const strugglingPerformance = { activeMs: 130_000, hintsUsed: 2, wrongAttempts: 5 };
+if (
+  ratePuzzlePerformance(strongPerformance) !== 'strong' ||
+  ratePuzzlePerformance(strugglingPerformance) !== 'struggling' ||
+  appendPerformance(Array(5).fill(strongPerformance), strugglingPerformance).length !== 5 ||
+  recommendDifficultyModifier(Array(3).fill(strongPerformance)) !== 1 ||
+  recommendDifficultyModifier(Array(3).fill(strugglingPerformance)) !== -1
+) {
+  throw new Error('Adaptif zorluk performans kuralları hatalı.');
+}
+if (
+  getLevelNumberDifficulty(1, 1) !== 0 ||
+  getLevelNumberDifficulty(126, -1) !== 1 ||
+  getLevelNumberDifficulty(126, 1) !== 3 ||
+  getLevelNumberDifficulty(TOTAL_WORLD_LEVELS + 1, -1) !== 4
+) {
+  throw new Error('Rota ve oyuncu performansı sayı zorluğuna doğru uygulanmıyor.');
+}
+for (const sampleLevel of [126, 500, 1_000, TOTAL_WORLD_LEVELS + 1]) {
+  generateLevelData(sampleLevel, [], -1);
+  generateLevelData(sampleLevel, [], 1);
+}
 
 if (
   getTargetScore([20, 18]) !== 76 ||

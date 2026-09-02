@@ -51,6 +51,7 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 - İlk beş ülkenin şehir işlem planı sırasıyla `+++/+-+/-+-/*+*/÷*÷` biçimindedir. Altıncı ülkeden itibaren işlem her yeni şehirde `+ → − → × → ÷` döngüsünde değişir ve sekiz puzzle boyunca sabit kalır.
 - Country Challenge daima üçüncü şehrin işlemini sürdürür. İlk beş ülkede 2 adımlıdır; 6–8. ülkelerde şehir kuralını korur; 9–16. ülkelerde 3 adımlıdır; 17. ülkeden sonra toplama/çarpma Challenge 4, çıkarma/bölme Challenge 3 adımlıdır.
 - Sayı havuzları 1–2, 3–5, 6–20 ve 21+ ülke katmanlarında büyür. Bölme havuzları yalnız tam sonuç veren, gittikçe daha büyük çarpan ailelerinden seçilir.
+- Adaptif zorluk, aktif oyun süresi, hata ve ipucu geçmişiyle yalnız yeni şehir başında `−1/0/+1` sayı zorluğu uygular. İlk beş öğretici ülkede kapalıdır; 15 saniyelik hareketsizlik aktif süreden çıkarılır. Ayrıntılı sözleşme `ADAPTIVE_DIFFICULTY.md` içindedir.
 - İkili hedefler `A op B`, üçlü/dörtlü hedefler seçilen işlemle `A op B op C (op D)` biçimindedir. Bir seviyedeki hedeflerin adım sayısı üstteki `Gereken` göstergesiyle aynı olmalıdır.
 - Çıkarma ve bölme sürükleme sırasına duyarlıdır: ilk seçilen sayı başlangıç değeridir ve kalan sayılar seçilme sırasıyla uygulanır. Çıkarma sonucu pozitif, bölmenin her ara sonucu tam sayı olmalıdır. Toplama ve çarpma değişmelidir; ters sıra aynı işlem ve keşif sayılır.
 - Her hedef benzersiz, çözülebilir ve dahili çözümleyiciyle doğrulanmış olmalıdır. Eksik hedefle seviye başlatılamaz.

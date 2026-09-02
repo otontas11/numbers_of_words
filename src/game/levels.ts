@@ -180,35 +180,55 @@ function getLevelRules(level: number, countryChallenge: boolean): {
   };
 }
 
-function getPool(op: Operation, level: number): number[] {
+export function getLevelNumberDifficulty(level: number, modifier: -1 | 0 | 1 = 0) {
   const countryIndex = Math.floor((level - 1) / COUNTRY_LEVEL_COUNT);
-  const difficulty = countryIndex < 2 ? 0 : countryIndex < 5 ? 1 : countryIndex < 20 ? 2 : 3;
+  if (countryIndex < 2) return 0;
+  if (countryIndex < 5) return 1;
+
+  const destination = resolveTravelLevel(level);
+  const routeDifficulty = destination.masterTour > 0
+    ? 5
+    : Math.min(5, 2 + Math.floor((destination.route.difficulty - 1) / 5));
+  return Math.max(1, Math.min(5, routeDifficulty + modifier));
+}
+
+function getPool(op: Operation, level: number, difficultyModifier: -1 | 0 | 1): number[] {
+  const countryIndex = Math.floor((level - 1) / COUNTRY_LEVEL_COUNT);
+  const difficulty = getLevelNumberDifficulty(level, difficultyModifier);
 
   if (op === '+') {
     if (difficulty === 0) return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     if (difficulty === 1) return [2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 15];
     if (difficulty === 2) return [3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20];
-    return [4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 18, 20, 24, 25];
+    if (difficulty === 3) return [4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 18, 20, 24, 25];
+    if (difficulty === 4) return [5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 24, 28, 30];
+    return [6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 24, 28, 30, 36, 40];
   }
 
   if (op === '-') {
     if (difficulty === 0) return [12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
     if (difficulty === 1) return [20, 18, 16, 15, 12, 10, 8, 6, 5, 4, 3, 2];
     if (difficulty === 2) return [30, 27, 24, 21, 18, 15, 12, 10, 8, 6, 4, 3];
-    return [45, 40, 36, 32, 28, 24, 20, 16, 12, 9, 6, 4];
+    if (difficulty === 3) return [45, 40, 36, 32, 28, 24, 20, 16, 12, 9, 6, 4];
+    if (difficulty === 4) return [60, 54, 48, 42, 36, 30, 24, 20, 16, 12, 8, 5];
+    return [90, 80, 72, 64, 56, 48, 40, 32, 24, 18, 12, 6];
   }
 
   if (op === '*') {
     if (difficulty <= 1) return [2, 3, 4, 5, 6, 7, 8];
     if (difficulty === 2) return [2, 3, 4, 5, 6, 7, 8, 9, 10];
-    return [3, 4, 5, 6, 7, 8, 9, 10, 11];
+    if (difficulty === 3) return [3, 4, 5, 6, 7, 8, 9, 10, 11];
+    if (difficulty === 4) return [3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    return [4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
   }
 
   // Bölme havuzları, sekiz bölümlük seri boyunca ardışık hedefleri tekrar
   // etmeden yeterli sayıda tam bölünen sonuç verecek çarpan aileleridir.
-  if (difficulty <= 1) return [2, 3, 4, 6, 24, 120];
-  if (difficulty === 2) return [2, 3, 4, 5, 10, 30, 120];
-  return [3, 4, 5, 6, 12, 60, 180];
+  if (countryIndex < 5) return [2, 3, 4, 6, 24, 120];
+  if (difficulty <= 2) return [2, 3, 4, 5, 10, 30, 120];
+  if (difficulty === 3) return [3, 4, 5, 6, 12, 60, 180];
+  if (difficulty === 4) return [4, 5, 6, 8, 20, 120, 240];
+  return [5, 6, 8, 10, 20, 120, 600];
 }
 
 function buildCandidates(numbers: number[], op: Operation, steps: 2 | 3 | 4): Candidate[] {
@@ -286,6 +306,7 @@ function selectDiverseCandidates(
 export function generateLevelData(
   level: number,
   excludedTargetValues: readonly number[] = [],
+  difficultyModifier: -1 | 0 | 1 = 0,
 ): LevelData {
   const normalizedLevel = Math.max(1, Math.floor(level));
   const destination = resolveTravelLevel(normalizedLevel);
@@ -308,7 +329,9 @@ export function generateLevelData(
   let bestSelectionCount = -1;
 
   for (let attempt = 0; attempt < 160; attempt += 1) {
-    const candidateNumbers = shuffle(getPool(rules.op, normalizedLevel)).slice(0, rules.nodeCount);
+    const candidateNumbers = shuffle(
+      getPool(rules.op, normalizedLevel, difficultyModifier),
+    ).slice(0, rules.nodeCount);
     const candidates = buildCandidates(candidateNumbers, rules.op, rules.steps);
     const selected = selectDiverseCandidates(
       candidates,

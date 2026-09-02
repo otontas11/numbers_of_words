@@ -42,6 +42,7 @@ type Point = {
 type NumberWheelProps = {
   size: number;
   numbers: number[];
+  hintCredits: number;
   hintIndices: number[];
   onPreview: (indices: number[]) => void;
   onComplete: (indices: number[], resultOrigin?: Point) => WheelSelectionOutcome;
@@ -289,6 +290,7 @@ function ActiveSelectionPath({
 export const NumberWheel = memo(function NumberWheel({
   size,
   numbers,
+  hintCredits,
   hintIndices,
   onPreview,
   onComplete,
@@ -884,7 +886,11 @@ export const NumberWheel = memo(function NumberWheel({
 
       <View style={[styles.actionRow, { width: size }]}>
         <Pressable
-          accessibilityLabel="İpucu göster"
+          accessibilityLabel={
+            hintCredits > 0
+              ? `İpucu göster, ${hintCredits} kredi kaldı`
+              : 'İpucu kredisi bitti'
+          }
           accessibilityRole="button"
           hitSlop={8}
           onPress={onHint}
@@ -895,7 +901,7 @@ export const NumberWheel = memo(function NumberWheel({
             start={{ x: 0, y: 0 }}
             style={styles.controlSurface}>
             <HintIcon />
-            <Text style={styles.controlLabel}>İpucu</Text>
+            <Text style={styles.controlLabel}>İpucu • {hintCredits}</Text>
           </ExpoLinearGradient>
         </Pressable>
 

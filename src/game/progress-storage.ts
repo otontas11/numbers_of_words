@@ -1,6 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  INITIAL_HINT_CREDITS,
+  isPuzzlePerformance,
+  type DifficultyModifier,
+  type PuzzlePerformance,
+} from '@/game/adaptive-difficulty';
+import {
   findSolutionIndices,
   generateLevelData,
   normalizeLevelData,
@@ -14,8 +20,9 @@ import {
 } from '@/game/travel';
 
 const STORAGE_KEY = '@number-of-wonders/progress-v2';
-const STORAGE_VERSION = 3;
-const LEGACY_STORAGE_VERSION = 2;
+const STORAGE_VERSION = 4;
+const LEGACY_TRAVEL_STORAGE_VERSION = 2;
+const LEGACY_STORAGE_VERSION = 3;
 const LEGACY_COUNTRY_LEVEL_COUNT = 20;
 const LEGACY_WORLD_LEVEL_COUNT = TOTAL_COUNTRY_STAGES * LEGACY_COUNTRY_LEVEL_COUNT;
 
@@ -29,6 +36,12 @@ export type StoredGameProgress = {
   bonusSolved: boolean;
   bonusCount: number;
   gemCount: number;
+  hintCredits: number;
+  rewardedRouteIds: string[];
+  performanceHistory: PuzzlePerformance[];
+  cityDifficultyModifier: DifficultyModifier;
+  cityDifficultyLocationId: string;
+  consecutiveStruggles: number;
   discoveredBonuses: string[];
   effectsEnabled: boolean;
   musicEnabled: boolean;
@@ -139,14 +152,18 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
     const value: unknown = JSON.parse(raw);
     if (
       !isRecord(value) ||
-      (value.version !== STORAGE_VERSION && value.version !== LEGACY_STORAGE_VERSION)
+      ![
+        STORAGE_VERSION,
+        LEGACY_STORAGE_VERSION,
+        LEGACY_TRAVEL_STORAGE_VERSION,
+      ].includes(Number(value.version))
     ) {
       return null;
     }
     if (!Number.isInteger(value.level) || Number(value.level) < 1) return null;
     const storedLevel = Number(value.level);
     const level =
-      value.version === LEGACY_STORAGE_VERSION
+      value.version === LEGACY_TRAVEL_STORAGE_VERSION
         ? migrateLegacyLevel(storedLevel)
         : storedLevel;
     const levelData = value.levelData;
@@ -193,7 +210,7 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
 
     try {
       normalizedLevelData = normalizeLevelData(
-        value.version === LEGACY_STORAGE_VERSION
+        value.version === LEGACY_TRAVEL_STORAGE_VERSION
           ? { ...levelData, level }
           : levelData,
       );
@@ -208,6 +225,35 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       normalizedBonusSolved = false;
     }
 
+    const hintCredits =
+      Number.isInteger(value.hintCredits) && Number(value.hintCredits) >= 0
+        ? Number(value.hintCredits)
+        : INITIAL_HINT_CREDITS;
+    const rewardedRouteIds =
+      Array.isArray(value.rewardedRouteIds) &&
+      value.rewardedRouteIds.every((routeId) => typeof routeId === 'string')
+        ? [...new Set(value.rewardedRouteIds as string[])]
+        : [];
+    const performanceHistory =
+      Array.isArray(value.performanceHistory) &&
+      value.performanceHistory.every(isPuzzlePerformance)
+        ? (value.performanceHistory as PuzzlePerformance[]).slice(-5)
+        : [];
+    const cityDifficultyModifier: DifficultyModifier =
+      value.cityDifficultyModifier === -1 ||
+      value.cityDifficultyModifier === 0 ||
+      value.cityDifficultyModifier === 1
+        ? value.cityDifficultyModifier
+        : 0;
+    const cityDifficultyLocationId =
+      typeof value.cityDifficultyLocationId === 'string'
+        ? value.cityDifficultyLocationId
+        : normalizedLevelData.locationId;
+    const consecutiveStruggles =
+      Number.isInteger(value.consecutiveStruggles) && Number(value.consecutiveStruggles) >= 0
+        ? Math.min(2, Number(value.consecutiveStruggles))
+        : 0;
+
     return {
       version: STORAGE_VERSION,
       level,
@@ -217,6 +263,12 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       ...(score === undefined ? {} : { score }),
       bonusCount,
       gemCount,
+      hintCredits,
+      rewardedRouteIds,
+      performanceHistory,
+      cityDifficultyModifier,
+      cityDifficultyLocationId,
+      consecutiveStruggles,
       discoveredBonuses: [...new Set(value.discoveredBonuses as string[])],
       effectsEnabled: value.effectsEnabled,
       musicEnabled,
