@@ -5,14 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1f1286ff-0618-41fb-995e-c5757f0c5d40" name="Changes" comment="ver-1">
-      <change afterPath="$PROJECT_DIR$/assets/lotties/flying_bird.lottie" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/assets/lotties/flyingbird.lottie" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app.json" beforeDir="false" afterPath="$PROJECT_DIR$/app.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/sounds/click.mp3" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/lotties/flying_bird.lottie" beforeDir="false" afterPath="$PROJECT_DIR$/assets/flying_bird.lottie" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/_layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/_layout.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/home/main-menu.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/home/main-menu.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/run-real-devices.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/run-real-devices.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app/index.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/index.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -48,7 +46,7 @@
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/oktaytontas/Documents/android_apps/numbers_of_wonders/assets/images/countries&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/oktaytontas/Documents/android_apps/numbers_of_wonders/assets/lotties&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -62,6 +60,8 @@
 }</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/assets/lotties" />
+      <recent name="$PROJECT_DIR$/assets" />
       <recent name="$PROJECT_DIR$/assets/images/countries" />
       <recent name="$PROJECT_DIR$/assets/images/img" />
     </key>
@@ -73,7 +73,7 @@
       <recent name="$PROJECT_DIR$/assets/images/countries/west-africa" />
     </key>
   </component>
-  <component name="RunManager" selected="npm.android">
+  <component name="RunManager" selected="npm.ios">
     <configuration name="android" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
       <package-json value="$PROJECT_DIR$/package.json" />
       <command value="run" />
@@ -96,8 +96,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="npm.android" />
         <item itemvalue="npm.ios" />
+        <item itemvalue="npm.android" />
       </list>
     </recent_temporary>
   </component>

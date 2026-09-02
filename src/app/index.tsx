@@ -9,6 +9,7 @@ import {
   BackHandler,
   Easing,
   InteractionManager,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -251,7 +252,7 @@ function ResultFlightBadge({
 }
 
 function Celebration({ visible }: { visible: boolean }) {
-  if (!visible) return null;
+  if (!visible || Platform.OS === 'web') return null;
 
   return (
     <View

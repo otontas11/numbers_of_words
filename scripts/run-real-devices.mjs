@@ -9,7 +9,7 @@ import process from 'node:process';
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const requestedPlatform = process.argv[2] ?? 'all';
 const supportedPlatforms = new Set(['all', 'android', 'ios']);
-const metroPort = process.env.DEVICE_METRO_PORT ?? '8081';
+const metroPort = process.env.DEVICE_METRO_PORT ?? '8083';
 const metroMode = process.env.DEVICE_METRO_MODE ?? 'lan';
 const supportedMetroModes = new Set(['lan', 'localhost', 'tunnel']);
 
@@ -151,7 +151,7 @@ function runInteractive(command, args) {
 }
 
 async function getNativeBuildSpace() {
-  const minimumGiB = Number(process.env.DEVICE_MIN_FREE_GB ?? '5');
+  const minimumGiB = Number(process.env.DEVICE_MIN_FREE_GB ?? '4');
   const stats = await statfs(projectRoot);
   const freeBytes = Number(stats.bavail) * Number(stats.bsize);
   const freeGiB = freeBytes / 1024 ** 3;

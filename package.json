@@ -47,6 +47,7 @@
     "wrangler": "^4.128.0"
   },
   "scripts": {
+    "postinstall": "node ./scripts/patch-expo-modules-jsi.mjs",
     "start": "expo start --go",
     "start:dev-client": "expo start --dev-client",
     "reset-project": "node ./scripts/reset-project.js",

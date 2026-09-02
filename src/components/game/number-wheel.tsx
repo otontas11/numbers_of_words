@@ -10,6 +10,8 @@ import {
 import {
   Animated as RNAnimated,
   Easing,
+  type GestureResponderEvent,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -318,6 +320,8 @@ export const NumberWheel = memo(function NumberWheel({
   const selectionOnUI = useSharedValue<number[]>([]);
   const shufflingOnUI = useSharedValue(false);
   const holdingOnUI = useSharedValue(false);
+  const webGestureAcceptedRef = useRef(false);
+  const webSelectionRef = useRef<number[]>([]);
   const callbacksRef = useRef({
     onComplete,
     onDraggingChange,
@@ -450,13 +454,125 @@ export const NumberWheel = memo(function NumberWheel({
   );
 
   /*
-   * RNGH worklet callbacks intentionally read and update Reanimated SharedValues.
-   * React's generic ref/immutability lint rules cannot model UI-thread SharedValues.
+   * Web responder and RNGH worklet callbacks intentionally update Reanimated
+   * SharedValues. React's generic ref/immutability rules cannot model them.
    */
   /* eslint-disable react-hooks/immutability, react-hooks/refs */
+  const getWebTouchPoint = useCallback((event: GestureResponderEvent): Point => {
+    const { locationX, locationY } = event.nativeEvent;
+    return { x: locationX, y: locationY };
+  }, []);
+
+  const canStartWebSelection = useCallback(
+    (event: GestureResponderEvent) => {
+      if (
+        Platform.OS !== 'web' ||
+        shufflingOnUI.value ||
+        holdingOnUI.value ||
+        webGestureAcceptedRef.current
+      ) {
+        return false;
+      }
+
+      return (
+        findNodeAtPoint(getWebTouchPoint(event), positionsRef.current, hitRadius) >= 0
+      );
+    },
+    [getWebTouchPoint, hitRadius, holdingOnUI, shufflingOnUI],
+  );
+
+  const startWebSelection = useCallback(
+    (event: GestureResponderEvent) => {
+      const point = getWebTouchPoint(event);
+      const nodeIndex = findNodeAtPoint(point, positionsRef.current, hitRadius);
+      if (nodeIndex < 0) return;
+
+      webGestureAcceptedRef.current = true;
+      webSelectionRef.current = [nodeIndex];
+      selectionOnUI.value = [nodeIndex];
+      pointerX.value = point.x;
+      pointerY.value = point.y;
+      lastPointerX.value = point.x;
+      lastPointerY.value = point.y;
+      activePointer.value = true;
+      beginSelection(nodeIndex);
+    },
+    [
+      activePointer,
+      beginSelection,
+      getWebTouchPoint,
+      hitRadius,
+      lastPointerX,
+      lastPointerY,
+      pointerX,
+      pointerY,
+      selectionOnUI,
+    ],
+  );
+
+  const moveWebSelection = useCallback(
+    (event: GestureResponderEvent) => {
+      if (!webGestureAcceptedRef.current) return;
+
+      const point = getWebTouchPoint(event);
+      const previousPoint = {
+        x: lastPointerX.value,
+        y: lastPointerY.value,
+      };
+      pointerX.value = point.x;
+      pointerY.value = point.y;
+      lastPointerX.value = point.x;
+      lastPointerY.value = point.y;
+
+      const update = updateSelectionOnUI(
+        webSelectionRef.current,
+        findNodesAlongSegment(previousPoint, point, positionsRef.current, hitRadius),
+        numbers.length,
+      );
+      if (!update.changed) return;
+
+      webSelectionRef.current = update.selection;
+      selectionOnUI.value = update.selection;
+      syncSelection(update.selection, update.addedSelectionCounts);
+    },
+    [
+      getWebTouchPoint,
+      hitRadius,
+      lastPointerX,
+      lastPointerY,
+      numbers.length,
+      pointerX,
+      pointerY,
+      selectionOnUI,
+      syncSelection,
+    ],
+  );
+
+  const finishWebSelection = useCallback(() => {
+    if (!webGestureAcceptedRef.current) return;
+
+    const completedSelection = [...webSelectionRef.current];
+    webGestureAcceptedRef.current = false;
+    webSelectionRef.current = [];
+    holdingOnUI.value = true;
+    finishSelection(completedSelection, true);
+  }, [finishSelection, holdingOnUI]);
+
+  const cancelWebSelection = useCallback(() => {
+    if (!webGestureAcceptedRef.current) return;
+
+    const cancelledSelection = [...webSelectionRef.current];
+    webGestureAcceptedRef.current = false;
+    webSelectionRef.current = [];
+    activePointer.value = false;
+    selectionOnUI.value = [];
+    finishSelection(cancelledSelection, false);
+  }, [activePointer, finishSelection, selectionOnUI]);
+
   const gesture = useMemo(
     () =>
       Gesture.Pan()
+        .enabled(Platform.OS !== 'web')
         .manualActivation(true)
         .maxPointers(1)
         .shouldCancelWhenOutside(false)
@@ -610,16 +726,26 @@ export const NumberWheel = memo(function NumberWheel({
   return (
     <View style={[styles.wheelArea, { width: size }]}> 
       <View style={[styles.wheelShadow, { width: size, height: size }]}> 
-        <GestureDetector gesture={gesture}>
+        <GestureDetector gesture={gesture} touchAction="none">
           <View
             ref={wheelRef}
             accessibilityLabel="Sayı bağlantı çemberi"
+            onResponderGrant={startWebSelection}
+            onResponderMove={moveWebSelection}
+            onResponderRelease={finishWebSelection}
+            onResponderTerminate={cancelWebSelection}
+            onResponderTerminationRequest={() => false}
+            onStartShouldSetResponder={canStartWebSelection}
             onLayout={() => {
               wheelRef.current?.measureInWindow((x, y) => {
                 originRef.current = { x, y };
               });
             }}
-            style={[styles.wheel, { borderRadius: innerSize / 2 }]}> 
+            style={[
+              styles.wheel,
+              { borderRadius: innerSize / 2 },
+              Platform.OS === 'web' && styles.webWheel,
+            ]}>
           <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
             <Circle
               cx={center}
@@ -806,6 +932,10 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     overflow: 'visible',
+  },
+  webWheel: {
+    touchAction: 'none',
+    userSelect: 'none',
   },
   nodePosition: {
     position: 'absolute',
