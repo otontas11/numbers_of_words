@@ -17,6 +17,7 @@ import { AppFooter } from '@/components/common/app-footer';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import type { LevelData } from '@/game/levels';
 import {
+  COUNTRY_LEVEL_COUNT,
   COUNTRY_BY_ID,
   ROUTE_BY_ID,
   TOTAL_COUNTRIES,
@@ -538,14 +539,18 @@ export function ProfileScreen({
                 <Text style={styles.profileProgressEyebrow}>MEVCUT YOLCULUK</Text>
                 <Text style={styles.profileProgressTitle}>{levelData.flag} {levelData.country}</Text>
               </View>
-              <Text style={styles.profileProgressCount}>{countryProgress}/20</Text>
+              <Text style={styles.profileProgressCount}>
+                {countryProgress}/{COUNTRY_LEVEL_COUNT}
+              </Text>
             </View>
             <View style={styles.profileProgressTrack}>
               <LinearGradient
                 colors={['#3D7F91', '#8AD1D6']}
                 style={[
                   styles.profileProgressFill,
-                  { width: `${(countryProgress / 20) * 100}%` as `${number}%` },
+                  {
+                    width: `${(countryProgress / COUNTRY_LEVEL_COUNT) * 100}%` as `${number}%`,
+                  },
                 ]}
               />
             </View>

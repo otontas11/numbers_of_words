@@ -6,6 +6,7 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { FONTS } from '@/constants/fonts';
 import {
+  COUNTRY_LEVEL_COUNT,
   PASSPORT_COUNTRIES,
   TOTAL_COUNTRIES,
   TOTAL_ROUTES,
@@ -229,7 +230,7 @@ export function CountryCompletionModal({
       subtitle={
         worldTourCompleted
           ? `${TOTAL_COUNTRIES} / ${TOTAL_COUNTRIES} ülke keşfedildi`
-          : '20 / 20 puzzle • Pasaport damgası kazanıldı'
+          : `${COUNTRY_LEVEL_COUNT} / ${COUNTRY_LEVEL_COUNT} puzzle • Pasaport damgası kazanıldı`
       }
       title={worldTourCompleted ? 'WORLD TOUR COMPLETED' : `${country.country} Tamamlandı!`}
       visible>
@@ -237,7 +238,9 @@ export function CountryCompletionModal({
         <Text style={styles.countryCompleteFlag}>{country.flag}</Text>
         <Text style={styles.countryCompleteName}>{country.country}</Text>
         <View style={styles.countryCompleteProgress}>
-          <Text style={styles.countryCompleteProgressText}>20 / 20 ✓</Text>
+          <Text style={styles.countryCompleteProgressText}>
+            {COUNTRY_LEVEL_COUNT} / {COUNTRY_LEVEL_COUNT} ✓
+          </Text>
         </View>
       </View>
 

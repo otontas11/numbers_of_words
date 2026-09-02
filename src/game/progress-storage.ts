@@ -7,9 +7,17 @@ import {
   type LegacyLevelData,
   type LevelData,
 } from '@/game/levels';
+import {
+  COUNTRY_LEVEL_COUNT,
+  TOTAL_COUNTRY_STAGES,
+  TOTAL_WORLD_LEVELS,
+} from '@/game/travel';
 
 const STORAGE_KEY = '@number-of-wonders/progress-v2';
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
+const LEGACY_STORAGE_VERSION = 2;
+const LEGACY_COUNTRY_LEVEL_COUNT = 20;
+const LEGACY_WORLD_LEVEL_COUNT = TOTAL_COUNTRY_STAGES * LEGACY_COUNTRY_LEVEL_COUNT;
 
 export type StoredGameProgress = {
   version: typeof STORAGE_VERSION;
@@ -29,6 +37,30 @@ export type StoredGameProgress = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function migrateLegacyLevel(level: number) {
+  const masterTour = Math.floor((level - 1) / LEGACY_WORLD_LEVEL_COUNT);
+  const cycleLevel = ((level - 1) % LEGACY_WORLD_LEVEL_COUNT) + 1;
+  const countryIndex = Math.floor((cycleLevel - 1) / LEGACY_COUNTRY_LEVEL_COUNT);
+  const legacyCountryLevel = ((cycleLevel - 1) % LEGACY_COUNTRY_LEVEL_COUNT) + 1;
+
+  // Eski 7+7+5+Challenge konumunu yeni 8+8+8+Challenge yapısında aynı
+  // destinasyon ve destinasyon içi puzzle sırasına taşır.
+  const countryLevel =
+    legacyCountryLevel <= 7
+      ? legacyCountryLevel
+      : legacyCountryLevel <= 14
+        ? legacyCountryLevel + 1
+        : legacyCountryLevel <= 19
+          ? legacyCountryLevel + 2
+          : COUNTRY_LEVEL_COUNT;
+
+  return (
+    masterTour * TOTAL_WORLD_LEVELS +
+    countryIndex * COUNTRY_LEVEL_COUNT +
+    countryLevel
+  );
 }
 
 function isValidLevelData(value: unknown, expectedLevel: number): value is LegacyLevelData {
@@ -105,11 +137,20 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
 
   try {
     const value: unknown = JSON.parse(raw);
-    if (!isRecord(value) || value.version !== STORAGE_VERSION) return null;
+    if (
+      !isRecord(value) ||
+      (value.version !== STORAGE_VERSION && value.version !== LEGACY_STORAGE_VERSION)
+    ) {
+      return null;
+    }
     if (!Number.isInteger(value.level) || Number(value.level) < 1) return null;
-    const level = Number(value.level);
+    const storedLevel = Number(value.level);
+    const level =
+      value.version === LEGACY_STORAGE_VERSION
+        ? migrateLegacyLevel(storedLevel)
+        : storedLevel;
     const levelData = value.levelData;
-    if (!isValidLevelData(levelData, level)) return null;
+    if (!isValidLevelData(levelData, storedLevel)) return null;
     if (
       !Array.isArray(value.solvedTargets) ||
       !value.solvedTargets.every(
@@ -151,7 +192,11 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
     let normalizedBonusSolved = bonusSolved;
 
     try {
-      normalizedLevelData = normalizeLevelData(levelData);
+      normalizedLevelData = normalizeLevelData(
+        value.version === LEGACY_STORAGE_VERSION
+          ? { ...levelData, level }
+          : levelData,
+      );
     } catch {
       // Çok eski bir matriste ana hedeflerden farklı beşinci bir sonuç yoksa
       // dünya ilerlemesini koru, yalnız o anki puzzle matrisini güvenle yenile.

@@ -43,6 +43,7 @@ import {
 import { getGameLayout } from '@/game/layout';
 import { loadGameProgress, saveGameProgress } from '@/game/progress-storage';
 import {
+  COUNTRY_LEVEL_COUNT,
   COUNTRY_BY_ID,
   TOTAL_COUNTRIES,
   getCompletedWorldLevelCount,
@@ -841,7 +842,7 @@ function JourneyStrip({
         </View>
         <View style={styles.journeyCountChip}>
           <Text style={styles.journeyCountText}>
-            {countryProgress}/{country?.levelCount ?? 20}
+            {countryProgress}/{country?.levelCount ?? COUNTRY_LEVEL_COUNT}
           </Text>
         </View>
       </View>
@@ -1340,8 +1341,8 @@ export default function HomeScreen() {
 
         if (hasCompletedRequiredTargets(nextSolved.size, levelData)) {
           // Mesaj ve seyahat sınırı, paralel UI state'inden değil gerçekten çözülen
-          // puzzle'ın kendi level kimliğinden hesaplanır. Böylece örneğin Atina 1/7,
-          // gecikmiş bir state güncellemesi yüzünden 7/7 gibi değerlendirilemez.
+          // puzzle'ın kendi level kimliğinden hesaplanır. Böylece örneğin Atina 1/8,
+          // gecikmiş bir state güncellemesi yüzünden 8/8 gibi değerlendirilemez.
           const completedPuzzleLevel = levelData.level;
           const travelCompletion = getTravelLevelCompletion(completedPuzzleLevel);
           const completedLocation = travelCompletion.locationCompleted;

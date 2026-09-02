@@ -7,6 +7,9 @@ import {
   normalizeLevelData,
 } from '../src/game/levels.ts';
 import {
+  COUNTRY_CHALLENGE_LEVEL,
+  COUNTRY_LEVEL_COUNT,
+  DESTINATION_LEVEL_COUNT,
   TOTAL_WORLD_LEVELS,
   TOTAL_DESTINATIONS,
   TRAVEL_ROUTES,
@@ -19,34 +22,56 @@ import { updateWheelSelection } from '../src/game/wheel-selection.ts';
 
 const RUN_COUNT = 5;
 const LAST_LEVEL = TOTAL_WORLD_LEVELS + 50;
+const TRAINING_CITY_OPERATIONS = [
+  ['+', '+', '+'],
+  ['+', '-', '+'],
+  ['-', '+', '-'],
+  ['*', '+', '*'],
+  ['/', '*', '/'],
+];
 let checkedLevelCount = 0;
 
 assertTravelCatalog();
 
-// İlk Yunanistan destinasyonu Atina global 21–27 arasındadır. İlk altı puzzle
-// şehir bitiremez; yalnız 7/7 olan 27. puzzle Atina'yı tamamlar.
-for (let level = 21; level <= 26; level += 1) {
+// İlk Yunanistan destinasyonu Atina, Türkiye'nin 25 puzzle'ından sonra başlar.
+// İlk yedi puzzle şehri bitiremez; yalnız 8/8 olan puzzle Atina'yı tamamlar.
+const firstGreeceLevel = COUNTRY_LEVEL_COUNT + 1;
+for (
+  let level = firstGreeceLevel;
+  level < firstGreeceLevel + DESTINATION_LEVEL_COUNT - 1;
+  level += 1
+) {
   if (getTravelLevelCompletion(level).locationCompleted) {
-    throw new Error(`Seviye ${level}: Atina 7/7 olmadan tamamlandı sayıldı.`);
+    throw new Error(`Seviye ${level}: Atina 8/8 olmadan tamamlandı sayıldı.`);
   }
 }
-if (!getTravelLevelCompletion(27).locationCompleted) {
-  throw new Error('Seviye 27: Atina 7/7 tamamlanmadı sayıldı.');
+const firstGreeceCompletionLevel = firstGreeceLevel + DESTINATION_LEVEL_COUNT - 1;
+if (!getTravelLevelCompletion(firstGreeceCompletionLevel).locationCompleted) {
+  throw new Error(`Seviye ${firstGreeceCompletionLevel}: Atina 8/8 tamamlanmadı sayıldı.`);
 }
 
-const subtraction = computeResult([3, 8], '-');
+const subtraction = computeResult([8, 3], '-');
 if (subtraction?.expression !== '8 − 3' || subtraction.result !== 5) {
-  throw new Error('Çıkarma sonucu büyük sayı önce olacak şekilde kanonik değil.');
+  throw new Error('Çıkarma seçilen sırayla hesaplanmıyor.');
 }
-const reverseDivision = computeResult([3, 12], '/');
-if (reverseDivision?.expression !== '12 ÷ 3' || reverseDivision.result !== 4) {
-  throw new Error('Bölme, tam bölünen ters sırayı bulamıyor.');
+if (computeResult([3, 8], '-') !== null) {
+  throw new Error('Çıkarma geçersiz ters sırayı kabul ediyor.');
+}
+const division = computeResult([12, 3], '/');
+if (division?.expression !== '12 ÷ 3' || division.result !== 4) {
+  throw new Error('Bölme seçilen sırayla hesaplanmıyor.');
+}
+if (computeResult([3, 12], '/') !== null) {
+  throw new Error('Bölme geçersiz ters sırayı kabul ediyor.');
 }
 if (computeResult([3, 7], '/') !== null) {
   throw new Error('Tam bölünmeyen ikili ondalıklı sonuç üretmemeli.');
 }
-if (getCombinationKey([3, 12], '/', 4) !== getCombinationKey([12, 3], '/', 4)) {
-  throw new Error('Ters sıradaki aynı kombinasyon tek keşif anahtarına dönüşmeli.');
+if (getCombinationKey([3, 12], '/', 4) === getCombinationKey([12, 3], '/', 4)) {
+  throw new Error('Bölmede ters sıra ayrı keşif anahtarı olmalı.');
+}
+if (getCombinationKey([3, 12], '+', 15) !== getCombinationKey([12, 3], '+', 15)) {
+  throw new Error('Toplamada ters sıra aynı keşif anahtarı olmalı.');
 }
 
 const fullWheelSelection = updateWheelSelection([0], [0, 1, 2, 3, 4, 5, 6], 7);
@@ -67,11 +92,13 @@ if (rewoundSelection.selection.join(',') !== '0') {
 
 for (let run = 0; run < RUN_COUNT; run += 1) {
   let previousTargetValues = [];
+  let previousOperation = null;
 
   for (let level = 1; level <= LAST_LEVEL; level += 1) {
     const data = generateLevelData(level, previousTargetValues);
     const destination = resolveTravelLevel(level);
-    const expectedNodeCount = level <= 10 ? 5 : level <= 30 ? 6 : 7;
+    const globalCountryIndex = Math.floor((level - 1) / COUNTRY_LEVEL_COUNT);
+    const expectedNodeCount = level <= 10 ? 5 : globalCountryIndex < 5 ? 6 : 7;
     const expectedTargetCount = level <= 10 ? 3 : 4;
     const targetValues = data.targets.map((target) => target.value);
 
@@ -133,27 +160,59 @@ for (let run = 0; run < RUN_COUNT; run += 1) {
     ) {
       throw new Error(`Seviye ${level}: seyahat hedefi rota grafiğiyle uyuşmuyor.`);
     }
-    if (data.countryChallenge !== (data.countryLevel === 20)) {
+    if (data.countryChallenge !== (data.countryLevel === COUNTRY_CHALLENGE_LEVEL)) {
       throw new Error(`Seviye ${level}: Country Challenge konumu hatalı.`);
     }
-    if (data.countryChallenge && data.op === '+' && ![3, 4].includes(data.steps)) {
-      throw new Error(`Seviye ${level}: toplama Challenge adımı 3 veya 4 değil.`);
+    if (data.countryChallenge && data.op !== previousOperation) {
+      throw new Error(`Seviye ${level}: Challenge üçüncü destinasyon işlemini sürdürmüyor.`);
+    }
+    if (!data.countryChallenge && data.locationLevel > 1 && data.op !== previousOperation) {
+      throw new Error(`Seviye ${level}: destinasyon içinde işlem değişti.`);
+    }
+    if (
+      globalCountryIndex >= TRAINING_CITY_OPERATIONS.length &&
+      !data.countryChallenge &&
+      data.locationLevel === 1 &&
+      data.op === previousOperation
+    ) {
+      throw new Error(`Seviye ${level}: yeni destinasyonda işlem değişmedi.`);
     }
 
     const completion = getTravelLevelCompletion(level);
-    const expectedLocationCompletion = [7, 14, 19].includes(data.countryLevel);
+    if (level <= COUNTRY_LEVEL_COUNT && (data.op !== '+' || data.steps !== 2)) {
+      throw new Error(`Seviye ${level}: ilk ülkenin toplama öğretimi bozuldu.`);
+    }
+
+    const trainingOperations = TRAINING_CITY_OPERATIONS[globalCountryIndex];
+    if (trainingOperations) {
+      const trainingLocationIndex = data.countryChallenge ? 2 : data.locationIndex;
+      if (
+        data.op !== trainingOperations[trainingLocationIndex] ||
+        data.steps !== 2 ||
+        data.bonusTarget.steps !== 2
+      ) {
+        throw new Error(`Seviye ${level}: öğretici ülke işlem planına uymuyor.`);
+      }
+    }
+
+    const expectedLocationCompletion = [
+      DESTINATION_LEVEL_COUNT,
+      DESTINATION_LEVEL_COUNT * 2,
+      DESTINATION_LEVEL_COUNT * 3,
+    ].includes(data.countryLevel);
     if (completion.locationCompleted !== expectedLocationCompletion) {
       throw new Error(`Seviye ${level}: destinasyon tamamlama sınırı hatalı.`);
     }
-    if (completion.countryCompleted !== (data.countryLevel === 20)) {
+    if (completion.countryCompleted !== (data.countryLevel === COUNTRY_CHALLENGE_LEVEL)) {
       throw new Error(`Seviye ${level}: ülke tamamlama sınırı hatalı.`);
     }
 
     previousTargetValues = targetValues;
+    previousOperation = data.op;
     checkedLevelCount += 1;
   }
 }
 
 console.log(
-  `OK: ${TRAVEL_ROUTES.length} rota, ${WORLD_COUNTRIES.length} ülke, ${TOTAL_DESTINATIONS} destinasyon, ${TOTAL_WORLD_LEVELS} ana level ve ${checkedLevelCount} prosedürel puzzle doğrulandı.`,
+  `OK: ${TRAVEL_ROUTES.length} rota, ${WORLD_COUNTRIES.length} ülke etabı, ${TOTAL_DESTINATIONS} destinasyon, ${TOTAL_WORLD_LEVELS} ana level ve ${checkedLevelCount} prosedürel puzzle doğrulandı.`,
 );

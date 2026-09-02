@@ -19,6 +19,7 @@ import {
 } from '@/constants/content-images';
 import type { LevelData } from '@/game/levels';
 import {
+  COUNTRY_LEVEL_COUNT,
   COUNTRY_BY_ID,
   ROUTE_BY_ID,
   TRAVEL_ROUTES,
@@ -448,7 +449,8 @@ export function JourneyMap({
               {selectedRoute.emoji} {selectedRoute.name}
             </Text>
             <Text style={styles.routeSummaryCaption}>
-              {selectedRoute.countryIds.length} ülke • {selectedRoute.countryIds.length * 20} bölüm
+              {selectedRoute.countryIds.length} ülke •{' '}
+              {selectedRoute.countryIds.length * COUNTRY_LEVEL_COUNT} bölüm
             </Text>
           </View>
         }

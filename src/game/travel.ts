@@ -3,6 +3,10 @@ import {
   routeContentImageUrl,
 } from '../constants/content-images.ts';
 
+export const DESTINATION_LEVEL_COUNT = 8;
+export const COUNTRY_CHALLENGE_LEVEL = 25;
+export const COUNTRY_LEVEL_COUNT = 25;
+
 export type TravelLocation = {
   id: string;
   name: string;
@@ -21,7 +25,7 @@ export type TravelCountry = {
   country: string;
   flag: string;
   primaryRouteId: string;
-  levelCount: 20;
+  levelCount: typeof COUNTRY_LEVEL_COUNT;
   locations: TravelLocation[];
   challenge: TravelLocation;
   /** Eski ekranlarla uyumluluk için yalnızca üç gerçek destinasyon. */
@@ -529,8 +533,8 @@ function makeLocations(
   names: readonly [string, string, string],
   background: string,
 ): TravelLocation[] {
-  const counts = [7, 7, 5] as const;
-  const starts = [1, 8, 15] as const;
+  const counts = [DESTINATION_LEVEL_COUNT, DESTINATION_LEVEL_COUNT, DESTINATION_LEVEL_COUNT] as const;
+  const starts = [1, 9, 17] as const;
   return names.map((name, index) => ({
     id: `${countryId}-${slugify(name)}`,
     name,
@@ -577,7 +581,7 @@ export const TRAVEL_ROUTES: TravelRoute[] = ROUTE_SEEDS.map((seed, routeIndex) =
       country,
       flag,
       primaryRouteId: seed.id,
-      levelCount: 20,
+      levelCount: COUNTRY_LEVEL_COUNT,
       locations,
       challenge: {
         id: `${id}-country-challenge`,
@@ -585,7 +589,7 @@ export const TRAVEL_ROUTES: TravelRoute[] = ROUTE_SEEDS.map((seed, routeIndex) =
         emoji: isWorldTourFinal ? '🌍' : '🏆',
         background,
         levelCount: 1,
-        startLevel: 20,
+        startLevel: COUNTRY_CHALLENGE_LEVEL,
         kind: 'challenge',
       },
       cities: locations,
@@ -630,7 +634,7 @@ export const TOTAL_DESTINATIONS = WORLD_COUNTRIES.reduce(
   (total, country) => total + country.locations.length,
   0,
 );
-export const TOTAL_WORLD_LEVELS = WORLD_COUNTRIES.length * 20;
+export const TOTAL_WORLD_LEVELS = WORLD_COUNTRIES.length * COUNTRY_LEVEL_COUNT;
 
 const countryStartById = new Map(
   WORLD_COUNTRIES.map((country, index) => [country.id, index * country.levelCount]),
@@ -719,11 +723,13 @@ export function resolveTravelLevel(globalLevel: number): TravelDestination {
   const normalizedLevel = Math.max(1, Math.floor(globalLevel));
   const masterTour = Math.floor((normalizedLevel - 1) / TOTAL_WORLD_LEVELS);
   const cycleLevel = ((normalizedLevel - 1) % TOTAL_WORLD_LEVELS) + 1;
-  const countryIndex = Math.floor((cycleLevel - 1) / 20);
+  const countryIndex = Math.floor((cycleLevel - 1) / COUNTRY_LEVEL_COUNT);
   const country = WORLD_COUNTRIES[countryIndex];
-  const countryLevel = ((cycleLevel - 1) % 20) + 1;
-  const countryChallenge = countryLevel === 20;
-  const locationIndex = countryChallenge ? 3 : countryLevel <= 7 ? 0 : countryLevel <= 14 ? 1 : 2;
+  const countryLevel = ((cycleLevel - 1) % COUNTRY_LEVEL_COUNT) + 1;
+  const countryChallenge = countryLevel === COUNTRY_CHALLENGE_LEVEL;
+  const locationIndex = countryChallenge
+    ? 3
+    : Math.floor((countryLevel - 1) / DESTINATION_LEVEL_COUNT);
   const location = countryChallenge ? country.challenge : country.locations[locationIndex];
   const route = ROUTE_BY_ID.get(country.primaryRouteId) ?? TRAVEL_ROUTES[0];
 
@@ -772,8 +778,10 @@ export function assertTravelCatalog() {
   if (TOTAL_COUNTRY_STAGES < 140) {
     throw new Error(`Dünya kataloğu en az 140 ülke etabı içermeli; bulunan: ${TOTAL_COUNTRY_STAGES}`);
   }
-  if (TOTAL_WORLD_LEVELS !== TOTAL_COUNTRY_STAGES * 20) {
-    throw new Error(`Ana tur ülke etabı başına 20 level içermeli; bulunan: ${TOTAL_WORLD_LEVELS}`);
+  if (TOTAL_WORLD_LEVELS !== TOTAL_COUNTRY_STAGES * COUNTRY_LEVEL_COUNT) {
+    throw new Error(
+      `Ana tur ülke etabı başına ${COUNTRY_LEVEL_COUNT} level içermeli; bulunan: ${TOTAL_WORLD_LEVELS}`,
+    );
   }
   if (TOTAL_DESTINATIONS !== TOTAL_COUNTRY_STAGES * 3) {
     throw new Error(`Her ülke etabı üç destinasyon içermeli; bulunan: ${TOTAL_DESTINATIONS}`);
@@ -798,7 +806,7 @@ export function assertTravelCatalog() {
   });
 
   WORLD_COUNTRIES.forEach((country, index) => {
-    if (country.worldIndex !== index || country.levelCount !== 20) {
+    if (country.worldIndex !== index || country.levelCount !== COUNTRY_LEVEL_COUNT) {
       throw new Error(`${country.country}: dünya sırası veya level sayısı hatalı.`);
     }
     if (country.locations.length !== 3) {
@@ -806,8 +814,12 @@ export function assertTravelCatalog() {
     }
     const counts = country.locations.map((location) => location.levelCount).join(',');
     const starts = country.locations.map((location) => location.startLevel).join(',');
-    if (counts !== '7,7,5' || starts !== '1,8,15' || country.challenge.startLevel !== 20) {
-      throw new Error(`${country.country}: beklenen 7+7+5+Challenge progression yapısına uymuyor.`);
+    if (
+      counts !== '8,8,8' ||
+      starts !== '1,9,17' ||
+      country.challenge.startLevel !== COUNTRY_CHALLENGE_LEVEL
+    ) {
+      throw new Error(`${country.country}: beklenen 8+8+8+Challenge progression yapısına uymuyor.`);
     }
   });
 }

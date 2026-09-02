@@ -29,25 +29,30 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 1. Oyuncu 3 veya 4 hedefi ve ortak sayı çemberini görür.
 2. Sayıları parmağıyla sırayla birleştirerek zihinsel yatırım yapar.
 3. Tek hedef bulunduğunda kart yalnızca emerald durumuna geçer; ekran düzeni değişmez ve konfeti gösterilmez.
-4. Her seviyede ana hedeflerden farklı, garantili çözülebilen bir `💎 Bonus Hedef` kartı bulunur. Bu kart isteğe bağlıdır; 2, 3 veya 4 adımlı olabilir ve çözülürse `bonus sayı × adım sayısı` kadar mücevheri hemen verir.
+4. Her seviyede ana hedeflerden farklı, garantili çözülebilen bir `💎 Bonus Hedef` kartı bulunur. Bu kart isteğe bağlıdır; ilk beş öğretici ülkede 2 adımlı, 6–8. ülkelerde 2/3 adımlı, sonrasında 2/3/4 adımlı olabilir ve çözülürse `bonus sayı × adım sayısı` kadar mücevheri hemen verir.
 5. Bonus kartı dışında hedef olmayan geçerli bir işlem ilk kez keşfedilirse Bonus Keşif sayacı artar ve `+1 mücevher` verir; aynı kombinasyon tekrar ödül vermez.
 6. Tüm **ana hedefler** bitince bonus kartının durumuna bakılmadan konfeti, güçlü başarı titreşimi ve seviye geçişi çalışır. Çözülmemiş bonus sonraki seviyeye geçişi hiçbir zaman engellemez.
-7. Her ülkede ilk iki destinasyon 7&apos;şer, üçüncü destinasyon 5 puzzle içerir; 20. puzzle Country Challenge&apos;dır.
+7. Her ülkede üç destinasyon da 8&apos;er puzzle içerir; 25. puzzle Country Challenge&apos;dır.
 8. Country Challenge tamamlanınca vize pulu ve landmark kazanılır. Oyuncu zorla rota ekranına gönderilmez; ister oyuna devam eder, ister ana ekrandaki Seyahat düğmesiyle yeni bağlantıyı inceler.
 9. Normal seviye geri bildirimi `Puzzle x/y tamamlandı • Şehir` biçimindedir. `Şehir tamamlandı` yalnız katalogda bir sonraki puzzle başka destinasyona geçtiğinde; ülke tamamlandı mesajı yalnız Country Challenge çözüldüğünde gösterilir.
 
 ## Seviye ve matematik motoru
 
-| Dahili puzzle sırası | Düğüm | Hedef | Temel işlem yapısı |
+| İlerleme | Düğüm | Hedef | Temel işlem yapısı |
 | --- | ---: | ---: | --- |
-| 1–10 | 5 | 3 | İkili toplama |
-| 11–30 | 6 | 4 | İkili toplama |
-| 31–70 | 7 | 4 | Toplama/çıkarma; uygun toplama seviyelerinde üçlü işlem |
-| 71+ | 7 | 4 | Toplama, çıkarma, çarpma ve bölme dönüşümü |
+| 1. ülke, puzzle 1–10 | 5 | 3 | İki adımlı toplama |
+| 1. ülke, puzzle 11–25 | 6 | 4 | İki adımlı toplama; Challenge dahil |
+| 2–5. ülkeler | 6 | 4 | Şehir başına sabit işlem, iki adımlı öğretim |
+| 6–8. ülkeler | 7 | 4 | Şehir başına sabit işlem; toplama/çarpma 3, diğerleri 2 adım |
+| 9–16. ülkeler | 7 | 4 | Şehir başına sabit işlem; bölme 2, diğerleri 3 adım |
+| 17+ ülkeler | 7 | 4 | Şehir başına sabit işlem; ana hedefler 3 adım |
 
 - Önce benzersiz çember sayıları seçilir; hedefler yalnızca bu sayıların gerçek kombinasyonlarından türetilir.
-- İkili hedefler `A op B`, üçlü hedefler `A + B + C` biçimindedir. Bir seviyedeki hedeflerin adım sayısı üstteki `Gereken` göstergesiyle aynı olmalıdır.
-- Çıkarma pozitif fark olarak değerlendirilir. Bölme sıraya duyarlıdır, tam bölünür ve sonuç `1`den büyük hedeflerden üretilir.
+- İlk beş ülkenin şehir işlem planı sırasıyla `+++/+-+/-+-/*+*/÷*÷` biçimindedir. Altıncı ülkeden itibaren işlem her yeni şehirde `+ → − → × → ÷` döngüsünde değişir ve sekiz puzzle boyunca sabit kalır.
+- Country Challenge daima üçüncü şehrin işlemini sürdürür. İlk beş ülkede 2 adımlıdır; 6–8. ülkelerde şehir kuralını korur; 9–16. ülkelerde 3 adımlıdır; 17. ülkeden sonra toplama/çarpma Challenge 4, çıkarma/bölme Challenge 3 adımlıdır.
+- Sayı havuzları 1–2, 3–5, 6–20 ve 21+ ülke katmanlarında büyür. Bölme havuzları yalnız tam sonuç veren, gittikçe daha büyük çarpan ailelerinden seçilir.
+- İkili hedefler `A op B`, üçlü/dörtlü hedefler seçilen işlemle `A op B op C (op D)` biçimindedir. Bir seviyedeki hedeflerin adım sayısı üstteki `Gereken` göstergesiyle aynı olmalıdır.
+- Çıkarma ve bölme sürükleme sırasına duyarlıdır: ilk seçilen sayı başlangıç değeridir ve kalan sayılar seçilme sırasıyla uygulanır. Çıkarma sonucu pozitif, bölmenin her ara sonucu tam sayı olmalıdır. Toplama ve çarpma değişmelidir; ters sıra aynı işlem ve keşif sayılır.
 - Her hedef benzersiz, çözülebilir ve dahili çözümleyiciyle doğrulanmış olmalıdır. Eksik hedefle seviye başlatılamaz.
 - Bonus hedef, ana hedeflerle aynı çember ve işlemden türetilir; ana hedef değerlerinden farklı, benzersiz ve çözümleyiciyle doğrulanmış olmalıdır. Bonus kartı ana hedef sayısına ve seviye tamamlama koşuluna dahil edilmez.
 - Hedef seçici, düğüm kullanım sayılarının farkını ve kareler toplamını minimize ederek bütün çemberi olabildiğince dengeli kullanır.
@@ -57,7 +62,7 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 
 ## Dünya rotası, ülkeler ve pasaport
 
-Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinasyon ve 2.000 ana puzzle içerir:
+Katalog tam olarak 21 ardışık rota, 145 benzersiz ülke/149 ülke etabı, 447 gerçek destinasyon ve 3.725 ana puzzle içerir:
 
 1. Akdeniz&apos;in Kapısı — Türkiye → Yunanistan → Arnavutluk → Karadağ → Hırvatistan → Slovenya → İtalya → Malta
 2. Batı Akdeniz & Atlantik — Tunus → Cezayir → Fas → İspanya → Portekiz → Fransa → Birleşik Krallık
@@ -74,7 +79,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 13. Amerika Yolculuğu — Kanada → ABD → Meksika → Guatemala → Kosta Rika → Kolombiya → Peru
 14. Andlar&apos;dan Büyük Okyanus&apos;a — Ekvador → Bolivya → Şili → Arjantin → Brezilya → Avustralya → Yeni Zelanda
 
-- Her ülke tam `20` ana puzzle içerir: destinasyonlar `1–7`, `8–14`, `15–19`; Country Challenge `20`.
+- Her ülke tam `25` ana puzzle içerir: destinasyonlar `1–8`, `9–16`, `17–24`; Country Challenge `25`.
 - Ülke ve rota state&apos;leri `LOCKED`, `AVAILABLE`, `CURRENT`, `COMPLETED` semantiğini taşır. Bir sonraki ülke/rota ancak önceki tamamlanınca açılır.
 - Ulaşım yalnız ilerleme ödülüdür. Mesafeye göre araba, tren, gemi veya uçak gösterilir; coin/gem ödeme duvarı oluşturulmaz.
 - Pasaport yalnız tamamlanan ülkeleri sayar. Başlangıç `0/100`, her Country Challenge sonrası bir pul, Yeni Zelanda finali sonrası `100/100` gösterilir.
@@ -97,7 +102,7 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - Aktif ülke kartına dokunmak da doğrudan kayıtlı puzzle&apos;ı açar. Tamamlanmış veya kilitli ülke kartları kayıtlı seviyeyi değiştirmez.
 - Dünya → rota geçişi keşif içindir; puzzle&apos;a erişim `OYUNA DEVAM ET` veya aktif ülke kartı üzerinden gerçekleşir. Geri kontrolü rota katmanından Dünya&apos;ya, oyun içindeki harita düğmesi de Dünya katmanına götürür.
 - Üst hero alanı Dünya katmanında dünya haritasını, Rota katmanında seçili rota görselini kullanır; hero yüksekliği güvenli alan hariç `268 dp`dir. Alttaki koyu scrim başlık ve rota bilgisini her görselde okunur tutar.
-- Devam kartı hero üzerine `16 dp` biner, yatayda `16 dp` boşluk bırakır ve `18 dp` köşe yarıçapı kullanır. Başlık `OYUNA DEVAM ET`; alt satır aktif ülke, destinasyon ve destinasyon içi puzzle ilerlemesidir. Kartın ilerleme çizgisi aktif ülkenin `x/20` durumunu gösterir.
+- Devam kartı hero üzerine `16 dp` biner, yatayda `16 dp` boşluk bırakır ve `18 dp` köşe yarıçapı kullanır. Başlık `OYUNA DEVAM ET`; alt satır aktif ülke, destinasyon ve destinasyon içi puzzle ilerlemesidir. Kartın ilerleme çizgisi aktif ülkenin `x/25` durumunu gösterir.
 - Rota ve ülke kartları `24/54 dp` ile `54/24 dp` dönüşümlü yatay marjinlerle zikzak yerleşir. Kartlar en fazla `50 ms` aralıkla, `360 ms` sürede ve alttan `22 dp` kayarak açılır.
 - Ülkeler arasındaki bağlantı alanı `56 dp` yüksekliğindedir; ortadaki ulaşım/mesafe çipi rota verisinden okunur.
 - Her ülke kartı sıra/durum, ülke adı, üç şehir/lokasyonu ayrı ve okunabilir bilgi çipleriyle, `5 dp` ilerleme çubuğunu ve üç destinasyon + Challenge ilerleme rayını gösterir. Bu şehir çipleri seçim kontrolü değildir.
@@ -112,11 +117,11 @@ Katalog tam olarak 14 ardışık rota, 100 benzersiz ülke, 300 gerçek destinas
 - Puzzle ekranı `assets/images/game-sky-background.png` görselini `cover` olarak kullanır. Bu dosya Android referansındaki sky background ile byte-byte aynıdır; üzerine yalnız yaklaşık `%3–10` koyu okunabilirlik katmanı gelir.
 - Puzzle ekranı üst HUD&apos;u güvenli alanın altında `46 dp` yüksekliğindedir; yatay marjin `12 dp`, üst marjin `8–10 dp`dir. Sıra yalnızca `geri → puan … mücevher → ayarlar` biçimindedir; oyun HUD&apos;unda pasaport veya başka kontrol bulunmaz.
 - Ülke/şehir şeridi HUD&apos;un `4 dp` altındadır; `106 dp` yüksekliğinde, ekranın `%94` genişliğinde ve en fazla `488 dp`dir. `28 dp` köşe, `1.5 dp` açık turkuaz kenarlık ve `#3E6472 → #263F4D` yarı saydam degrade kullanır.
-- Şeridin ilk satırı ülke/flag, aktif işlem çipi ve ülke içi `x/20` ilerlemesini gösterir. Challenge aktifken yalnız ülke adının sağında, layout değiştirmeyen hafif pulse animasyonlu `CHALLENGE` etiketi görünür; oyun alanının başka bir yerinde tekrar edilmez.
-- İkinci satır üç destinasyonu `✓ tamamlandı / ● aktif / ○ bekliyor` semantiğiyle sıralar. İlerleme rayı puzzle ağırlıklarıyla `7 + 7 + 5 + 1` oranında dört parçadır; son yaklaşık `%5` genişlikteki kupa parçası Country Challenge ilerlemesidir.
-- Oyun açıkken 19. puzzle tamamlanıp Country Challenge seviyesine otomatik geçildiğinde ödül veya ek açıklama içermeyen, yalnız `COUNTRY CHALLENGE` bilgisini belirginleştiren kısa başlangıç modalı bir kez gösterilir. Ana sayfadaki `Devam Et` düğmesiyle kayıtlı Challenge&apos;a dönmek bu modalı yeniden açmaz. Toplama Challenge hedefleri ülkelere göre dönüşümlü olarak 3 veya 4 adımlıdır; çıkarma, çarpma ve bölme mevcut adım mantığını korur.
+- Şeridin ilk satırı ülke/flag, aktif işlem çipi ve ülke içi `x/25` ilerlemesini gösterir. Challenge aktifken yalnız ülke adının sağında, layout değiştirmeyen hafif pulse animasyonlu `CHALLENGE` etiketi görünür; oyun alanının başka bir yerinde tekrar edilmez.
+- İkinci satır üç destinasyonu `✓ tamamlandı / ● aktif / ○ bekliyor` semantiğiyle sıralar. İlerleme rayı puzzle ağırlıklarıyla `8 + 8 + 8 + 1` oranında dört parçadır; son `%4` genişlikteki kupa parçası Country Challenge ilerlemesidir.
+- Oyun açıkken 24. puzzle tamamlanıp Country Challenge seviyesine otomatik geçildiğinde ödül veya ek açıklama içermeyen, yalnız `COUNTRY CHALLENGE` bilgisini belirginleştiren kısa başlangıç modalı bir kez gösterilir. Ana sayfadaki `Devam Et` düğmesiyle kayıtlı Challenge&apos;a dönmek bu modalı yeniden açmaz. Challenge üçüncü şehrin işlemini kesintisiz sürdürür; adım sayısı ülkenin öğretim katmanına göre yükselir.
 - Bir destinasyonun son puzzle&apos;ı tamamlandığında otomatik seviye değişmeden önce ortada `DESTİNASYON TAMAMLANDI` kartı görünür; biten destinasyon ve açılan sıradaki destinasyon/Challenge açıkça yazılır. Bu kart bilgi amaçlıdır ve yaklaşık `1.6 sn` sonra akış devam eder.
-- Country Challenge tamamlandığında sonraki ülkeye otomatik ve sessiz geçilmez. Üç destinasyonun onay işaretlerini, `20/20`, pasaport damgasını, landmark ödülünü ve açılan sonraki ülkeyi gösteren zorunlu ülke tamamlama modalı açılır. Yeni ülkenin ilk puzzle&apos;ı yalnız `Sıradaki ülkeye geç` eylemiyle başlatılır; tamamlanmış kayıt uygulama yeniden açıldığında da bu modal atlanmaz.
+- Country Challenge tamamlandığında sonraki ülkeye otomatik ve sessiz geçilmez. Üç destinasyonun onay işaretlerini, `25/25`, pasaport damgasını, landmark ödülünü ve açılan sonraki ülkeyi gösteren zorunlu ülke tamamlama modalı açılır. Yeni ülkenin ilk puzzle&apos;ı yalnız `Sıradaki ülkeye geç` eylemiyle başlatılır; tamamlanmış kayıt uygulama yeniden açıldığında da bu modal atlanmaz.
 - Header ve ana içerik en fazla `512 dp`, modal en fazla `448 dp` genişliğindedir. Modal yüksekliği ekranın en fazla `%85`idir.
 - Ana yatay boşluk `16 dp`; yalnızca kullanılabilir genişliği `288 dp` altına düşen çok dar ekranlarda taşmayı önlemek için küçültülebilir.
 - Hedef alanı Android&apos;deki açık word-card yüzeyine uyarlanır: `#F8FCFB → #DCECEC`, `28 dp` dış köşe, `2 dp #D5EEF2` kenarlık. Üst bilgi satırı `İŞLEM TÜRÜ` altında yalnız işlem sembolünü ve `ADIM SAYISI` altında sayısal adım değerini gösterir. Üç hedef `%31.6`, dört hedef `%23.5` genişlikle tek satırda kalır; aralık `8 dp`, kart yüksekliği en az `62 dp`dir.
@@ -200,7 +205,7 @@ npx expo-doctor@latest
 npx expo export --platform all
 ```
 
-Seviye motoru tüm `1–2000` ana turu ve Master Tour başlangıcını tekrarlı rastgele koşularla doğrular: 14 rota, 100 benzersiz ülke, 300 destinasyon, `7+7+5+Challenge`, doğru düğüm/hedef adedi, benzersiz hedefler, çözülebilirlik, adım tutarlılığı ve ardışık hedef tekrarsızlığı.
+Seviye motoru tüm `1–3725` ana turu ve Master Tour başlangıcını tekrarlı rastgele koşularla doğrular: 21 rota, 145 benzersiz ülke/149 ülke etabı, 447 destinasyon, `8+8+8+Challenge`, doğru düğüm/hedef adedi, benzersiz hedefler, çözülebilirlik, adım tutarlılığı ve ardışık hedef tekrarsızlığı.
 
 Görsel kontrol matrisi: `320×568`, `360×640`, `375×667`, `390×844`, `430×932`, `448×998` ve `768×1024 dp`. Beklenen çember çapları sırasıyla `224`, `240`, `240`, `304`, `304`, `304` ve `336 dp`dir.
 

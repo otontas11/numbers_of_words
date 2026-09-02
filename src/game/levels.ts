@@ -1,4 +1,6 @@
 import {
+  COUNTRY_LEVEL_COUNT,
+  DESTINATION_LEVEL_COUNT,
   WORLD_COUNTRIES,
   resolveTravelLevel,
   type TravelCountry,
@@ -93,53 +95,105 @@ function shuffle<T>(items: readonly T[]): T[] {
   return result;
 }
 
+const TRAINING_CITY_OPERATIONS: readonly (readonly Operation[])[] = [
+  ['+', '+', '+'],
+  ['+', '-', '+'],
+  ['-', '+', '-'],
+  ['*', '+', '*'],
+  ['/', '*', '/'],
+];
+
+const ADVANCED_CITY_OPERATIONS: readonly Operation[] = ['+', '-', '*', '/'];
+
+function getCityOperation(level: number, countryChallenge: boolean): Operation {
+  const countryIndex = Math.floor((level - 1) / COUNTRY_LEVEL_COUNT);
+  const countryLevel = ((level - 1) % COUNTRY_LEVEL_COUNT) + 1;
+  // Challenge, üçüncü destinasyonda öğrenilen işlemle devam eder.
+  const locationIndex = countryChallenge
+    ? 2
+    : Math.floor((countryLevel - 1) / DESTINATION_LEVEL_COUNT);
+  const trainingOperations = TRAINING_CITY_OPERATIONS[countryIndex];
+
+  if (trainingOperations) return trainingOperations[locationIndex];
+
+  const advancedLocationIndex =
+    (countryIndex - TRAINING_CITY_OPERATIONS.length) * 3 + locationIndex;
+  return ADVANCED_CITY_OPERATIONS[
+    advancedLocationIndex % ADVANCED_CITY_OPERATIONS.length
+  ];
+}
+
+function getStepCount(
+  countryIndex: number,
+  op: Operation,
+  countryChallenge: boolean,
+): 2 | 3 | 4 {
+  // İlk beş ülke dört işlemi ayrı ayrı öğretir; adım sayısı sabit kalır.
+  if (countryIndex < TRAINING_CITY_OPERATIONS.length) return 2;
+
+  if (countryChallenge) {
+    if (countryIndex < 8) return op === '+' || op === '*' ? 3 : 2;
+    if (countryIndex < 16 || op === '-' || op === '/') return 3;
+    return 4;
+  }
+
+  if (countryIndex < 8) return op === '+' || op === '*' ? 3 : 2;
+  if (countryIndex < 16) return op === '/' ? 2 : 3;
+  return 3;
+}
+
+function getBonusStepOptions(level: number): readonly (2 | 3 | 4)[] {
+  const countryIndex = Math.floor((level - 1) / COUNTRY_LEVEL_COUNT);
+  if (countryIndex < TRAINING_CITY_OPERATIONS.length) return [2];
+  if (countryIndex < 8) return [2, 3];
+  return [2, 3, 4];
+}
+
 function getLevelRules(level: number, countryChallenge: boolean): {
   op: Operation;
   steps: 2 | 3 | 4;
   nodeCount: number;
   targetCount: number;
 } {
-  let rules: {
-    op: Operation;
-    steps: 2 | 3;
-    nodeCount: number;
-    targetCount: number;
+  const countryIndex = Math.floor((level - 1) / COUNTRY_LEVEL_COUNT);
+  const op = getCityOperation(level, countryChallenge);
+  return {
+    op,
+    steps: getStepCount(countryIndex, op, countryChallenge),
+    nodeCount: level <= 10 ? 5 : countryIndex < 5 ? 6 : 7,
+    targetCount: level <= 10 ? 3 : 4,
   };
-
-  if (level <= 10) {
-    rules = { op: '+', steps: 2, nodeCount: 5, targetCount: 3 };
-  } else if (level <= 30) {
-    rules = { op: '+', steps: 2, nodeCount: 6, targetCount: 4 };
-  } else if (level <= 70) {
-    const op: Operation = level % 2 === 0 ? '+' : '-';
-    rules = {
-      op,
-      steps: op === '+' && level % 3 === 0 ? 3 : 2,
-      nodeCount: 7,
-      targetCount: 4,
-    };
-  } else {
-    const operations: Operation[] = ['+', '-', '*', '/'];
-    const op = operations[level % operations.length];
-    rules = {
-      op,
-      steps: op === '+' ? 3 : 2,
-      nodeCount: 7,
-      targetCount: 4,
-    };
-  }
-
-  if (!countryChallenge || rules.op !== '+') return rules;
-
-  const countryIndex = Math.floor((level - 1) / 20);
-  return { ...rules, steps: countryIndex % 2 === 0 ? 3 : 4 };
 }
 
-function getPool(op: Operation): number[] {
-  if (op === '+') return [2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 15];
-  if (op === '-') return [20, 18, 16, 15, 12, 10, 8, 6, 5, 4, 3, 2];
-  if (op === '*') return [2, 3, 4, 5, 6, 7, 8];
-  return [24, 20, 18, 16, 12, 8, 6, 4, 3, 2];
+function getPool(op: Operation, level: number): number[] {
+  const countryIndex = Math.floor((level - 1) / COUNTRY_LEVEL_COUNT);
+  const difficulty = countryIndex < 2 ? 0 : countryIndex < 5 ? 1 : countryIndex < 20 ? 2 : 3;
+
+  if (op === '+') {
+    if (difficulty === 0) return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    if (difficulty === 1) return [2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 15];
+    if (difficulty === 2) return [3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20];
+    return [4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 18, 20, 24, 25];
+  }
+
+  if (op === '-') {
+    if (difficulty === 0) return [12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+    if (difficulty === 1) return [20, 18, 16, 15, 12, 10, 8, 6, 5, 4, 3, 2];
+    if (difficulty === 2) return [30, 27, 24, 21, 18, 15, 12, 10, 8, 6, 4, 3];
+    return [45, 40, 36, 32, 28, 24, 20, 16, 12, 9, 6, 4];
+  }
+
+  if (op === '*') {
+    if (difficulty <= 1) return [2, 3, 4, 5, 6, 7, 8];
+    if (difficulty === 2) return [2, 3, 4, 5, 6, 7, 8, 9, 10];
+    return [3, 4, 5, 6, 7, 8, 9, 10, 11];
+  }
+
+  // Bölme havuzları, sekiz bölümlük seri boyunca ardışık hedefleri tekrar
+  // etmeden yeterli sayıda tam bölünen sonuç verecek çarpan aileleridir.
+  if (difficulty <= 1) return [2, 3, 4, 6, 24, 120];
+  if (difficulty === 2) return [2, 3, 4, 5, 10, 30, 120];
+  return [3, 4, 5, 6, 12, 60, 180];
 }
 
 function buildCandidates(numbers: number[], op: Operation, steps: 2 | 3 | 4): Candidate[] {
@@ -225,7 +279,13 @@ export function generateLevelData(
   const excludedValues = new Set(
     excludedTargetValues.filter((value) => Number.isFinite(value)),
   );
-  const coverageGoal = Math.min(rules.nodeCount, rules.targetCount * rules.steps);
+  // Bölmede ardışık sekiz puzzle boyunca hedef değeri tekrarlamama kuralı,
+  // bazı çarpanların bir tur için kullanılamamasına yol açabilir. Bu işlemde
+  // çemberin biri hariç tüm düğümlerini kapsamak yeterlidir.
+  const coverageGoal = Math.min(
+    rules.op === '/' ? rules.nodeCount - 1 : rules.nodeCount,
+    rules.targetCount * rules.steps,
+  );
   let numbers: number[] = [];
   let selectedCandidates: Candidate[] = [];
   let bonusCandidate: Candidate | null = null;
@@ -233,7 +293,7 @@ export function generateLevelData(
   let bestSelectionCount = -1;
 
   for (let attempt = 0; attempt < 160; attempt += 1) {
-    const candidateNumbers = shuffle(getPool(rules.op)).slice(0, rules.nodeCount);
+    const candidateNumbers = shuffle(getPool(rules.op, normalizedLevel)).slice(0, rules.nodeCount);
     const candidates = buildCandidates(candidateNumbers, rules.op, rules.steps);
     const selected = selectDiverseCandidates(
       candidates,
@@ -244,7 +304,7 @@ export function generateLevelData(
     const requiredCandidates = selected;
     const requiredValues = new Set(requiredCandidates.map((candidate) => candidate.value));
     const bonusCandidates = shuffle(
-      ([2, 3, 4] as const).flatMap((bonusSteps) =>
+      getBonusStepOptions(normalizedLevel).flatMap((bonusSteps) =>
         buildCandidates(candidateNumbers, rules.op, bonusSteps),
       ),
     ).filter(
@@ -333,7 +393,7 @@ function travelMetadata(
 
 function deriveLegacyBonusTarget(levelData: LegacyLevelData): Target {
   const requiredValues = new Set(levelData.targets.map((target) => target.value));
-  const candidate = ([2, 3, 4] as const)
+  const candidate = getBonusStepOptions(levelData.level)
     .flatMap((steps) => buildCandidates(levelData.numbers, levelData.op, steps))
     .find((item) => !requiredValues.has(item.value));
 
@@ -349,6 +409,7 @@ function isUsableBonusTarget(levelData: LegacyLevelData): levelData is LevelData
   if (
     !target ||
     target.op !== levelData.op ||
+    !getBonusStepOptions(levelData.level).includes(target.steps) ||
     levelData.targets.some((item) => item.value === target.value)
   ) {
     return false;
@@ -380,10 +441,10 @@ export function computeResult(values: number[], op: Operation): Calculation | nu
   }
 
   if (op === '-') {
-    const [largest, ...remaining] = [...values].sort((left, right) => right - left);
-    const result = largest - remaining.reduce((total, value) => total + value, 0);
+    const [first, ...remaining] = values;
+    const result = first - remaining.reduce((total, value) => total + value, 0);
     return result > 0
-      ? { expression: [largest, ...remaining].join(` ${symbol} `), result }
+      ? { expression: values.join(` ${symbol} `), result }
       : null;
   }
 
@@ -392,17 +453,6 @@ export function computeResult(values: number[], op: Operation): Calculation | nu
       expression: values.join(` ${symbol} `),
       result: values.reduce((total, value) => total * value, 1),
     };
-  }
-
-  if (values.length === 2) {
-    const [left, right] = values;
-    if (right !== 0 && left % right === 0) {
-      return { expression: `${left} ${symbol} ${right}`, result: left / right };
-    }
-    if (left !== 0 && right % left === 0) {
-      return { expression: `${right} ${symbol} ${left}`, result: right / left };
-    }
-    return null;
   }
 
   let result = values[0];
@@ -414,15 +464,18 @@ export function computeResult(values: number[], op: Operation): Calculation | nu
 }
 
 /**
- * Aynı düğüm kümesini farklı sırada sürüklemek aynı keşiftir. İşlem ve sonuç
- * anahtarda tutulduğu için aynı operandların farklı işlemdeki kullanımı ayrıdır.
+ * Toplama ve çarpma değişmelidir; aynı düğüm kümesi farklı sırada aynı keşiftir.
+ * Çıkarma ve bölmede ise sürükleme sırası işlemin ve keşfin bir parçasıdır.
  */
 export function getCombinationKey(
   values: readonly number[],
   op: Operation,
   result: number,
 ): string {
-  const canonicalOperands = [...values].sort((left, right) => left - right).join(',');
+  const canonicalOperands = (op === '+' || op === '*'
+    ? [...values].sort((left, right) => left - right)
+    : values
+  ).join(',');
   return `${op}:${canonicalOperands}=${result}`;
 }
 

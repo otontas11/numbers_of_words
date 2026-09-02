@@ -5,12 +5,16 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1f1286ff-0618-41fb-995e-c5757f0c5d40" name="Changes" comment="ver-1">
-      <change afterPath="$PROJECT_DIR$/assets/lotties/flyingbird.lottie" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/lotties/flying_bird.lottie" beforeDir="false" afterPath="$PROJECT_DIR$/assets/flying_bird.lottie" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/run-real-devices.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/run-real-devices.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DESIGN_RULES.md" beforeDir="false" afterPath="$PROJECT_DIR$/DESIGN_RULES.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/validate-levels.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/validate-levels.mjs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app/index.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/index.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/game/game-modals.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/game/game-modals.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/home/main-menu.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/home/main-menu.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/journey/journey-map.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/journey/journey-map.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/levels.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/levels.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/progress-storage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/progress-storage.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/travel.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/travel.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -121,12 +125,12 @@
       <breakpoints>
         <line-breakpoint enabled="true" type="javascript">
           <url>file://$PROJECT_DIR$/src/game/travel.ts</url>
-          <line>301</line>
+          <line>305</line>
           <option name="timeStamp" value="1" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="javascript">
           <url>file://$PROJECT_DIR$/src/game/travel.ts</url>
-          <line>110</line>
+          <line>114</line>
           <option name="timeStamp" value="2" />
         </line-breakpoint>
       </breakpoints>
