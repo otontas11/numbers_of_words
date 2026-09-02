@@ -2,6 +2,7 @@ import {
   computeResult,
   findSolutionIndices,
   generateLevelData,
+  getBonusGemReward,
   getCombinationKey,
   hasCompletedRequiredTargets,
   normalizeLevelData,
@@ -32,6 +33,19 @@ const TRAINING_CITY_OPERATIONS = [
 let checkedLevelCount = 0;
 
 assertTravelCatalog();
+
+for (const [steps, normalReward, challengeReward] of [
+  [2, 4, 6],
+  [3, 8, 12],
+  [4, 14, 21],
+]) {
+  if (
+    getBonusGemReward(steps, false) !== normalReward ||
+    getBonusGemReward(steps, true) !== challengeReward
+  ) {
+    throw new Error(`${steps} adımlı bonus mücevher ödülü hatalı.`);
+  }
+}
 
 // İlk Yunanistan destinasyonu Atina, Türkiye'nin 25 puzzle'ından sonra başlar.
 // İlk yedi puzzle şehri bitiremez; yalnız 8/8 olan puzzle Atina'yı tamamlar.

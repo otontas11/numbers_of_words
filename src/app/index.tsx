@@ -33,6 +33,7 @@ import { FONTS } from '@/constants/fonts';
 import {
   computeResult,
   findSolutionIndices,
+  getBonusGemReward,
   generateLevelData,
   getCombinationKey,
   hasCompletedRequiredTargets,
@@ -485,18 +486,20 @@ function TargetCard({
 }
 
 function BonusTargetCard({
+  countryChallenge,
   landed,
   measureRef,
   solved,
   target,
 }: {
+  countryChallenge: boolean;
   landed: boolean;
   measureRef: (view: View | null) => void;
   solved: boolean;
   target: Target;
 }) {
   const operation = OPERATION_DETAILS[target.op];
-  const reward = target.value * target.steps;
+  const reward = getBonusGemReward(target.steps, countryChallenge);
   const [scale] = useState(() => new Animated.Value(1));
   const colorReveal = useTargetColorReveal(solved, landed);
 
@@ -1434,7 +1437,10 @@ export default function HomeScreen() {
         discoveredBonuses.current.add(combinationKey);
         if (newDiscovery) setBonusCount((count) => count + 1);
         setBonusSolved(true);
-        const bonusGemReward = bonusTarget.value * bonusTarget.steps;
+        const bonusGemReward = getBonusGemReward(
+          bonusTarget.steps,
+          levelData.countryChallenge,
+        );
         setBonusFlying(true);
         triggerEffect('diamond');
         void launchResultFlight(
@@ -1788,6 +1794,7 @@ export default function HomeScreen() {
                 </View>
 
                 <BonusTargetCard
+                  countryChallenge={levelData.countryChallenge}
                   landed={landedTarget === BONUS_TARGET_INDEX}
                   measureRef={(view) => {
                     bonusCardRef.current = view;

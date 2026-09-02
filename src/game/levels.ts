@@ -79,6 +79,17 @@ export const OPERATION_DETAILS: Record<
   '/': { name: 'Bölme', symbol: '÷', color: '#059669', darkColor: '#047857' },
 };
 
+const BONUS_GEM_REWARDS: Record<Target['steps'], number> = {
+  2: 4,
+  3: 8,
+  4: 14,
+};
+
+export function getBonusGemReward(steps: Target['steps'], countryChallenge: boolean) {
+  const baseReward = BONUS_GEM_REWARDS[steps];
+  return countryChallenge ? (baseReward * 3) / 2 : baseReward;
+}
+
 export function hasCompletedRequiredTargets(
   solvedTargetCount: number,
   levelData: Pick<LevelData, 'targets'>,
