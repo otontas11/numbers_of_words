@@ -12,12 +12,13 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { ClickSoundProvider } from '@/hooks/use-click-sound';
+import { useAudioSessionLifecycle } from '@/hooks/audio-session';
 import { useContentImageCache } from '@/hooks/use-content-image-cache';
 
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  useAudioSessionLifecycle();
   useContentImageCache();
 
   const [fontsLoaded, fontError] = useFonts({
@@ -36,19 +37,17 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ClickSoundProvider>
-        <ThemeProvider value={DarkTheme}>
-          <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              animation: 'none',
-              contentStyle: { backgroundColor: '#020617' },
-              headerShown: false,
-            }}>
-            <Stack.Screen name="index" />
-          </Stack>
-        </ThemeProvider>
-      </ClickSoundProvider>
+      <ThemeProvider value={DarkTheme}>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            animation: 'none',
+            contentStyle: { backgroundColor: '#020617' },
+            headerShown: false,
+          }}>
+          <Stack.Screen name="index" />
+        </Stack>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

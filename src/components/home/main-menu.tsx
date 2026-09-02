@@ -29,6 +29,24 @@ import {
 
 const HOME_BACKGROUND = require('../../../assets/images/img/bg.png');
 const HOME_LOGO = require('../../../assets/images/img/number_of_wonders.png');
+const BIRD_FRAMES = [
+  require('../../../assets/images/flying-bird/image_0.png'),
+  require('../../../assets/images/flying-bird/image_1.png'),
+  require('../../../assets/images/flying-bird/image_2.png'),
+  require('../../../assets/images/flying-bird/image_3.png'),
+  require('../../../assets/images/flying-bird/image_4.png'),
+  require('../../../assets/images/flying-bird/image_5.png'),
+  require('../../../assets/images/flying-bird/image_6.png'),
+  require('../../../assets/images/flying-bird/image_7.png'),
+  require('../../../assets/images/flying-bird/image_8.png'),
+  require('../../../assets/images/flying-bird/image_9.png'),
+  require('../../../assets/images/flying-bird/image_10.png'),
+  require('../../../assets/images/flying-bird/image_11.png'),
+  require('../../../assets/images/flying-bird/image_12.png'),
+  require('../../../assets/images/flying-bird/image_13.png'),
+  require('../../../assets/images/flying-bird/image_14.png'),
+  require('../../../assets/images/flying-bird/image_15.png'),
+] as const;
 
 type MainMenuProps = {
   active: boolean;
@@ -94,13 +112,41 @@ export function MainMenu({
   onOpenTravel,
   onPlay,
 }: MainMenuProps) {
+  const [birdFlight] = useState(() => new Animated.Value(0));
+  const [birdFrame, setBirdFrame] = useState(0);
   const [pulse] = useState(() => new Animated.Value(0));
   const [orbit] = useState(() => new Animated.Value(0));
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const compact = height < 760;
   const route = ROUTE_BY_ID.get(levelData.routeId);
   const completedCountries = getCompletedCountryCount(currentLevel);
   const routeProgress = route ? getRouteProgress(currentLevel, route) : 0;
+
+  useEffect(() => {
+    if (!active) {
+      birdFlight.stopAnimation();
+      return;
+    }
+
+    birdFlight.setValue(0);
+    const flightAnimation = Animated.loop(
+      Animated.timing(birdFlight, {
+        toValue: 1,
+        duration: 9000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    const wingTimer = setInterval(() => {
+      setBirdFrame((frame) => (frame + 1) % BIRD_FRAMES.length);
+    }, 110);
+
+    flightAnimation.start();
+    return () => {
+      clearInterval(wingTimer);
+      flightAnimation.stop();
+    };
+  }, [active, birdFlight]);
 
   useEffect(() => {
     if (!active) {
@@ -196,6 +242,85 @@ export function MainMenu({
               source={HOME_LOGO}
               style={[styles.brandLogo, compact && styles.brandLogoCompact]}
             />
+            <View style={styles.birdFlightLayer}>
+              <Animated.View
+                style={[
+                  styles.flyingBird,
+                  styles.flyingBirdLarge,
+                  {
+                    transform: [
+                      {
+                        translateX: birdFlight.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [-100, width + 80],
+                        }),
+                      },
+                      {
+                        translateY: birdFlight.interpolate({
+                          inputRange: [0, 0.35, 0.7, 1],
+                          outputRange: [0, -7, 4, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}>
+                <Image contentFit="contain" source={BIRD_FRAMES[birdFrame]} style={styles.birdImage} />
+              </Animated.View>
+              <Animated.View
+                style={[
+                  styles.flyingBird,
+                  styles.flyingBirdMedium,
+                  {
+                    transform: [
+                      {
+                        translateX: birdFlight.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [-170, width + 50],
+                        }),
+                      },
+                      {
+                        translateY: birdFlight.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: [0, 8, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}>
+                <Image
+                  contentFit="contain"
+                  source={BIRD_FRAMES[(birdFrame + 5) % BIRD_FRAMES.length]}
+                  style={styles.birdImage}
+                />
+              </Animated.View>
+              <Animated.View
+                style={[
+                  styles.flyingBird,
+                  styles.flyingBirdSmall,
+                  {
+                    transform: [
+                      {
+                        translateX: birdFlight.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [-240, width + 20],
+                        }),
+                      },
+                      {
+                        translateY: birdFlight.interpolate({
+                          inputRange: [0, 0.4, 0.8, 1],
+                          outputRange: [0, -4, 6, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}>
+                <Image
+                  contentFit="contain"
+                  source={BIRD_FRAMES[(birdFrame + 10) % BIRD_FRAMES.length]}
+                  style={styles.birdImage}
+                />
+              </Animated.View>
+            </View>
           </View>
 
           <View style={[styles.playButtonStack, compact && styles.playButtonStackCompact]}>
@@ -532,6 +657,12 @@ const styles = StyleSheet.create({
   brandBlockCompact: { marginTop: -4 },
   brandLogo: { width: '78%', maxWidth: 410, aspectRatio: 2.04 },
   brandLogoCompact: { width: '66%', maxWidth: 300 },
+  birdFlightLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 1, overflow: 'visible' },
+  flyingBird: { position: 'absolute' },
+  flyingBirdLarge: { top: '12%', width: 68, height: 47 },
+  flyingBirdMedium: { top: '43%', width: 48, height: 33 },
+  flyingBirdSmall: { top: '68%', width: 34, height: 24 },
+  birdImage: { width: '100%', height: '100%' },
   playButtonStack: { width: 154, height: 154, alignItems: 'center', justifyContent: 'center' },
   playButtonStackCompact: { width: 124, height: 124 },
   playGlow: { position: 'absolute', width: 148, height: 148, borderRadius: 74, backgroundColor: '#FFF2B2', shadowColor: '#FFFFFF', shadowOpacity: 0.95, shadowRadius: 30, elevation: 4 },

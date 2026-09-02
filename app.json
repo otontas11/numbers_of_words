@@ -9,7 +9,8 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "com.oktaytontas.numbersofwonders",
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "appleTeamId": "PSH5U378D5"
     },
     "android": {
       "package": "com.oktaytontas.numbersofwonders",
@@ -19,7 +20,10 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "output": "static",
