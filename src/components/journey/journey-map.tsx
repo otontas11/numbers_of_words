@@ -13,6 +13,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FONTS } from '@/constants/fonts';
 import { AppFooter } from '@/components/common/app-footer';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
+import {
+  countryContentImageUrl,
+  routeContentImageUrl,
+} from '@/constants/content-images';
 import type { LevelData } from '@/game/levels';
 import {
   COUNTRY_BY_ID,
@@ -30,6 +34,7 @@ import {
   type TravelCountry,
   type TravelRoute,
 } from '@/game/travel';
+import { useContentImageVersion } from '@/hooks/use-content-image-cache';
 
 const WORLD_BACKGROUND = require('../../../assets/images/img/bg.png');
 type MapLayer = 'world' | 'route';
@@ -84,7 +89,7 @@ function RouteCard({
           <Image
             cachePolicy="memory-disk"
             contentFit="cover"
-            source={{ uri: route.background }}
+            source={{ uri: routeContentImageUrl(route.id) }}
             style={[StyleSheet.absoluteFill, styles.worldRouteImage]}
           />
           {!unlocked ? <View style={styles.worldRouteImageShade} /> : null}
@@ -211,7 +216,7 @@ function CountryCard({
           <Image
             cachePolicy="memory-disk"
             contentFit="cover"
-            source={{ uri: country.background }}
+            source={{ uri: countryContentImageUrl(country.primaryRouteId, country.id) }}
             style={[StyleSheet.absoluteFill, styles.routeCountryImage]}
           />
           {!unlocked ? <View style={styles.routeCountryImageShade} /> : null}
@@ -261,6 +266,7 @@ export function JourneyMap({
   onOpenPassport,
   onOpenTasks,
 }: JourneyMapProps) {
+  useContentImageVersion();
   const insets = useSafeAreaInsets();
   const worldListRef = useRef<FlatList<TravelRoute>>(null);
   const countryListRef = useRef<FlatList<TravelCountry>>(null);

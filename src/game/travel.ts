@@ -1,4 +1,7 @@
-import { contentImageUrl } from '../constants/content-images.ts';
+import {
+  countryContentImageUrl,
+  routeContentImageUrl,
+} from '../constants/content-images.ts';
 
 export type TravelLocation = {
   id: string;
@@ -100,73 +103,8 @@ type RouteSeed = {
   shortName: string;
   emoji: string;
   theme: string;
-  background: string;
   countries: readonly CountrySeed[];
   modes: readonly string[];
-};
-
-const ROUTE_ART = {
-  mediterranean: contentImageUrl('countries/mediterranean-gateway/turkey.webp'),
-  westernMediterranean: contentImageUrl('countries/western-mediterranean-atlantic/tunisia.webp'),
-  centralEurope: contentImageUrl('countries/heart-of-europe/ireland.webp'),
-  northernLights: contentImageUrl('countries/northern-lights/poland.webp'),
-  caucasus: contentImageUrl('countries/danube-to-caucasus/hungary.webp'),
-  desert: contentImageUrl('tecvid/jordan.jpg'),
-  silkRoad: contentImageUrl('samarkand.jpg'),
-  himalayas: contentImageUrl('tecvid/iran.jpg'),
-  southeastAsia: contentImageUrl('tecvid/malaysia.jpg'),
-  farEast: contentImageUrl('tecvid/malaysia.jpg'),
-  nileAfrica: contentImageUrl('egypt.jpg'),
-  africaAdventure: contentImageUrl('morocco.jpg'),
-  americas: contentImageUrl('andalusia.jpg'),
-  pacificFinal: contentImageUrl('samarkand.jpg'),
-} as const;
-
-const COUNTRY_ART: Record<string, string> = {
-  turkey: contentImageUrl('countries/mediterranean-gateway/turkey.webp'),
-  greece: contentImageUrl('countries/mediterranean-gateway/greece.webp'),
-  albania: contentImageUrl('countries/mediterranean-gateway/albania.webp'),
-  montenegro: contentImageUrl('countries/mediterranean-gateway/montenegro.webp'),
-  croatia: contentImageUrl('countries/mediterranean-gateway/croatia.webp'),
-  slovenia: contentImageUrl('countries/mediterranean-gateway/slovenia.webp'),
-  italy: contentImageUrl('countries/mediterranean-gateway/italy.webp'),
-  malta: contentImageUrl('countries/mediterranean-gateway/malta.webp'),
-  tunisia: contentImageUrl('countries/western-mediterranean-atlantic/tunisia.webp'),
-  algeria: contentImageUrl('countries/western-mediterranean-atlantic/algeria.webp'),
-  morocco: contentImageUrl('countries/western-mediterranean-atlantic/morocco.webp'),
-  spain: contentImageUrl('countries/western-mediterranean-atlantic/spain.webp'),
-  portugal: contentImageUrl('countries/western-mediterranean-atlantic/portugal.webp'),
-  france: contentImageUrl('countries/western-mediterranean-atlantic/france.webp'),
-  'united-kingdom': contentImageUrl('countries/western-mediterranean-atlantic/united-kingdom.webp'),
-  ireland: contentImageUrl('countries/heart-of-europe/ireland.webp'),
-  belgium: contentImageUrl('countries/heart-of-europe/belgium.webp'),
-  netherlands: contentImageUrl('countries/heart-of-europe/netherlands.webp'),
-  germany: contentImageUrl('countries/heart-of-europe/germany.webp'),
-  switzerland: contentImageUrl('countries/heart-of-europe/switzerland.webp'),
-  austria: contentImageUrl('countries/heart-of-europe/austria.webp'),
-  czechia: contentImageUrl('countries/heart-of-europe/czechia.webp'),
-  poland: contentImageUrl('countries/northern-lights/poland.webp'),
-  lithuania: contentImageUrl('countries/northern-lights/lithuania.webp'),
-  latvia: contentImageUrl('countries/northern-lights/latvia.webp'),
-  estonia: contentImageUrl('countries/northern-lights/estonia.webp'),
-  finland: contentImageUrl('countries/northern-lights/finland.webp'),
-  sweden: contentImageUrl('countries/northern-lights/sweden.webp'),
-  norway: contentImageUrl('countries/northern-lights/norway.webp'),
-  denmark: contentImageUrl('countries/northern-lights/denmark.webp'),
-  hungary: contentImageUrl('countries/danube-to-caucasus/hungary.webp'),
-  'bosnia-herzegovina': contentImageUrl('countries/danube-to-caucasus/bosnia-herzegovina.webp'),
-  romania: contentImageUrl('countries/danube-to-caucasus/romania.webp'),
-  bulgaria: contentImageUrl('countries/danube-to-caucasus/bulgaria.webp'),
-  georgia: contentImageUrl('countries/danube-to-caucasus/georgia.webp'),
-  armenia: contentImageUrl('countries/danube-to-caucasus/armenia.webp'),
-  azerbaijan: contentImageUrl('countries/danube-to-caucasus/azerbaijan.webp'),
-  jordan: contentImageUrl('tecvid/jordan.jpg'),
-  iran: contentImageUrl('tecvid/iran.jpg'),
-  turkmenistan: contentImageUrl('tecvid/malaysia.jpg'),
-  uzbekistan: contentImageUrl('tecvid/uzbekistan.jpg'),
-  oman: contentImageUrl('tecvid/oman.jpg'),
-  egypt: contentImageUrl('egypt.jpg'),
-  malaysia: contentImageUrl('tecvid/malaysia.jpg'),
 };
 
 const ROUTE_SEEDS: readonly RouteSeed[] = [
@@ -176,7 +114,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Akdeniz',
     emoji: '🌊',
     theme: 'Turkuaz denizler, Akdeniz kasabaları ve gün batımı',
-    background: ROUTE_ART.mediterranean,
     modes: ['✈️/⛴️', '🚗 Araba', '🚗 Araba', '🚗 Araba', '🚆 Tren', '🚆 Tren', '⛴️ Gemi'],
     countries: [
       ['turkey', 'Türkiye', '🇹🇷', ['İstanbul', 'Kapadokya', 'Pamukkale'], 'Ayasofya'],
@@ -195,7 +132,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Batı Akdeniz',
     emoji: '⛵',
     theme: 'Kuzey Afrika kıyılarından Atlantik şehirlerine deniz yolculuğu',
-    background: ROUTE_ART.westernMediterranean,
     modes: ['🚗 Araba', '🚗 Araba', '⛴️ Gemi', '🚆 Tren', '🚆 Tren', '🚆 Tren'],
     countries: [
       ['tunisia', 'Tunus', '🇹🇳', ['Tunus', 'Sidi Bou Said', 'Kayrevan'], 'Sidi Bou Said'],
@@ -213,7 +149,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Orta Avrupa',
     emoji: '🚆',
     theme: 'Tarihi Avrupa şehirleri ve kesintisiz tren yolculuğu',
-    background: ROUTE_ART.centralEurope,
     modes: ['⛴️ Gemi', '🚆 Tren', '🚆 Tren', '🚆 Tren', '🚆 Tren', '🚆 Tren'],
     countries: [
       ['ireland', 'İrlanda', '🇮🇪', ['Dublin', 'Galway', 'Killarney'], 'Moher Kayalıkları'],
@@ -225,13 +160,13 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
       ['czechia', 'Çekya', '🇨🇿', ['Prag', 'Český Krumlov', 'Karlovy Vary'], 'Prag'],
     ],
   },
+
   {
     id: 'northern-lights',
     name: 'Kuzey Işıkları',
     shortName: 'Kuzey Işıkları',
     emoji: '🌌',
     theme: 'Ormanlardan kara, fiyortlardan kuzey ışıklarına',
-    background: ROUTE_ART.northernLights,
     modes: ['🚆 Tren', '🚆 Tren', '🚆 Tren', '⛴️ Gemi', '🚆 Tren', '🚆 Tren', '⛴️ Gemi'],
     countries: [
       ['poland', 'Polonya', '🇵🇱', ['Krakow', 'Varşova', 'Gdańsk'], 'Krakow'],
@@ -250,7 +185,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Kafkaslar',
     emoji: '🏔️',
     theme: "Tuna kıyılarından Kafkas Dağları'na uzanan yol",
-    background: ROUTE_ART.caucasus,
     modes: ['🚆 Tren', '🚆 Tren', '🚗 Araba', '✈️ Uçak', '🚗 Araba', '🚆 Tren'],
     countries: [
       ['hungary', 'Macaristan', '🇭🇺', ['Budapeşte', 'Eger', 'Pécs'], 'Budapeşte'],
@@ -268,7 +202,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Çöl Harikaları',
     emoji: '🏜️',
     theme: 'Taşlık çölden vahalara ve modern çöl şehirlerine',
-    background: ROUTE_ART.desert,
     modes: ['✈️ Uçak', '🚗 Arazi Aracı', '🚗 Arazi Aracı', '✈️ Uçak', '🚗 Araba', '🚗 Araba'],
     countries: [
       ['jordan', 'Ürdün', '🇯🇴', ['Amman', 'Petra', 'Akabe'], 'Petra'],
@@ -286,7 +219,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'İpek Yolu',
     emoji: '🐫',
     theme: 'Kervan şehirleri, bozkırlar ve Orta Asya mirası',
-    background: ROUTE_ART.silkRoad,
     modes: ['🚆 Tren', '🚆 Tren', '🚗 Araba', '🚗 Araba', '🚆 Tren', '🚗 Arazi Aracı'],
     countries: [
       ['iran', 'İran', '🇮🇷', ['İsfahan', 'Şiraz', 'Yezd'], 'İsfahan'],
@@ -304,7 +236,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Himalayalar',
     emoji: '🛕',
     theme: 'Himalaya zirvelerinden tropikal Hint Okyanusu adalarına',
-    background: ROUTE_ART.himalayas,
     modes: ['🚗 Araba', '🚆 Tren', '🚗 Araba', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak'],
     countries: [
       ['pakistan', 'Pakistan', '🇵🇰', ['Lahor', 'İslamabad', 'Karimabad / Hunza'], 'Hunza Vadisi'],
@@ -322,7 +253,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Güneydoğu Asya',
     emoji: '🌴',
     theme: 'Tropikal ormanlar, nehirler, tapınaklar ve modern şehirler',
-    background: ROUTE_ART.southeastAsia,
     modes: ['✈️ Uçak', '🚗 Araba', '🚗 Araba', '🚗 Araba', '✈️ Uçak', '🚆 Tren'],
     countries: [
       ['myanmar', 'Myanmar', '🇲🇲', ['Yangon', 'Bagan', 'Mandalay'], 'Bagan'],
@@ -334,13 +264,13 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
       ['singapore', 'Singapur', '🇸🇬', ['Marina Bay', 'Gardens by the Bay', 'Sentosa'], 'Marina Bay'],
     ],
   },
+
   {
     id: 'far-east-pacific',
     name: 'Uzak Doğu & Pasifik',
     shortName: 'Uzak Doğu',
     emoji: '🏯',
     theme: 'Tropik adalardan sakura bahçelerine uzanan Pasifik rotası',
-    background: ROUTE_ART.farEast,
     modes: ['⛴️ Gemi', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak', '🚆 Tren', '✈️ Uçak'],
     countries: [
       ['indonesia', 'Endonezya', '🇮🇩', ['Ubud / Bali', 'Yogyakarta', 'Jakarta'], 'Borobudur'],
@@ -352,14 +282,12 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
       ['japan', 'Japonya', '🇯🇵', ['Tokyo', 'Kyoto', 'Osaka'], 'Fuji Dağı'],
     ],
   },
-
   {
     id: 'nile-to-south-africa',
     name: "Nil'den Afrika'nın Güneyine",
     shortName: 'Nil & Afrika',
     emoji: '🦁',
     theme: 'Nil, yüksek platolar, savanlar, şelaleler ve Cape Town',
-    background: ROUTE_ART.nileAfrica,
     modes: ['✈️ Uçak', '✈️ Uçak', '🚗 Arazi Aracı', '🚗 Arazi Aracı', '🚗 Araba', '✈️ Uçak'],
     countries: [
       ['egypt', 'Mısır', '🇪🇬', ['Kahire / Gize', 'Luksor', 'Asvan'], 'Piramitler'],
@@ -377,7 +305,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Afrika Macerası',
     emoji: '🌍',
     theme: 'Çöllerden tropikal kıyılara uzanan çok renkli Afrika',
-    background: ROUTE_ART.africaAdventure,
     modes: ['🚗 Arazi Aracı', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak'],
     countries: [
       ['namibia', 'Namibya', '🇳🇦', ['Windhoek', 'Swakopmund', 'Lüderitz'], 'Sossusvlei'],
@@ -395,7 +322,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Amerika',
     emoji: '🗽',
     theme: 'Kanada kayalıklarından And Dağları’na kuzeyden güneye yolculuk',
-    background: ROUTE_ART.americas,
     modes: ['✈️ Uçak', '✈️ Uçak', '🚗 Araba', '🚗 Araba', '✈️ Uçak', '✈️ Uçak'],
     countries: [
       ['canada', 'Kanada', '🇨🇦', ['Vancouver', 'Banff', 'Québec City'], 'Banff'],
@@ -413,7 +339,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Pasifik Finali',
     emoji: '🌏',
     theme: "Andlar'dan Pasifik'e, Dünya Turu'nun altın finali",
-    background: ROUTE_ART.pacificFinal,
     modes: ['🚗 Araba', '🚗 Araba', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak'],
     countries: [
       ['ecuador', 'Ekvador', '🇪🇨', ['Quito', 'Cuenca', 'Puerto Ayora / Galápagos'], 'Galápagos'],
@@ -431,7 +356,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Karayipler',
     emoji: '🏝️',
     theme: 'Renkli ada kültürleri, mercan kıyıları ve Karayip ritimleri',
-    background: ROUTE_ART.americas,
     modes: ['✈️ Uçak', '⛴️ Gemi', '⛴️ Gemi', '⛴️ Gemi', '⛴️ Gemi', '⛴️ Gemi'],
     countries: [
       ['cuba', 'Küba', '🇨🇺', ['Havana', 'Trinidad', 'Varadero'], 'Eski Havana'],
@@ -443,13 +367,13 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
       ['haiti', 'Haiti', '🇭🇹', ['Port-au-Prince', 'Cap-Haïtien', 'Jacmel'], 'Citadelle Laferrière'],
     ],
   },
+
   {
     id: 'central-america-guianas',
     name: 'Orta Amerika & Guyanalar',
     shortName: 'Orta Amerika',
     emoji: '🌴',
     theme: 'Maya izlerinden yağmur ormanlarına uzanan tropik geçit',
-    background: ROUTE_ART.americas,
     modes: ['🚗 Araba', '🚗 Araba', '🚗 Araba', '🚗 Araba', '🚗 Araba', '✈️ Uçak'],
     countries: [
       ['belize', 'Belize', '🇧🇿', ['Belize City', 'San Ignacio', 'Caye Caulker'], 'Büyük Mavi Çukur'],
@@ -467,7 +391,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: "Afrika'nın Kalbi",
     emoji: '🦍',
     theme: 'Büyük göller, volkanlar ve ekvator ormanlarının vahşi kalbi',
-    background: ROUTE_ART.nileAfrica,
     modes: ['🚗 Araba', '🚗 Araba', '✈️ Uçak', '🚗 Araba', '🚗 Araba', '🚗 Araba'],
     countries: [
       ['uganda', 'Uganda', '🇺🇬', ['Kampala', 'Jinja', 'Entebbe'], 'Bwindi Ormanı'],
@@ -485,7 +408,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Batı Afrika',
     emoji: '🥁',
     theme: 'Atlantik kıyıları, kadim krallıklar ve canlı pazarlar',
-    background: ROUTE_ART.africaAdventure,
     modes: ['✈️ Uçak', '🚗 Araba', '🚗 Araba', '✈️ Uçak', '🚗 Araba', '🚗 Araba'],
     countries: [
       ['nigeria', 'Nijerya', '🇳🇬', ['Lagos', 'Abuja', 'Calabar'], 'Zuma Kayası'],
@@ -503,7 +425,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Pasifik',
     emoji: '🌺',
     theme: 'Volkanik adalar, lagünler ve Büyük Okyanus kültürleri',
-    background: ROUTE_ART.pacificFinal,
     modes: ['✈️ Uçak', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak'],
     countries: [
       ['fiji', 'Fiji', '🇫🇯', ['Suva', 'Nadi', 'Levuka'], 'Mamanuca Adaları'],
@@ -521,7 +442,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Arktik',
     emoji: '❄️',
     theme: 'Kuzey Atlantik adaları ve Kuzey Amerika’nın kutup etapları',
-    background: ROUTE_ART.northernLights,
     modes: ['✈️ Uçak', '✈️ Uçak', '⛴️ Gemi', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak'],
     countries: [
       ['iceland', 'İzlanda', '🇮🇸', ['Reykjavík', 'Akureyri', 'Vík'], 'Altın Çember'],
@@ -567,7 +487,6 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
     shortName: 'Saklı Afrika',
     emoji: '🌍',
     theme: 'Atlantik yaylalarından Hint Okyanusu adalarına keşif',
-    background: ROUTE_ART.africaAdventure,
     modes: ['✈️ Uçak', '🚗 Araba', '🚗 Araba', '✈️ Uçak', '✈️ Uçak', '✈️ Uçak'],
     countries: [
       ['angola', 'Angola', '🇦🇴', ['Luanda', 'Lubango', 'Benguela'], 'Kalandula Şelaleleri'],
@@ -647,7 +566,7 @@ export const TRAVEL_ROUTES: TravelRoute[] = ROUTE_SEEDS.map((seed, routeIndex) =
     if (!passportIndexById.has(passportId)) {
       passportIndexById.set(passportId, passportIndexById.size);
     }
-    const background = COUNTRY_ART[id] ?? seed.background;
+    const background = countryContentImageUrl(seed.id, id);
     const locations = makeLocations(id, locationNames, background);
     const isWorldTourFinal =
       routeIndex === ROUTE_SEEDS.length - 1 && countryIndex === seed.countries.length - 1;
@@ -685,7 +604,7 @@ export const TRAVEL_ROUTES: TravelRoute[] = ROUTE_SEEDS.map((seed, routeIndex) =
     difficulty: order,
     countryIds: seed.countries.map((countrySeed) => normalizeCountrySeed(countrySeed).id),
     nextRouteIds: ROUTE_SEEDS[routeIndex + 1] ? [ROUTE_SEEDS[routeIndex + 1].id] : [],
-    background: seed.background,
+    background: routeContentImageUrl(seed.id),
     theme: seed.theme,
     legs: seed.modes.map((label, legIndex) => ({
       label,
