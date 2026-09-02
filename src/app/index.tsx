@@ -165,6 +165,7 @@ function ResultFlightBadge({
 
   useEffect(() => {
     let arrived = false;
+    let completed = false;
     const markArrived = () => {
       if (arrived) return;
       arrived = true;
@@ -172,9 +173,13 @@ function ResultFlightBadge({
     };
 
     progress.setValue(0);
-    const progressListener = progress.addListener(({ value }) => {
-      if (value >= RESULT_FLIGHT_ARRIVAL_PROGRESS) markArrived();
-    });
+    // Native sürücüyle çalışan Animated animasyonlarında JS addListener
+    // geri çağrıları tetiklenmez; bu yüzden varış noktası platformdan
+    // bağımsız ve deterministik olarak zamanlayıcı ile kurulum yapılır.
+    const arrivalTimer = setTimeout(
+      markArrived,
+      RESULT_FLIGHT_DURATION * RESULT_FLIGHT_ARRIVAL_PROGRESS,
+    );
     const animation = Animated.timing(progress, {
       toValue: 1,
       duration: RESULT_FLIGHT_DURATION,
@@ -183,12 +188,13 @@ function ResultFlightBadge({
     });
     animation.start(({ finished }) => {
       if (!finished) return;
+      completed = true;
       markArrived();
       onComplete(flight.id);
     });
     return () => {
-      progress.removeListener(progressListener);
-      animation.stop();
+      clearTimeout(arrivalTimer);
+      if (!completed) animation.stop();
     };
   }, [flight, onArrive, onComplete, progress]);
 

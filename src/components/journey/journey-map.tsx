@@ -273,6 +273,7 @@ export function JourneyMap({
   const [layer, setLayer] = useState<MapLayer>('world');
   const [selectedRouteId, setSelectedRouteId] = useState(levelData.routeId);
   const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (layer === 'world') {
@@ -288,11 +289,20 @@ export function JourneyMap({
   const selectedRouteCountries = useMemo(() => routeCountries(selectedRoute), [selectedRoute]);
 
   const showNotice = useCallback((message: string) => {
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     setNotice(message);
-    setTimeout(() => {
+    noticeTimerRef.current = setTimeout(() => {
+      noticeTimerRef.current = null;
       setNotice((current) => (current === message ? null : current));
     }, 1900);
   }, []);
+
+  useEffect(
+    () => () => {
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    },
+    [],
+  );
 
   const goBack = useCallback(() => {
     if (layer === 'route') {
