@@ -90,6 +90,10 @@ export function getBonusGemReward(steps: Target['steps'], countryChallenge: bool
   return countryChallenge ? (baseReward * 3) / 2 : baseReward;
 }
 
+export function getTargetScore(values: readonly number[]) {
+  return values.reduce((total, value) => total + value, 0) * values.length;
+}
+
 export function hasCompletedRequiredTargets(
   solvedTargetCount: number,
   levelData: Pick<LevelData, 'targets'>,

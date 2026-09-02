@@ -4,6 +4,7 @@ import {
   generateLevelData,
   getBonusGemReward,
   getCombinationKey,
+  getTargetScore,
   hasCompletedRequiredTargets,
   normalizeLevelData,
 } from '../src/game/levels.ts';
@@ -33,6 +34,14 @@ const TRAINING_CITY_OPERATIONS = [
 let checkedLevelCount = 0;
 
 assertTravelCatalog();
+
+if (
+  getTargetScore([20, 18]) !== 76 ||
+  getTargetScore([8, 7]) !== 30 ||
+  getTargetScore([24, 3, 2]) !== 87
+) {
+  throw new Error('Ana hedef puan formülü sayı toplamı × adım sayısı değil.');
+}
 
 for (const [steps, normalReward, challengeReward] of [
   [2, 4, 6],

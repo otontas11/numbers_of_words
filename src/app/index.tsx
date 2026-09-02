@@ -36,6 +36,7 @@ import {
   getBonusGemReward,
   generateLevelData,
   getCombinationKey,
+  getTargetScore,
   hasCompletedRequiredTargets,
   OPERATION_DETAILS,
   type LevelData,
@@ -1337,8 +1338,8 @@ export default function HomeScreen() {
         nextSolved.add(targetIndex);
         setFlyingTargets((current) => new Set(current).add(targetIndex));
         setSolvedTargets(nextSolved);
-        levelScorePending.current +=
-          values.reduce((total, value) => total + value, 0) * indices.length;
+        const earnedPoints = getTargetScore(values);
+        levelScorePending.current += earnedPoints;
         triggerEffect('success');
         void launchResultFlight(calculation.result, targetIndex, resultOrigin);
 
@@ -1417,7 +1418,7 @@ export default function HomeScreen() {
         } else {
           showTimedFeedback(
             {
-              text: `Hedef bulundu: ${calculation.result} ✓ • +${calculation.result} puan`,
+              text: `Hedef bulundu: ${calculation.result} ✓ • +${earnedPoints} puan`,
               tone: 'success',
             },
             1150,
