@@ -35,9 +35,11 @@ import {
   ACTIVITY_IDLE_TIMEOUT_MS,
   HINT_REWARD_AMOUNT,
   INITIAL_HINT_CREDITS,
+  INITIAL_LEARNING_SCORE,
   appendPerformance,
   ratePuzzlePerformance,
-  recommendDifficultyModifier,
+  difficultyModifierFromLearningScore,
+  updateLearningScore,
   type DifficultyModifier,
   type PuzzlePerformance,
 } from '@/game/adaptive-difficulty';
@@ -963,6 +965,7 @@ export default function HomeScreen() {
   const [hintCredits, setHintCredits] = useState(INITIAL_HINT_CREDITS);
   const [rewardedRouteIds, setRewardedRouteIds] = useState<Set<string>>(() => new Set());
   const [performanceHistory, setPerformanceHistory] = useState<PuzzlePerformance[]>([]);
+  const [learningScore, setLearningScore] = useState(INITIAL_LEARNING_SCORE);
   const [cityDifficultyModifier, setCityDifficultyModifier] =
     useState<DifficultyModifier>(0);
   const [cityDifficultyLocationId, setCityDifficultyLocationId] = useState(
@@ -1017,6 +1020,7 @@ export default function HomeScreen() {
   const gemTargetRef = useRef<View>(null);
   const levelScorePending = useRef(0);
   const performanceHistoryRef = useRef<PuzzlePerformance[]>([]);
+  const learningScoreRef = useRef(INITIAL_LEARNING_SCORE);
   const cityDifficultyModifierRef = useRef<DifficultyModifier>(0);
   const cityDifficultyLocationIdRef = useRef(levelData.locationId);
   const consecutiveStrugglesRef = useRef(0);
@@ -1100,14 +1104,17 @@ export default function HomeScreen() {
       wrongAttempts: activity.wrongAttempts,
     };
     const nextHistory = appendPerformance(performanceHistoryRef.current, performance);
+    const nextLearningScore = updateLearningScore(learningScoreRef.current, performance);
     const struggling = ratePuzzlePerformance(performance) === 'struggling';
     const nextConsecutiveStruggles = struggling
       ? Math.min(2, consecutiveStrugglesRef.current + 1)
       : 0;
 
     performanceHistoryRef.current = nextHistory;
+    learningScoreRef.current = nextLearningScore;
     consecutiveStrugglesRef.current = nextConsecutiveStruggles;
     setPerformanceHistory(nextHistory);
+    setLearningScore(nextLearningScore);
     setConsecutiveStruggles(nextConsecutiveStruggles);
     pausePuzzleActivity();
   }, [markPuzzleActivity, pausePuzzleActivity]);
@@ -1175,6 +1182,8 @@ export default function HomeScreen() {
         setRewardedRouteIds(new Set(saved.rewardedRouteIds));
         setPerformanceHistory(saved.performanceHistory);
         performanceHistoryRef.current = saved.performanceHistory;
+        setLearningScore(saved.learningScore);
+        learningScoreRef.current = saved.learningScore;
         setCityDifficultyModifier(saved.cityDifficultyModifier);
         cityDifficultyModifierRef.current = saved.cityDifficultyModifier;
         setCityDifficultyLocationId(saved.cityDifficultyLocationId);
@@ -1210,6 +1219,7 @@ export default function HomeScreen() {
       hintCredits,
       rewardedRouteIds: [...rewardedRouteIds],
       performanceHistory,
+      learningScore,
       cityDifficultyModifier,
       cityDifficultyLocationId,
       consecutiveStruggles,
@@ -1233,6 +1243,7 @@ export default function HomeScreen() {
     solvedTargets,
     rewardedRouteIds,
     performanceHistory,
+    learningScore,
     cityDifficultyModifier,
     cityDifficultyLocationId,
     consecutiveStruggles,
@@ -1439,7 +1450,7 @@ export default function HomeScreen() {
       !nextDestination.countryChallenge &&
       nextDestination.location.id !== cityDifficultyLocationIdRef.current
     ) {
-      nextDifficultyModifier = recommendDifficultyModifier(performanceHistoryRef.current);
+      nextDifficultyModifier = difficultyModifierFromLearningScore(learningScoreRef.current);
       nextDifficultyLocationId = nextDestination.location.id;
       consecutiveStrugglesRef.current = 0;
     } else if (
@@ -1872,6 +1883,7 @@ export default function HomeScreen() {
                 onOpenPassport={navigateCollection}
                 onPlay={openGame}
                 performanceHistory={performanceHistory}
+                learningScore={learningScore}
                 cityDifficultyModifier={cityDifficultyModifier}
                 score={score}
               />

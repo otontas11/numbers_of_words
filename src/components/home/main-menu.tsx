@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FONTS } from '@/constants/fonts';
 import { AppFooter } from '@/components/common/app-footer';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
-import type { DifficultyModifier, PuzzlePerformance } from '@/game/adaptive-difficulty';
+import { learningScoreLabel, type DifficultyModifier, type PuzzlePerformance } from '@/game/adaptive-difficulty';
 import type { LevelData } from '@/game/levels';
 import { localizeCountry, localizeRoute, SUPPORTED_LANGUAGES, useI18n } from '@/i18n';
 import {
@@ -507,6 +507,7 @@ export function ProfileScreen({
   onOpenPassport,
   onPlay,
   performanceHistory,
+  learningScore,
   cityDifficultyModifier,
   score,
 }: {
@@ -517,6 +518,7 @@ export function ProfileScreen({
   onOpenPassport: () => void;
   onPlay: () => void;
   performanceHistory: PuzzlePerformance[];
+  learningScore: number;
   cityDifficultyModifier: DifficultyModifier;
   score: number;
 }) {
@@ -527,7 +529,12 @@ export function ProfileScreen({
   const country = COUNTRY_BY_ID.get(levelData.countryId);
   const countryName = country ? localizeCountry(country, language) : levelData.country;
   const countryProgress = country ? getCountryProgress(currentLevel, country.id) : 0;
-  const difficultyLabel = cityDifficultyModifier > 0 ? t('profile.difficultyAdvanced') : cityDifficultyModifier < 0 ? t('profile.difficultySupported') : t('profile.difficultyBalanced');
+  const scoreBand = learningScoreLabel(learningScore);
+  const difficultyLabel = scoreBand === 'strong'
+    ? t('profile.difficultyAdvanced')
+    : scoreBand === 'struggling'
+      ? t('profile.difficultySupported')
+      : t('profile.difficultyBalanced');
   const difficultyDescription = performanceHistory.length < 3
     ? t('profile.difficultyPending')
     : cityDifficultyModifier > 0
@@ -597,7 +604,7 @@ export function ProfileScreen({
               <View style={styles.difficultyIcon}><Text style={styles.difficultyIconText}>⚙</Text></View>
               <View style={styles.difficultyCopy}>
                 <Text style={styles.difficultyEyebrow}>{t('profile.difficultyEyebrow')}</Text>
-                <Text style={styles.difficultyTitle}>{t('profile.learningLevel', { level: difficultyLabel })}</Text>
+                <Text style={styles.difficultyTitle}>{t('profile.learningLevel', { level: `${learningScore}/100 • ${difficultyLabel}` })}</Text>
               </View>
             </View>
             <Text style={styles.difficultyDescription}>{difficultyDescription}</Text>

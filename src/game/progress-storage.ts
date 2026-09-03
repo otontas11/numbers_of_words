@@ -2,7 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   INITIAL_HINT_CREDITS,
+  INITIAL_LEARNING_SCORE,
   isPuzzlePerformance,
+  scorePuzzlePerformance,
   type DifficultyModifier,
   type PuzzlePerformance,
 } from '@/game/adaptive-difficulty';
@@ -42,6 +44,7 @@ export type StoredGameProgress = {
   hintCredits: number;
   rewardedRouteIds: string[];
   performanceHistory: PuzzlePerformance[];
+  learningScore: number;
   cityDifficultyModifier: DifficultyModifier;
   cityDifficultyLocationId: string;
   consecutiveStruggles: number;
@@ -271,6 +274,15 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       value.performanceHistory.every(isPuzzlePerformance)
         ? (value.performanceHistory as PuzzlePerformance[]).slice(-5)
         : [];
+    const learningScore =
+      typeof value.learningScore === 'number' && Number.isFinite(value.learningScore)
+        ? Math.max(1, Math.min(100, Math.round(value.learningScore)))
+        : performanceHistory.length > 0
+          ? Math.round(
+              performanceHistory.reduce((sum, performance) => sum + scorePuzzlePerformance(performance), 0) /
+                performanceHistory.length,
+            )
+          : INITIAL_LEARNING_SCORE;
     const cityDifficultyModifier: DifficultyModifier =
       value.cityDifficultyModifier === -1 ||
       value.cityDifficultyModifier === 0 ||
@@ -298,6 +310,7 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       hintCredits,
       rewardedRouteIds,
       performanceHistory,
+      learningScore,
       cityDifficultyModifier,
       cityDifficultyLocationId,
       consecutiveStruggles,
