@@ -5,13 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1f1286ff-0618-41fb-995e-c5757f0c5d40" name="Changes" comment="ver-1">
+      <change afterPath="$PROJECT_DIR$/assets/lotties/shipmoving.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/assets/lotties/shipmoving.lottie" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DESIGN_RULES.md" beforeDir="false" afterPath="$PROJECT_DIR$/DESIGN_RULES.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/validate-levels.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/validate-levels.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/tutorial-web.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/world-tour-map.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app/index.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/index.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/game/progress-storage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/progress-storage.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/game/travel.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/travel.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/home/main-menu.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/home/main-menu.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -55,6 +57,7 @@
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
     &quot;npm.android.executor&quot;: &quot;Run&quot;,
     &quot;npm.ios.executor&quot;: &quot;Run&quot;,
+    &quot;npm.validate:levels.executor&quot;: &quot;Run&quot;,
     &quot;ts.external.directory.path&quot;: &quot;/Users/oktaytontas/Documents/android_apps/numbers_of_wonders/node_modules/typescript/lib&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }

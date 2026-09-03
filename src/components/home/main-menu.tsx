@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FONTS } from '@/constants/fonts';
 import { AppFooter } from '@/components/common/app-footer';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
+import type { DifficultyModifier, PuzzlePerformance } from '@/game/adaptive-difficulty';
 import type { LevelData } from '@/game/levels';
 import {
   COUNTRY_LEVEL_COUNT,
@@ -200,7 +201,6 @@ export function MainMenu({
         locations={[0, 0.64, 1]}
         style={StyleSheet.absoluteFill}
       />
-
       <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
         <View style={[styles.topBar, compact && styles.topBarCompact]}>
           <View style={styles.resourceRow}>
@@ -476,6 +476,8 @@ export function ProfileScreen({
   levelData,
   onOpenPassport,
   onPlay,
+  performanceHistory,
+  cityDifficultyModifier,
   score,
 }: {
   bonusCount: number;
@@ -484,12 +486,22 @@ export function ProfileScreen({
   levelData: LevelData;
   onOpenPassport: () => void;
   onPlay: () => void;
+  performanceHistory: PuzzlePerformance[];
+  cityDifficultyModifier: DifficultyModifier;
   score: number;
 }) {
   const completedCountries = getCompletedCountryCount(currentLevel);
   const completedLevels = getCompletedWorldLevelCount(currentLevel);
   const country = COUNTRY_BY_ID.get(levelData.countryId);
   const countryProgress = country ? getCountryProgress(currentLevel, country.id) : 0;
+  const difficultyLabel = cityDifficultyModifier > 0 ? 'İLERİ' : cityDifficultyModifier < 0 ? 'DESTEKLİ' : 'DENGELİ';
+  const difficultyDescription = performanceHistory.length < 3
+    ? 'Birkaç puzzle daha çözüldüğünde sana uygun zorluk seviyesi netleşecek.'
+    : cityDifficultyModifier > 0
+      ? 'Son performansına göre sonraki şehirlerde sayı havuzu biraz daha geniş olacak.'
+      : cityDifficultyModifier < 0
+        ? 'Son performansına göre sonraki şehirlerde sayı havuzu biraz daha erişilebilir olacak.'
+        : 'Son performansına göre mevcut zorluk seviyesi korunuyor.';
 
   return (
     <LinearGradient colors={['#EAF5F5', '#F7EEDC', '#E6D0A9']} style={styles.profileScreen}>
@@ -518,6 +530,18 @@ export function ProfileScreen({
             <Text style={styles.explorerLocation}>
               Seviye {currentLevel} • {levelData.country} • {levelData.city}
             </Text>
+          </View>
+
+          <View style={styles.difficultyCard}>
+            <View style={styles.difficultyHeader}>
+              <View style={styles.difficultyIcon}><Text style={styles.difficultyIconText}>⚙</Text></View>
+              <View style={styles.difficultyCopy}>
+                <Text style={styles.difficultyEyebrow}>OYUN ZORLUK AYARI</Text>
+                <Text style={styles.difficultyTitle}>Öğrenme seviyesi: {difficultyLabel}</Text>
+              </View>
+            </View>
+            <Text style={styles.difficultyDescription}>{difficultyDescription}</Text>
+            <Text style={styles.difficultyMeta}>Son {performanceHistory.length} puzzle değerlendirildi • Zorluk yalnız yeni şehirde değişir</Text>
           </View>
 
           <View style={styles.statsGrid}>
@@ -733,6 +757,15 @@ const styles = StyleSheet.create({
   profileProgressCount: { color: '#3D7F91', fontFamily: FONTS.extraBold, fontSize: 15, fontWeight: '800' },
   profileProgressTrack: { height: 8, marginTop: 12, overflow: 'hidden', borderRadius: 5, backgroundColor: '#CFDFDF' },
   profileProgressFill: { height: '100%', borderRadius: 5 },
+  difficultyCard: { marginTop: 12, padding: 15, borderRadius: 21, borderWidth: 1, borderColor: '#D9C99F', backgroundColor: '#FFF9EA' },
+  difficultyHeader: { flexDirection: 'row', alignItems: 'center' },
+  difficultyIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: '#F1D58A' },
+  difficultyIconText: { color: '#76551B', fontSize: 20 },
+  difficultyCopy: { flex: 1, marginLeft: 10 },
+  difficultyEyebrow: { color: '#9B7A35', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1, fontWeight: '700' },
+  difficultyTitle: { marginTop: 3, color: '#49382E', fontFamily: FONTS.extraBold, fontSize: 14, fontWeight: '800' },
+  difficultyDescription: { marginTop: 11, color: '#6D5B43', fontFamily: FONTS.medium, fontSize: 11, lineHeight: 17 },
+  difficultyMeta: { marginTop: 8, color: '#9A896C', fontFamily: FONTS.medium, fontSize: 9, lineHeight: 13 },
   worldProgress: { marginTop: 7, color: '#708286', fontFamily: FONTS.semibold, fontSize: 9.5, fontWeight: '600', textAlign: 'right' },
   profileAction: { minHeight: 70, marginTop: 12, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', borderRadius: 20, borderWidth: 1, borderColor: '#DFC88F', backgroundColor: '#FFF9EA' },
   profileActionIcon: { fontSize: 28 },

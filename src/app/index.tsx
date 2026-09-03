@@ -1854,6 +1854,8 @@ export default function HomeScreen() {
                 levelData={contentLevelData}
                 onOpenPassport={navigateCollection}
                 onPlay={openGame}
+                performanceHistory={performanceHistory}
+                cityDifficultyModifier={cityDifficultyModifier}
                 score={score}
               />
             </View>
