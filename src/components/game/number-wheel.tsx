@@ -602,10 +602,10 @@ export const NumberWheel = memo(function NumberWheel({
 
   const gesture = useMemo(
     () =>
-      Gesture.Pan()
+      // A manual gesture claims node touches immediately, before the parent
+      // ScrollView can turn them into scrolling and cancel the wheel path.
+      Gesture.Manual()
         .enabled(Platform.OS !== 'web' && !tutorialFocus)
-        .manualActivation(true)
-        .maxPointers(1)
         .shouldCancelWhenOutside(false)
         .onTouchesDown((event, stateManager) => {
           'worklet';
@@ -637,11 +637,13 @@ export const NumberWheel = memo(function NumberWheel({
           stateManager.activate();
           runOnJS(beginSelection)(nodeIndex);
         })
-        .onUpdate((event) => {
+        .onTouchesMove((event) => {
           'worklet';
           if (!gestureAccepted.value) return;
 
-          const point = { x: event.x, y: event.y };
+          const touch = event.changedTouches[0] ?? event.allTouches[0];
+          if (!touch) return;
+          const point = { x: touch.x, y: touch.y };
           // Path, Android referansındaki gibi gerçek pointer noktasını
           // gecikmeden takip eder; hit-test ve görsel hat aynı koordinatı kullanır.
           pointerX.value = point.x;
@@ -663,15 +665,38 @@ export const NumberWheel = memo(function NumberWheel({
           selectionOnUI.value = update.selection;
           runOnJS(syncSelection)(update.selection, update.addedSelectionCounts);
         })
-        .onEnd(() => {
+        .onTouchesUp((event, stateManager) => {
           'worklet';
           if (!gestureAccepted.value) return;
+
+          const touch = event.changedTouches[0];
+          if (touch) {
+            const point = { x: touch.x, y: touch.y };
+            const previousPoint = {
+              x: lastPointerX.value,
+              y: lastPointerY.value,
+            };
+            pointerX.value = point.x;
+            pointerY.value = point.y;
+
+            const update = updateSelectionOnUI(
+              selectionOnUI.value,
+              findNodesAlongSegment(previousPoint, point, positions, hitRadius),
+              numbers.length,
+            );
+            if (update.changed) {
+              selectionOnUI.value = update.selection;
+              runOnJS(syncSelection)(update.selection, update.addedSelectionCounts);
+            }
+          }
+
           const completedSelection = [...selectionOnUI.value];
           gestureAccepted.value = false;
           holdingOnUI.value = true;
           runOnJS(finishSelection)(completedSelection, true);
+          stateManager.end();
         })
-        .onFinalize(() => {
+        .onTouchesCancelled((_event, stateManager) => {
           'worklet';
           if (!gestureAccepted.value) return;
           const cancelledSelection = [...selectionOnUI.value];
@@ -679,6 +704,7 @@ export const NumberWheel = memo(function NumberWheel({
           activePointer.value = false;
           selectionOnUI.value = [];
           runOnJS(finishSelection)(cancelledSelection, false);
+          stateManager.fail();
         }),
     [
       activePointer,
