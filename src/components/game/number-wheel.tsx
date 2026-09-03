@@ -448,7 +448,9 @@ export const NumberWheel = memo(function NumberWheel({
   const syncSelection = useCallback(
     (next: number[], addedSelectionCounts: number[]) => {
       setSelectedIndices(next);
-      addedSelectionCounts.forEach(callbacksRef.current.onNodeAdded);
+      addedSelectionCounts.forEach((selectionCount) => {
+        callbacksRef.current.onNodeAdded(selectionCount);
+      });
       callbacksRef.current.onPreview(next);
     },
     [],
@@ -951,10 +953,10 @@ export const NumberWheel = memo(function NumberWheel({
             end={{ x: 0, y: 1 }}
             start={{ x: 0, y: 0 }}
             style={styles.controlSurface}>
-            {tutorialFocus === 'hint' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
             <HintIcon />
             <Text style={styles.controlLabel}>{t('wheel.hint', { count: hintCredits })}</Text>
           </ExpoLinearGradient>
+          {tutorialFocus === 'hint' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
         </Pressable>
 
         <Pressable
@@ -969,12 +971,12 @@ export const NumberWheel = memo(function NumberWheel({
             end={{ x: 0, y: 1 }}
             start={{ x: 0, y: 0 }}
             style={styles.controlSurface}>
-            {tutorialFocus === 'shuffle' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
             <RNAnimated.View style={{ transform: [{ rotate: rotationStyle }] }}>
               <ShuffleIcon />
             </RNAnimated.View>
             <Text style={styles.controlLabel}>{t('wheel.shuffle')}</Text>
           </ExpoLinearGradient>
+          {tutorialFocus === 'shuffle' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
         </Pressable>
       </View>
     </View>
@@ -1064,7 +1066,7 @@ const styles = StyleSheet.create({
   controlButton: {
     width: 52,
     height: 52,
-    overflow: 'hidden',
+    overflow: 'visible',
     borderRadius: 26,
     borderWidth: 1.5,
     borderColor: 'rgba(236,240,240,0.74)',
@@ -1108,6 +1110,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 1,
     borderRadius: 26,
+    overflow: 'visible',
     padding: 3,
   },
   controlLabel: {
