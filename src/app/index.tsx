@@ -1,4 +1,5 @@
 import { BlurTargetView } from 'expo-blur';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -114,6 +115,14 @@ type ResultFlight = {
 type PuzzleActivity = PuzzlePerformance & {
   lastInteractionAt: number | null;
 };
+const TUTORIAL_STORAGE_KEY = '@numbers-of-wonders/tutorial-completed';
+const TUTORIAL_LESSONS = [
+  { numbers: [1, 2, 5], target: 3, op: '+', steps: 2, bonus: false, demo: true },
+  { numbers: [5, 2, 8], target: 3, op: '-', steps: 2, bonus: false, demo: false },
+  { numbers: [2, 3, 7], target: 6, op: '*', steps: 2, bonus: false, demo: false },
+  { numbers: [1, 2, 3, 7], target: 6, op: '+', steps: 3, bonus: false, demo: false },
+  { numbers: [2, 3, 4, 5], target: 24, op: '*', steps: 3, bonus: true, demo: false },
+] as const;
 
 type DestinationTransitionState = {
   completedEmoji: string;
@@ -782,6 +791,84 @@ function getFeedbackColors(tone: FeedbackTone) {
   return { background: 'rgba(61,127,145,0.97)', border: '#D8EFF1', text: '#FFFFFF' };
 }
 
+function StepCoachmark({ current, total }: { current: number; total: number }) {
+  const [progress] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    progress.setValue(0);
+    const animation = Animated.sequence([
+      Animated.timing(progress, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.delay(780),
+      Animated.timing(progress, { toValue: 0, duration: 220, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [current, progress, total]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.stepCoachmark,
+        {
+          opacity: progress,
+          transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [9, 0] }) }],
+        },
+      ]}>
+      <Text style={styles.stepCoachmarkText}>ADIM {current} → {total}</Text>
+    </Animated.View>
+  );
+}
+
+function FirstPlayTutorial({ onDone }: { onDone: () => void }) {
+  const [lessonIndex, setLessonIndex] = useState(0);
+  const [demoCompleted, setDemoCompleted] = useState(false);
+  const [demoPractice, setDemoPractice] = useState(false);
+  const [demoProgress] = useState(() => new Animated.Value(0));
+  const [demoStage, setDemoStage] = useState<'shuffle' | 'hint' | 'demo'>('shuffle');
+  const lesson = TUTORIAL_LESSONS[lessonIndex];
+  const operation = OPERATION_DETAILS[lesson.op];
+  const complete = useCallback((indices: number[]): WheelSelectionOutcome => {
+    const values: number[] = indices.map((index) => lesson.numbers[index]);
+    const result = lesson.op === '+' ? values.reduce((a, b) => a + b, 0)
+      : lesson.op === '-' ? values.reduce((a, b) => a - b)
+      : values.reduce((a, b) => a * b, 1);
+    if (indices.length !== lesson.steps || result !== lesson.target) return 'invalid';
+    setTimeout(() => {
+      if (lessonIndex === TUTORIAL_LESSONS.length - 1) onDone();
+      else setLessonIndex((current) => current + 1);
+    }, 520);
+    return lesson.bonus ? 'bonus' : 'success';
+  }, [lesson, lessonIndex, onDone]);
+
+  useEffect(() => {
+    if (!lesson.demo || demoCompleted || demoStage !== 'demo') return;
+    demoProgress.setValue(0);
+    const animation = Animated.sequence([
+      Animated.delay(450),
+      Animated.timing(demoProgress, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.delay(950),
+    ]);
+    animation.start(({ finished }) => {
+      if (finished) setDemoCompleted(true);
+    });
+    return () => animation.stop();
+  }, [demoCompleted, demoProgress, demoStage, lesson.demo]);
+
+
+  return <View style={styles.tutorialOverlay}>
+    <View style={styles.tutorialCard}>
+      <Text style={styles.tutorialEyebrow}>OYUN EĞİTİMİ · {lessonIndex + 1}/5</Text>
+      <Text style={styles.tutorialTitle}>{lesson.bonus ? 'BONUS HEDEFİ BUL' : 'HEDEF SAYIYI BUL'}</Text>
+      <View style={styles.tutorialTargetCard}><Text style={styles.tutorialTarget}>{lesson.target}</Text><View style={styles.tutorialTargetMeta}><Text style={styles.tutorialOperationPill}>[{operation.symbol}]</Text><View style={styles.tutorialStepDots}>{Array.from({ length: lesson.steps }, (_, index) => <Animated.View key={index} style={[styles.tutorialStepDot, lesson.demo && demoStage === 'demo' && { backgroundColor: '#35AEB6', borderColor: '#167783', opacity: demoProgress.interpolate({ inputRange: [index / lesson.steps, (index + 1) / lesson.steps], outputRange: [0.28, 1] }) }]} />)}</View></View></View>
+      <Text style={styles.tutorialExplanation}>{localizeOperation(operation.symbol)} işlemi • {lesson.steps} adım</Text>
+      {lesson.demo && demoStage === 'hint' ? <View style={styles.tutorialCallouts}><Text style={styles.tutorialCallout}>↙ {localizeOperation(operation.symbol)}</Text><Text style={styles.tutorialCallout}>↘ ADIM SAYISI</Text></View> : null}
+      {lesson.demo && !demoCompleted ? demoStage !== 'demo' ? <NumberWheel key={demoStage} hintCredits={1} hintIndices={[]} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => { if (demoStage === 'hint') setDemoStage('demo'); }} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => { if (demoStage === 'shuffle') setDemoStage('hint'); }} size={230} tutorialFocus={demoStage} /> : <View style={styles.tutorialDemoWheel}><Animated.View style={[styles.tutorialDemoLine, { opacity: demoProgress, transform: [{ rotate: '12deg' }] }]} /><Animated.View style={[styles.tutorialDemoNode, styles.tutorialDemoNodeOne, { backgroundColor: '#36AEB6' }]}><Text style={styles.tutorialDemoNumber}>1</Text></Animated.View><Animated.View style={[styles.tutorialDemoNode, styles.tutorialDemoNodeTwo, { backgroundColor: '#36AEB6', opacity: demoProgress.interpolate({ inputRange: [0, 0.45, 1], outputRange: [0.28, 1, 1] }) }]}><Text style={styles.tutorialDemoNumber}>2</Text></Animated.View><View style={[styles.tutorialDemoNode, styles.tutorialDemoNodeThree]}><Text style={[styles.tutorialDemoNumber, { color: '#284751' }]}>5</Text></View></View> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} hintCredits={0} hintIndices={[]} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => undefined} size={230} />}
+      <Text style={styles.tutorialHint}>{lesson.demo && !demoCompleted ? demoStage === 'shuffle' ? 'Önce sayıları karıştır.' : demoStage === 'hint' ? 'Şimdi ipucuna dokun; çözüm gösterilecek.' : 'İpucu: 1 ve 2 sırayla bağlanır.' : lesson.demo && !demoPractice ? 'Aynı soruyu şimdi sen çözeceksin.' : 'Doğru sayıları sırayla birleştir.'}</Text>
+    </View>
+  </View>;
+}
+
 function JourneyStrip({
   active,
   level,
@@ -798,6 +885,10 @@ function JourneyStrip({
   const countryProgress = country ? getCountryProgress(level, country.id) : 0;
   const challengeProgress = Math.max(0, Math.min(1, countryProgress - 19));
   const [challengePulse] = useState(() => new Animated.Value(0));
+  const [operationHint] = useState(() => new Animated.Value(0));
+  // Kullanıcının kayıtlı yolculuğu ilk seviyeden başlamayabilir; eğitim
+  // bilgisi bu yüzden mutlak seviye numarasına bağlı olmadan gösterilir.
+  const showOperationHint = active;
 
   useEffect(() => {
     challengePulse.stopAnimation();
@@ -825,6 +916,29 @@ function JourneyStrip({
     animation.start();
     return () => animation.stop();
   }, [active, challengePulse, levelData.countryChallenge]);
+
+  useEffect(() => {
+    operationHint.stopAnimation();
+    operationHint.setValue(0);
+    if (!showOperationHint) return;
+    const animation = Animated.sequence([
+      Animated.timing(operationHint, {
+        toValue: 1,
+        duration: 360,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.delay(2100),
+      Animated.timing(operationHint, {
+        toValue: 0,
+        duration: 260,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [operationHint, showOperationHint, levelData.op]);
 
   return (
     <LinearGradient
@@ -865,11 +979,22 @@ function JourneyStrip({
             </Animated.Text>
           ) : null}
         </View>
-        <View style={styles.journeyOperationChip}>
-          <Text numberOfLines={1} style={styles.journeyOperationText}>
-            {localizeOperation(operation.symbol).toLocaleUpperCase()} • {operation.symbol}
-          </Text>
-        </View>
+        {showOperationHint ? (
+          <Animated.View
+            style={[
+              styles.journeyOperationChip,
+              {
+                opacity: operationHint,
+                transform: [{
+                  translateX: operationHint.interpolate({ inputRange: [0, 1], outputRange: [56, 0] }),
+                }],
+              },
+            ]}>
+            <Text numberOfLines={1} style={styles.journeyOperationText}>
+              {localizeOperation(operation.symbol).toLocaleUpperCase()} • {operation.symbol}
+            </Text>
+          </Animated.View>
+        ) : null}
         <View style={styles.journeyCountChip}>
           <Text style={styles.journeyCountText}>
             {countryProgress}/{country?.levelCount ?? COUNTRY_LEVEL_COUNT}
@@ -976,6 +1101,7 @@ export default function HomeScreen() {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [hintIndices, setHintIndices] = useState<number[]>([]);
   const [hintedTarget, setHintedTarget] = useState<number | null>(null);
+  const [stepCoach, setStepCoach] = useState<number | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [activeScreen, setActiveScreen] = useState<AppScreen>('home');
   const [mountedShellScreens, setMountedShellScreens] = useState<Set<AppScreen>>(
@@ -995,6 +1121,7 @@ export default function HomeScreen() {
   const [bonusFlying, setBonusFlying] = useState(false);
   const [landedTarget, setLandedTarget] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [tutorialVisible, setTutorialVisible] = useState(false);
   const blurTarget = useRef<View>(null);
   const navigateToScreen = useCallback((screen: AppScreen) => {
     setMountedShellScreens((current) => {
@@ -1035,6 +1162,7 @@ export default function HomeScreen() {
   const discoveredBonuses = useRef(new Set<string>());
   const feedbackTimer = useRef<Timer | null>(null);
   const hintTimer = useRef<Timer | null>(null);
+  const stepCoachTimer = useRef<Timer | null>(null);
   const landingTimer = useRef<Timer | null>(null);
   const levelTimer = useRef<Timer | null>(null);
 
@@ -1198,6 +1326,9 @@ export default function HomeScreen() {
       }
 
       setHydrated(true);
+      void AsyncStorage.getItem(TUTORIAL_STORAGE_KEY).then((value) => {
+        if (active && value !== 'done') setTutorialVisible(true);
+      });
     });
 
     return () => {
@@ -1737,6 +1868,14 @@ export default function HomeScreen() {
     (selectionCount: number) => {
       markPuzzleActivity();
       triggerEffect(getNodeSelectionSound(selectionCount));
+      if (selectionCount === 1) {
+        clearTimer(stepCoachTimer);
+        setStepCoach(selectionCount);
+        stepCoachTimer.current = setTimeout(() => {
+          setStepCoach(null);
+          stepCoachTimer.current = null;
+        }, 1300);
+      }
     },
     [markPuzzleActivity, triggerEffect],
   );
@@ -1837,6 +1976,10 @@ export default function HomeScreen() {
         visible={challengeIntroVisible}
         worldTourFinal={levelData.worldTourFinal}
       />
+      {tutorialVisible && activeScreen === 'game' ? <FirstPlayTutorial onDone={() => {
+        setTutorialVisible(false);
+        void AsyncStorage.setItem(TUTORIAL_STORAGE_KEY, 'done');
+      }} /> : null}
     </>
   );
 
@@ -2022,12 +2165,16 @@ export default function HomeScreen() {
                       end={{ x: 0, y: 1 }}
                       start={{ x: 0, y: 0 }}
                       style={styles.operationBadge}>
-                      <Text style={styles.operationSymbol}>{operation.symbol}</Text>
+                      <Text style={styles.operationSymbol}>
+                        {operation.symbol} {localizeOperation(operation.symbol).toLocaleUpperCase()}
+                      </Text>
                     </LinearGradient>
                   </View>
                   <View style={styles.requiredBadge}>
                     <Text style={styles.requiredLabel}>{t('game.stepCount')}</Text>
-                    <Text style={styles.requiredDots}>{levelData.steps}</Text>
+                    <Text style={styles.requiredDots}>
+                      {Array.from({ length: levelData.steps }, () => '●').join(' ')}
+                    </Text>
                   </View>
                 </View>
 
@@ -2060,6 +2207,9 @@ export default function HomeScreen() {
               </LinearGradient>
 
               <View style={styles.feedbackSlot}>
+                {stepCoach !== null ? (
+                  <StepCoachmark current={stepCoach} total={levelData.steps} />
+                ) : null}
                 {feedback && feedbackColors ? (
                   <View
                     style={[
@@ -2128,6 +2278,30 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  tutorialOverlay: { position: 'absolute', inset: 0, zIndex: 100, alignItems: 'center', justifyContent: 'center', padding: 18, backgroundColor: 'rgba(12,29,38,0.72)' },
+  tutorialCard: { width: '100%', maxWidth: 370, alignItems: 'center', padding: 18, borderRadius: 28, backgroundColor: '#EEF8F7', borderWidth: 2, borderColor: '#D2EEF0' },
+  tutorialEyebrow: { color: '#527782', fontFamily: FONTS.extraBold, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  tutorialTitle: { marginTop: 6, color: '#25424D', fontFamily: FONTS.black, fontSize: 18, fontWeight: '900' },
+  tutorialTargetCard: { width: 112, height: 70, marginTop: 7, marginBottom: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1.5, borderColor: '#BAD9DD', backgroundColor: '#FFFFFF' },
+  tutorialTarget: { color: '#187E89', fontFamily: FONTS.black, fontSize: 30, lineHeight: 34, fontWeight: '900' },
+  tutorialTargetMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  tutorialOperationPill: { color: '#557782', fontFamily: FONTS.bold, fontSize: 10, fontWeight: '900' },
+  tutorialStepDots: { flexDirection: 'row', gap: 3 },
+  tutorialStepDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: '#789AA1', backgroundColor: '#E1ECEB' },
+  tutorialExplanation: { color: '#456975', fontFamily: FONTS.extraBold, fontSize: 12, fontWeight: '900' },
+  tutorialCallouts: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
+  tutorialCallout: { color: '#186E78', fontFamily: FONTS.extraBold, fontSize: 9, fontWeight: '900' },
+  tutorialDemoWheel: { width: 230, height: 230, marginTop: 4, position: 'relative', borderWidth: 5, borderColor: '#567883', borderRadius: 115 },
+  tutorialDemoLine: { position: 'absolute', top: 92, left: 50, width: 132, height: 6, borderRadius: 3, backgroundColor: '#36AEB6', transformOrigin: 'left' },
+  tutorialDemoNode: { position: 'absolute', width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 29, borderWidth: 2, borderColor: '#688890', backgroundColor: '#F6FBFA' },
+  tutorialDemoNodeOne: { left: 22, top: 52 },
+  tutorialDemoNodeTwo: { right: 21, top: 79 },
+  tutorialDemoNodeThree: { left: 84, bottom: 16 },
+  tutorialDemoNumber: { color: '#FFFFFF', fontFamily: FONTS.black, fontSize: 22, fontWeight: '900' },
+  tutorialPracticeButton: { width: 230, height: 230, marginTop: 4, alignItems: 'center', justifyContent: 'center', borderRadius: 115, borderWidth: 5, borderColor: '#36AEB6', backgroundColor: '#E1F4F3' },
+  tutorialActionButton: { marginTop: 10, minWidth: 152, paddingHorizontal: 18, paddingVertical: 10, alignItems: 'center', borderRadius: 18, backgroundColor: '#D9F0EF', borderWidth: 1.5, borderColor: '#77C9C8' },
+  tutorialPracticeText: { color: '#176A75', fontFamily: FONTS.black, fontSize: 15, fontWeight: '900' },
+  tutorialHint: { color: '#527782', fontFamily: FONTS.bold, fontSize: 12, fontWeight: '800' },
   screen: {
     flex: 1,
     backgroundColor: '#73C7EE',
@@ -2783,6 +2957,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 4,
+  },
+  stepCoachmark: {
+    position: 'absolute',
+    zIndex: 2,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#BCE8EA',
+    backgroundColor: '#287A88',
+    shadowColor: '#163E49',
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  stepCoachmarkText: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.6,
   },
   feedbackPill: {
     maxWidth: '94%',

@@ -51,6 +51,7 @@ type NumberWheelProps = {
   onShuffle: () => void;
   onNodeAdded: (selectionCount: number) => void;
   onDraggingChange: (dragging: boolean) => void;
+  tutorialFocus?: 'shuffle' | 'hint';
 };
 
 export type WheelSelectionOutcome = 'success' | 'bonus' | 'invalid';
@@ -299,6 +300,7 @@ export const NumberWheel = memo(function NumberWheel({
   onShuffle,
   onNodeAdded,
   onDraggingChange,
+  tutorialFocus,
 }: NumberWheelProps) {
   const { t } = useI18n();
   const [slotOrder, setSlotOrder] = useState(() =>
@@ -471,6 +473,7 @@ export const NumberWheel = memo(function NumberWheel({
     (event: GestureResponderEvent) => {
       if (
         Platform.OS !== 'web' ||
+        tutorialFocus ||
         shufflingOnUI.value ||
         holdingOnUI.value ||
         webGestureAcceptedRef.current
@@ -482,7 +485,7 @@ export const NumberWheel = memo(function NumberWheel({
         findNodeAtPoint(getWebTouchPoint(event), positionsRef.current, hitRadius) >= 0
       );
     },
-    [getWebTouchPoint, hitRadius, holdingOnUI, shufflingOnUI],
+    [getWebTouchPoint, hitRadius, holdingOnUI, shufflingOnUI, tutorialFocus],
   );
 
   const startWebSelection = useCallback(
@@ -576,7 +579,7 @@ export const NumberWheel = memo(function NumberWheel({
   const gesture = useMemo(
     () =>
       Gesture.Pan()
-        .enabled(Platform.OS !== 'web')
+        .enabled(Platform.OS !== 'web' && !tutorialFocus)
         .manualActivation(true)
         .maxPointers(1)
         .shouldCancelWhenOutside(false)
@@ -669,6 +672,7 @@ export const NumberWheel = memo(function NumberWheel({
       selectionOnUI,
       shufflingOnUI,
       syncSelection,
+      tutorialFocus,
     ],
   );
   /* eslint-enable react-hooks/immutability, react-hooks/refs */
@@ -886,7 +890,7 @@ export const NumberWheel = memo(function NumberWheel({
         </GestureDetector>
       </View>
 
-      <View style={[styles.actionRow, { width: size }]}>
+      <View style={[styles.actionRow, { width: size }]}> 
         <Pressable
           accessibilityLabel={
             hintCredits > 0
@@ -895,8 +899,9 @@ export const NumberWheel = memo(function NumberWheel({
           }
           accessibilityRole="button"
           hitSlop={8}
+          disabled={tutorialFocus === 'shuffle'}
           onPress={onHint}
-          style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}>
+          style={({ pressed }) => [styles.controlButton, tutorialFocus === 'hint' && styles.controlFocused, pressed && styles.controlPressed]}>
           <ExpoLinearGradient
             colors={['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']}
             end={{ x: 0, y: 1 }}
@@ -911,8 +916,9 @@ export const NumberWheel = memo(function NumberWheel({
           accessibilityLabel={t('wheel.shuffleA11y')}
           accessibilityRole="button"
           hitSlop={8}
+          disabled={tutorialFocus === 'hint'}
           onPress={shuffleNodes}
-          style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}>
+          style={({ pressed }) => [styles.controlButton, tutorialFocus === 'shuffle' && styles.controlFocused, pressed && styles.controlPressed]}>
           <ExpoLinearGradient
             colors={['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']}
             end={{ x: 0, y: 1 }}
@@ -1025,6 +1031,14 @@ const styles = StyleSheet.create({
   controlPressed: {
     opacity: 0.76,
     transform: [{ scale: 0.94 }],
+  },
+  controlFocused: {
+    borderColor: '#FFF7BB',
+    borderWidth: 3,
+    shadowColor: '#FDE047',
+    shadowOpacity: 0.95,
+    shadowRadius: 16,
+    elevation: 14,
   },
   controlSurface: {
     flex: 1,
