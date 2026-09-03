@@ -820,7 +820,7 @@ function StepCoachmark({ current, total }: { current: number; total: number }) {
   );
 }
 
-function FirstPlayTutorial({ onDone }: { onDone: () => void }) {
+function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (sound: GameSound) => void }) {
   const [lessonIndex, setLessonIndex] = useState(0);
   const [demoCompleted, setDemoCompleted] = useState(false);
   const [demoPractice, setDemoPractice] = useState(false);
@@ -835,12 +835,13 @@ function FirstPlayTutorial({ onDone }: { onDone: () => void }) {
       : lesson.op === '-' ? values.reduce((a, b) => a - b)
       : values.reduce((a, b) => a * b, 1);
     if (indices.length !== lesson.steps || result !== lesson.target) return 'invalid';
+    onSound(lesson.bonus ? 'bonus' : 'success');
     setTimeout(() => {
       if (lessonIndex === TUTORIAL_LESSONS.length - 1) onDone();
       else setLessonIndex((current) => current + 1);
     }, 520);
     return lesson.bonus ? 'bonus' : 'success';
-  }, [lesson, lessonIndex, onDone]);
+  }, [lesson, lessonIndex, onDone, onSound]);
 
   useEffect(() => {
     if (!lesson.demo || demoCompleted || demoStage !== 'demo') return;
@@ -869,8 +870,8 @@ function FirstPlayTutorial({ onDone }: { onDone: () => void }) {
   return <View style={styles.tutorialOverlay}>
     <View style={styles.tutorialCard}>
       <Text style={styles.tutorialEyebrow}>OYUN EĞİTİMİ · {lessonIndex + 1}/5</Text>
-      <Text style={styles.tutorialTitle}>{lesson.bonus ? 'BONUS HEDEFİ BUL' : 'HEDEF SAYIYI BUL'}</Text>
-      <View style={styles.tutorialTargetCard}><Text style={styles.tutorialTarget}>{lesson.target}</Text><View style={styles.tutorialTargetMeta}><Text style={styles.tutorialOperationPill}>[{operation.symbol}]</Text><View style={styles.tutorialStepDots}>{Array.from({ length: lesson.steps }, (_, index) => <Animated.View key={index} style={[styles.tutorialStepDot, lesson.demo && demoStage === 'demo' && { backgroundColor: '#35AEB6', borderColor: '#167783', opacity: demoProgress.interpolate({ inputRange: [index / lesson.steps, (index + 1) / lesson.steps], outputRange: [0.28, 1] }) }]} />)}</View></View></View>
+      <Text style={styles.tutorialTitle}>{lesson.bonus ? '💎 BONUS HEDEFİ BUL' : 'HEDEF SAYIYI BUL'}</Text>
+      <View style={[styles.tutorialTargetCard, lesson.bonus && styles.tutorialBonusTargetCard]}><Text style={styles.tutorialTarget}>{lesson.target}</Text><View style={styles.tutorialTargetMeta}><Text style={styles.tutorialOperationPill}>[{operation.symbol}]</Text><View style={styles.tutorialStepDots}>{Array.from({ length: lesson.steps }, (_, index) => <Animated.View key={index} style={[styles.tutorialStepDot, lesson.bonus && styles.tutorialBonusDot, lesson.demo && demoStage === 'demo' && { backgroundColor: '#35AEB6', borderColor: '#167783', opacity: demoProgress.interpolate({ inputRange: [index / lesson.steps, (index + 1) / lesson.steps], outputRange: [0.28, 1] }) }]} />)}</View></View></View>
       <Animated.Text style={[styles.tutorialExpression, { opacity: lesson.demo ? demoProgress : 1 }]}>
         {lesson.numbers.slice(0, lesson.steps).join(` ${operation.symbol} `)} = {lesson.target}
       </Animated.Text>
@@ -1988,7 +1989,7 @@ export default function HomeScreen() {
         visible={challengeIntroVisible}
         worldTourFinal={levelData.worldTourFinal}
       />
-      {tutorialVisible && activeScreen === 'game' ? <FirstPlayTutorial onDone={() => {
+      {tutorialVisible && activeScreen === 'game' ? <FirstPlayTutorial onSound={playSound} onDone={() => {
         setTutorialVisible(false);
         void AsyncStorage.setItem(TUTORIAL_STORAGE_KEY, 'done');
       }} /> : null}
@@ -2295,11 +2296,13 @@ const styles = StyleSheet.create({
   tutorialEyebrow: { color: '#527782', fontFamily: FONTS.extraBold, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   tutorialTitle: { marginTop: 6, color: '#25424D', fontFamily: FONTS.black, fontSize: 18, fontWeight: '900' },
   tutorialTargetCard: { width: 112, height: 70, marginTop: 7, marginBottom: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1.5, borderColor: '#BAD9DD', backgroundColor: '#FFFFFF' },
+  tutorialBonusTargetCard: { borderColor: '#D4A84A', backgroundColor: '#F0E1FF' },
   tutorialTarget: { color: '#187E89', fontFamily: FONTS.black, fontSize: 30, lineHeight: 34, fontWeight: '900' },
   tutorialTargetMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   tutorialOperationPill: { color: '#557782', fontFamily: FONTS.bold, fontSize: 10, fontWeight: '900' },
   tutorialStepDots: { flexDirection: 'row', gap: 3 },
   tutorialStepDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: '#789AA1', backgroundColor: '#E1ECEB' },
+  tutorialBonusDot: { borderColor: '#B987D8', backgroundColor: '#E4C7FA' },
   tutorialExplanation: { color: '#456975', fontFamily: FONTS.extraBold, fontSize: 12, fontWeight: '900' },
   tutorialExplanationRow: { width: '100%', marginTop: 2, marginBottom: 4, flexDirection: 'row', justifyContent: 'space-between' },
   tutorialExpression: { marginTop: 4, color: '#176E78', fontFamily: FONTS.black, fontSize: 17, lineHeight: 21, fontWeight: '900' },
