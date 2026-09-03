@@ -17,7 +17,7 @@ import { AppFooter } from '@/components/common/app-footer';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import type { DifficultyModifier, PuzzlePerformance } from '@/game/adaptive-difficulty';
 import type { LevelData } from '@/game/levels';
-import { localizeCountry, localizeRoute, useI18n } from '@/i18n';
+import { localizeCountry, localizeRoute, SUPPORTED_LANGUAGES, useI18n } from '@/i18n';
 import {
   COUNTRY_LEVEL_COUNT,
   COUNTRY_BY_ID,
@@ -241,6 +241,9 @@ export function MainMenu({
     : levelData.country;
   const routeName = route ? localizeRoute(route, language) : t('home.worldRoute');
   const completedCountries = getCompletedCountryCount(currentLevel);
+  // The player-facing level advances once per completed country. The puzzle's
+  // global level remains internal so the home screen never exposes 4-digit IDs.
+  const countryLevel = Math.min(TOTAL_COUNTRIES, completedCountries + 1);
   const routeProgress = route ? getRouteProgress(currentLevel, route) : 0;
   const playGlowOpacity = useMemo(
     () => pulse.interpolate({ inputRange: [0, 1], outputRange: [0.28, 0.58] }),
@@ -348,7 +351,15 @@ export function MainMenu({
               compact && styles.settingsButtonCompact,
               pressed && styles.pressed,
             ]}>
-            <Text style={styles.settingsIcon}>⚙</Text>
+            <LinearGradient
+              colors={['#4B8194', '#214F68', '#17374E']}
+              end={{ x: 0.75, y: 1 }}
+              start={{ x: 0.2, y: 0 }}
+              style={styles.settingsButtonSurface}>
+              <View style={styles.settingsButtonRing} />
+              <View style={styles.settingsButtonShine} />
+              <Text style={[styles.settingsIcon, compact && styles.settingsIconCompact]}>⚙︎</Text>
+            </LinearGradient>
           </Pressable>
         </View>
 
@@ -376,7 +387,7 @@ export function MainMenu({
             />
             <Pressable
               accessibilityHint={t('home.playHint')}
-              accessibilityLabel={t('home.playA11y', { level: currentLevel })}
+              accessibilityLabel={t('home.playA11y', { level: countryLevel })}
               accessibilityRole="button"
               onPress={onPlay}
               style={({ pressed }) => [
@@ -394,7 +405,7 @@ export function MainMenu({
                   style={styles.playButtonInner}>
                   <Text style={styles.playCompass}>✥</Text>
                   <Text style={[styles.playLevel, compact && styles.playLevelCompact]}>
-                    {currentLevel}.
+                    {countryLevel}.
                   </Text>
                   <Text style={styles.playCaption}>{t('common.level')}</Text>
                 </LinearGradient>
@@ -509,8 +520,9 @@ export function ProfileScreen({
   cityDifficultyModifier: DifficultyModifier;
   score: number;
 }) {
-  const { language, locale, t } = useI18n();
+  const { language, locale, setLanguage, t } = useI18n();
   const completedCountries = getCompletedCountryCount(currentLevel);
+  const playerLevel = Math.min(TOTAL_COUNTRIES, completedCountries + 1);
   const completedLevels = getCompletedWorldLevelCount(currentLevel);
   const country = COUNTRY_BY_ID.get(levelData.countryId);
   const countryName = country ? localizeCountry(country, language) : levelData.country;
@@ -549,8 +561,35 @@ export function ProfileScreen({
             <View style={styles.avatar}><Text style={styles.avatarText}>{levelData.flag}</Text></View>
             <Text style={styles.explorerName}>{t('profile.explorer')}</Text>
             <Text style={styles.explorerLocation}>
-              {t('profile.location', { level: currentLevel, country: countryName, city: levelData.city })}
+              {t('profile.location', { level: playerLevel, country: countryName, city: levelData.city })}
             </Text>
+          </View>
+
+          <View style={styles.profileLanguageCard}>
+            <Text style={styles.profileLanguageTitle}>🌐  {t('settings.language')}</Text>
+            <View style={styles.profileLanguageOptions}>
+              {SUPPORTED_LANGUAGES.map((option) => (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: language === option }}
+                  key={option}
+                  onPress={() => setLanguage(option)}
+                  style={({ pressed }) => [
+                    styles.profileLanguageButton,
+                    language === option && styles.profileLanguageButtonActive,
+                    pressed && styles.pressed,
+                  ]}>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.profileLanguageButtonText,
+                      language === option && styles.profileLanguageButtonTextActive,
+                    ]}>
+                    {t(`language.${option}`)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
 
           <View style={styles.difficultyCard}>
@@ -602,7 +641,7 @@ export function ProfileScreen({
               />
             </View>
             <Text style={styles.worldProgress}>{t('profile.worldTour', { done: completedLevels, total: TOTAL_WORLD_LEVELS })}</Text>
-            <Text style={styles.worldProgress}>{t('profile.playerLevel', { level: currentLevel })}</Text>
+            <Text style={styles.worldProgress}>{t('profile.playerLevel', { level: playerLevel })}</Text>
             <Text style={styles.worldProgress}>{t('profile.bonuses', { count: bonusCount })}</Text>
           </View>
 
@@ -697,20 +736,19 @@ const styles = StyleSheet.create({
   settingsButton: {
     width: 48,
     height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
     borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#E8B94D',
-    backgroundColor: '#245C91',
     shadowColor: '#76521B',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.24,
+    shadowOpacity: 0.34,
     shadowRadius: 5,
-    elevation: 6,
+    elevation: 7,
   },
   settingsButtonCompact: { width: 40, height: 40, borderRadius: 20 },
-  settingsIcon: { color: '#FFF4CC', fontSize: 26, lineHeight: 29 },
+  settingsButtonSurface: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 999, borderWidth: 2, borderColor: '#E8B94D' },
+  settingsButtonRing: { position: 'absolute', top: 4, right: 4, bottom: 4, left: 4, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,238,172,0.42)' },
+  settingsButtonShine: { position: 'absolute', top: 6, left: 9, width: 11, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.5)', transform: [{ rotate: '-24deg' }] },
+  settingsIcon: { color: '#FFE27A', fontSize: 26, lineHeight: 30, textAlign: 'center', textShadowColor: '#8C5811', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  settingsIconCompact: { fontSize: 22, lineHeight: 25 },
   homeContent: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 112 },
   homeContentCompact: { paddingBottom: 92 },
   brandBlock: { width: '100%', alignItems: 'center', justifyContent: 'center' },
@@ -765,6 +803,13 @@ const styles = StyleSheet.create({
   profileHeaderTitle: { color: '#253947', fontFamily: FONTS.extraBold, fontSize: 16, letterSpacing: 1.7, fontWeight: '800' },
   profileScroll: { width: '100%', maxWidth: 512, alignSelf: 'center', paddingHorizontal: 16, paddingBottom: 26 },
   profileHero: { height: 226, marginTop: 8, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', borderRadius: 26, paddingBottom: 22, shadowColor: '#2D2219', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.24, shadowRadius: 10, elevation: 7 },
+  profileLanguageCard: { marginTop: 10, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: '#D6E5E4', backgroundColor: '#FFFFFF' },
+  profileLanguageTitle: { color: '#233540', fontFamily: FONTS.extraBold, fontSize: 13, fontWeight: '800' },
+  profileLanguageOptions: { marginTop: 8, flexDirection: 'row', gap: 6 },
+  profileLanguageButton: { flex: 1, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#E7F2F2' },
+  profileLanguageButtonActive: { backgroundColor: '#3D7F91' },
+  profileLanguageButtonText: { color: '#3D5A63', fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700' },
+  profileLanguageButtonTextActive: { color: '#FFFFFF' },
   avatar: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center', borderRadius: 38, borderWidth: 4, borderColor: '#F5D779', backgroundColor: '#FFF8E8' },
   avatarText: { fontSize: 37 },
   explorerName: { marginTop: 9, color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 20, fontWeight: '800' },

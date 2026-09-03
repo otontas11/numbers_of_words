@@ -5,7 +5,7 @@ import { BackHandler, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { FONTS } from '@/constants/fonts';
-import { SUPPORTED_LANGUAGES, useI18n } from '@/i18n';
+import { useI18n } from '@/i18n';
 
 type SettingsModalProps = {
   blurTarget: RefObject<View | null>;
@@ -74,7 +74,7 @@ export function SettingsModal({
   onMusicVolumeChange,
   visible,
 }: SettingsModalProps) {
-  const { language, setLanguage, t } = useI18n();
+  const { t } = useI18n();
   useEffect(() => {
     if (!visible) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -117,33 +117,6 @@ export function SettingsModal({
           subtitle={t('settings.musicSubtitle')}
           title={t('settings.music')}
         />
-
-        <View style={styles.languageRow}>
-          <Text style={styles.languageTitle}>🌐  {t('settings.language')}</Text>
-          <View style={styles.languageOptions}>
-            {SUPPORTED_LANGUAGES.map((option) => (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: language === option }}
-                key={option}
-                onPress={() => setLanguage(option)}
-                style={({ pressed }) => [
-                  styles.languageButton,
-                  language === option && styles.languageButtonActive,
-                  pressed && styles.pressed,
-                ]}>
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.languageButtonText,
-                    language === option && styles.languageButtonTextActive,
-                  ]}>
-                  {t(`language.${option}`)}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
 
         <View style={[styles.volumeRow, !musicEnabled && styles.volumeDisabled]}>
           <View style={styles.volumeHeader}>
@@ -226,13 +199,6 @@ const styles = StyleSheet.create({
   settingCopy: { flex: 1, minWidth: 0, marginLeft: 11, paddingRight: 5 },
   settingTitle: { color: '#233540', fontFamily: FONTS.extraBold, fontSize: 14, fontWeight: '800' },
   settingSubtitle: { marginTop: 2, color: '#667A81', fontFamily: FONTS.medium, fontSize: 10.5 },
-  languageRow: { width: '100%', marginTop: 9, padding: 11, borderRadius: 18, borderWidth: 1, borderColor: '#D6E5E4', backgroundColor: '#FFFFFF' },
-  languageTitle: { color: '#233540', fontFamily: FONTS.extraBold, fontSize: 13, fontWeight: '800' },
-  languageOptions: { marginTop: 8, flexDirection: 'row', gap: 6 },
-  languageButton: { flex: 1, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#E7F2F2' },
-  languageButtonActive: { backgroundColor: '#3D7F91' },
-  languageButtonText: { color: '#3D5A63', fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700' },
-  languageButtonTextActive: { color: '#FFFFFF' },
   volumeRow: { width: '100%', height: 73, marginTop: 9, paddingHorizontal: 14, paddingTop: 9, borderRadius: 18, borderWidth: 1, borderColor: '#D6E5E4', backgroundColor: '#FFFFFF' },
   volumeDisabled: { opacity: 0.48 },
   volumeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

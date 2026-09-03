@@ -516,7 +516,7 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
       ['iraq', 'Irak', '🇮🇶', ['Bağdat', 'Erbil', 'Necef'], 'Mezopotamya'],
       ['yemen', 'Yemen', '🇾🇪', ['Sana', 'Aden', 'Şibam'], 'Şibam'],
       ['cyprus', 'Kıbrıs', '🇨🇾', ['Lefkoşa', 'Limasol', 'Baf'], 'Petra tou Romiou'],
-      ['israel', 'İsrail', '🇮🇱', ['Tel Aviv', 'Hayfa', 'Eilat'], 'Masada'],
+      ['libya', 'Libya', '🇱🇾', ['Trablus', 'Bingazi', 'Leptis Magna'], 'Leptis Magna'],
     ],
   },
   {

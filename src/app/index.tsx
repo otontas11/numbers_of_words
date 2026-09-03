@@ -944,7 +944,7 @@ function JourneyStrip({
 }
 
 export default function HomeScreen() {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const { width, height } = useWindowDimensions();
   const contentImageVersion = useContentImageVersion();
   const [level, setLevel] = useState(1);
@@ -1833,7 +1833,7 @@ export default function HomeScreen() {
     <View
       accessibilityElementsHidden={activeScreen === 'game'}
       importantForAccessibility={activeScreen === 'game' ? 'no-hide-descendants' : 'auto'}
-      key="persistent-screens"
+      key={`persistent-screens-${language}`}
       pointerEvents={activeScreen === 'game' ? 'none' : 'auto'}
       style={[styles.screen, activeScreen === 'game' && styles.hiddenScreen]}>
       <BlurTargetView ref={activeScreen === 'game' ? undefined : blurTarget} style={styles.screen}>
@@ -1919,6 +1919,7 @@ export default function HomeScreen() {
       {persistentScreens}
       {activeScreen === 'game' || mountedShellScreens.has('game') ? (
       <BlurTargetView
+        key={`game-screen-${language}`}
         accessibilityElementsHidden={activeScreen !== 'game'}
         importantForAccessibility={activeScreen === 'game' ? 'auto' : 'no-hide-descendants'}
         pointerEvents={activeScreen === 'game' ? 'auto' : 'none'}
