@@ -8,12 +8,12 @@
     "scheme": "numbersofwonders",
     "userInterfaceStyle": "dark",
     "ios": {
-      "bundleIdentifier": "com.oktaytontas.numbersofwonders",
+      "bundleIdentifier": "platform.tnts.numberofwonders",
       "icon": "./assets/expo.icon",
       "appleTeamId": "PSH5U378D5"
     },
     "android": {
-      "package": "com.oktaytontas.numbersofwonders",
+      "package": "platform.tnts.numberofwonders",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
