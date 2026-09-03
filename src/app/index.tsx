@@ -827,6 +827,7 @@ function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (
   const [demoSecondHint, setDemoSecondHint] = useState(false);
   const [demoProgress] = useState(() => new Animated.Value(0));
   const [demoStage, setDemoStage] = useState<'shuffle' | 'hint' | 'demo'>('shuffle');
+  const [tutorialCelebration, setTutorialCelebration] = useState(false);
   const lesson = TUTORIAL_LESSONS[lessonIndex];
   const operation = OPERATION_DETAILS[lesson.op];
   const complete = useCallback((indices: number[]): WheelSelectionOutcome => {
@@ -837,7 +838,11 @@ function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (
     if (indices.length !== lesson.steps || result !== lesson.target) return 'invalid';
     onSound(lesson.bonus ? 'bonus' : 'success');
     setTimeout(() => {
-      if (lessonIndex === TUTORIAL_LESSONS.length - 1) onDone();
+      if (lessonIndex === TUTORIAL_LESSONS.length - 1) {
+        setTutorialCelebration(true);
+        onSound('success');
+        setTimeout(onDone, 1500);
+      }
       else setLessonIndex((current) => current + 1);
     }, 520);
     return lesson.bonus ? 'bonus' : 'success';
@@ -879,6 +884,7 @@ function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (
       {lesson.demo && !demoCompleted ? <NumberWheel key={demoStage} hintCredits={1} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => { if (demoStage === 'hint') { setDemoSecondHint(false); setDemoStage('demo'); } }} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => { if (demoStage === 'shuffle') setDemoStage('hint'); }} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} tutorialStepIndices={demoStage === 'demo' && demoSecondHint ? [0, 1] : undefined} tutorialOperator={demoStage === 'demo' && demoSecondHint ? operation.symbol : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} hintCredits={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => undefined} size={230} />}
       <Text style={styles.tutorialHint}>{lesson.demo && !demoCompleted ? demoStage === 'shuffle' ? 'Önce sayıları karıştır.' : demoStage === 'hint' ? 'Şimdi ipucuna dokun; çözüm gösterilecek.' : 'İpucu: 1 ve 2 sırayla bağlanır.' : lesson.demo && !demoPractice ? 'Aynı soruyu şimdi sen çözeceksin.' : 'Doğru sayıları sırayla birleştir.'}</Text>
     </View>
+    <Celebration visible={tutorialCelebration} />
   </View>;
 }
 
