@@ -1098,6 +1098,10 @@ const styles = StyleSheet.create({
   tutorialHandImage: { width: 42, height: 42 },
   tutorialNodeHand: { position: 'absolute', zIndex: 40, width: 34, height: 34 },
   tutorialNodeHandImage: { width: 34, height: 34 },
+  tutorialStepBadge: { position: 'absolute', zIndex: 45, width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#F4C653', borderWidth: 2, borderColor: '#FFFFFF' },
+  tutorialStepBadgeText: { color: '#5A3B0B', fontFamily: FONTS.black, fontSize: 13, fontWeight: '900' },
+  tutorialOperatorBadge: { position: 'absolute', zIndex: 44, width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: '#176F7A', borderWidth: 2, borderColor: '#E8FFFF' },
+  tutorialOperatorText: { color: '#FFFFFF', fontFamily: FONTS.black, fontSize: 19, fontWeight: '900' },
   controlSurface: {
     flex: 1,
     alignItems: 'center',
