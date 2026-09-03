@@ -821,6 +821,7 @@ function StepCoachmark({ current, total }: { current: number; total: number }) {
 }
 
 function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (sound: GameSound) => void }) {
+  const { t } = useI18n();
   const [lessonIndex, setLessonIndex] = useState(0);
   const [demoCompleted, setDemoCompleted] = useState(false);
   const [demoPractice, setDemoPractice] = useState(false);
@@ -874,15 +875,15 @@ function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (
 
   return <View style={styles.tutorialOverlay}>
     <View style={styles.tutorialCard}>
-      <Text style={styles.tutorialEyebrow}>OYUN EĞİTİMİ · {lessonIndex + 1}/5</Text>
-      <Text style={styles.tutorialTitle}>{lesson.bonus ? '💎 BONUS HEDEFİ BUL' : 'HEDEF SAYIYI BUL'}</Text>
+      <Text style={styles.tutorialEyebrow}>{t('tutorial.eyebrow', { current: lessonIndex + 1, total: 5 })}</Text>
+      <Text style={styles.tutorialTitle}>{lesson.bonus ? t('tutorial.bonusTitle') : t('tutorial.targetTitle')}</Text>
       <View style={[styles.tutorialTargetCard, lesson.bonus && styles.tutorialBonusTargetCard]}><Text style={styles.tutorialTarget}>{lesson.target}</Text><View style={styles.tutorialTargetMeta}><Text style={styles.tutorialOperationPill}>[{operation.symbol}]</Text><View style={styles.tutorialStepDots}>{Array.from({ length: lesson.steps }, (_, index) => <Animated.View key={index} style={[styles.tutorialStepDot, lesson.bonus && styles.tutorialBonusDot, lesson.demo && demoStage === 'demo' && { backgroundColor: '#35AEB6', borderColor: '#167783', opacity: demoProgress.interpolate({ inputRange: [index / lesson.steps, (index + 1) / lesson.steps], outputRange: [0.28, 1] }) }]} />)}</View></View></View>
       <Animated.Text style={[styles.tutorialExpression, { opacity: lesson.demo ? demoProgress : 1 }]}>
         {lesson.numbers.slice(0, lesson.steps).join(` ${operation.symbol} `)} = {lesson.target}
       </Animated.Text>
       <View style={styles.tutorialExplanationRow}><Text style={styles.tutorialExplanation}>{localizeOperation(operation.symbol)} → [{operation.symbol}]</Text><Text style={styles.tutorialExplanation}>ADIM SAYISI: {Array.from({ length: lesson.steps }, () => '●').join(' ')}</Text></View>
       {lesson.demo && !demoCompleted ? <NumberWheel key={demoStage} hintCredits={1} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => { if (demoStage === 'hint') { setDemoSecondHint(false); setDemoStage('demo'); } }} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => { if (demoStage === 'shuffle') setDemoStage('hint'); }} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} tutorialStepIndices={demoStage === 'demo' && demoSecondHint ? [0, 1] : undefined} tutorialOperator={demoStage === 'demo' && demoSecondHint ? operation.symbol : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} hintCredits={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => undefined} size={230} />}
-      <Text style={styles.tutorialHint}>{lesson.demo && !demoCompleted ? demoStage === 'shuffle' ? 'Önce sayıları karıştır.' : demoStage === 'hint' ? 'Şimdi ipucuna dokun; çözüm gösterilecek.' : 'İpucu: 1 ve 2 sırayla bağlanır.' : lesson.demo && !demoPractice ? 'Aynı soruyu şimdi sen çözeceksin.' : 'Doğru sayıları sırayla birleştir.'}</Text>
+      <Text style={styles.tutorialHint}>{lesson.demo && !demoCompleted ? demoStage === 'shuffle' ? t('tutorial.shuffleInstruction') : demoStage === 'hint' ? t('tutorial.hintInstruction') : t('tutorial.demoInstruction') : lesson.demo && !demoPractice ? t('tutorial.practiceInstruction') : t('tutorial.connectInstruction')}</Text>
     </View>
     <Celebration visible={tutorialCelebration} />
   </View>;
