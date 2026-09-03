@@ -1,4 +1,5 @@
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import {
   useCallback,
   useEffect,
@@ -52,6 +53,9 @@ type NumberWheelProps = {
   onNodeAdded: (selectionCount: number) => void;
   onDraggingChange: (dragging: boolean) => void;
   tutorialFocus?: 'shuffle' | 'hint';
+  tutorialGuideIndex?: number;
+  tutorialStepIndices?: number[];
+  tutorialOperator?: string;
 };
 
 export type WheelSelectionOutcome = 'success' | 'bonus' | 'invalid';
@@ -301,6 +305,9 @@ export const NumberWheel = memo(function NumberWheel({
   onNodeAdded,
   onDraggingChange,
   tutorialFocus,
+  tutorialGuideIndex,
+  tutorialStepIndices,
+  tutorialOperator,
 }: NumberWheelProps) {
   const { t } = useI18n();
   const [slotOrder, setSlotOrder] = useState(() =>
@@ -317,6 +324,7 @@ export const NumberWheel = memo(function NumberWheel({
   const rotationTurnsRef = useRef(0);
   const [rotation] = useState(() => new RNAnimated.Value(0));
   const [hintPulse] = useState(() => new RNAnimated.Value(0));
+  const [tutorialHandPulse] = useState(() => new RNAnimated.Value(0));
   const activePointer = useSharedValue(false);
   const pointerX = useSharedValue(0);
   const pointerY = useSharedValue(0);
@@ -413,6 +421,20 @@ export const NumberWheel = memo(function NumberWheel({
     animation.start();
     return () => animation.stop();
   }, [hintIndices, hintPulse]);
+
+  useEffect(() => {
+    tutorialHandPulse.stopAnimation();
+    tutorialHandPulse.setValue(0);
+    if (!tutorialFocus) return;
+    const animation = RNAnimated.loop(
+      RNAnimated.sequence([
+        RNAnimated.timing(tutorialHandPulse, { toValue: 1, duration: 460, useNativeDriver: true }),
+        RNAnimated.timing(tutorialHandPulse, { toValue: 0, duration: 460, useNativeDriver: true }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [tutorialFocus, tutorialHandPulse]);
 
   const beginSelection = useCallback((nodeIndex: number) => {
     const next = [nodeIndex];
@@ -786,6 +808,28 @@ export const NumberWheel = memo(function NumberWheel({
             />
           </View>
 
+          {tutorialGuideIndex !== undefined && positions[tutorialGuideIndex] ? (
+            <RNAnimated.View
+              pointerEvents="none"
+              style={[
+                styles.tutorialNodeHand,
+                {
+                  left: positions[tutorialGuideIndex].x + nodeSize / 5,
+                  top: positions[tutorialGuideIndex].y + nodeSize / 5,
+                  transform: [{ scale: hintScale }],
+                },
+              ]}>
+              <Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialNodeHandImage} />
+            </RNAnimated.View>
+          ) : null}
+
+          {tutorialStepIndices?.map((nodeIndex, stepIndex) => {
+            const position = positions[nodeIndex];
+            if (!position) return null;
+            return <View key={`tutorial-step-${nodeIndex}`} pointerEvents="none" style={[styles.tutorialStepBadge, { left: position.x - 12, top: position.y - nodeSize / 2 - 12 }]}><Text style={styles.tutorialStepBadgeText}>{stepIndex + 1}</Text></View>;
+          })}
+          {tutorialOperator && tutorialStepIndices && tutorialStepIndices.length >= 2 && positions[tutorialStepIndices[0]] && positions[tutorialStepIndices[1]] ? <View pointerEvents="none" style={[styles.tutorialOperatorBadge, { left: (positions[tutorialStepIndices[0]].x + positions[tutorialStepIndices[1]].x) / 2 - 15, top: (positions[tutorialStepIndices[0]].y + positions[tutorialStepIndices[1]].y) / 2 - 15 }]}><Text style={styles.tutorialOperatorText}>{tutorialOperator}</Text></View> : null}
+
           {numbers.map((number, index) => {
             const selected = selectedIndices.includes(index);
             const hinted = hintIndices.includes(index);
@@ -907,6 +951,7 @@ export const NumberWheel = memo(function NumberWheel({
             end={{ x: 0, y: 1 }}
             start={{ x: 0, y: 0 }}
             style={styles.controlSurface}>
+            {tutorialFocus === 'hint' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
             <HintIcon />
             <Text style={styles.controlLabel}>{t('wheel.hint', { count: hintCredits })}</Text>
           </ExpoLinearGradient>
@@ -924,6 +969,7 @@ export const NumberWheel = memo(function NumberWheel({
             end={{ x: 0, y: 1 }}
             start={{ x: 0, y: 0 }}
             style={styles.controlSurface}>
+            {tutorialFocus === 'shuffle' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
             <RNAnimated.View style={{ transform: [{ rotate: rotationStyle }] }}>
               <ShuffleIcon />
             </RNAnimated.View>
@@ -1033,6 +1079,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.94 }],
   },
   controlFocused: {
+    overflow: 'visible',
     borderColor: '#FFF7BB',
     borderWidth: 3,
     shadowColor: '#FDE047',
@@ -1040,6 +1087,17 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 14,
   },
+  tutorialHand: {
+    position: 'absolute',
+    top: 35,
+    left: 25,
+    zIndex: 4,
+    width: 42,
+    height: 42,
+  },
+  tutorialHandImage: { width: 42, height: 42 },
+  tutorialNodeHand: { position: 'absolute', zIndex: 40, width: 34, height: 34 },
+  tutorialNodeHandImage: { width: 34, height: 34 },
   controlSurface: {
     flex: 1,
     alignItems: 'center',

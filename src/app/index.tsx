@@ -117,8 +117,8 @@ type PuzzleActivity = PuzzlePerformance & {
 };
 const TUTORIAL_STORAGE_KEY = '@numbers-of-wonders/tutorial-completed';
 const TUTORIAL_LESSONS = [
-  { numbers: [1, 2, 5], target: 3, op: '+', steps: 2, bonus: false, demo: true },
-  { numbers: [5, 2, 8], target: 3, op: '-', steps: 2, bonus: false, demo: false },
+  { numbers: [5, 2, 8], target: 3, op: '-', steps: 2, bonus: false, demo: true },
+  { numbers: [2, 3, 8], target: 5, op: '+', steps: 2, bonus: false, demo: false },
   { numbers: [2, 3, 7], target: 6, op: '*', steps: 2, bonus: false, demo: false },
   { numbers: [1, 2, 3, 7], target: 6, op: '+', steps: 3, bonus: false, demo: false },
   { numbers: [2, 3, 4, 5], target: 24, op: '*', steps: 3, bonus: true, demo: false },
@@ -824,6 +824,7 @@ function FirstPlayTutorial({ onDone }: { onDone: () => void }) {
   const [lessonIndex, setLessonIndex] = useState(0);
   const [demoCompleted, setDemoCompleted] = useState(false);
   const [demoPractice, setDemoPractice] = useState(false);
+  const [demoSecondHint, setDemoSecondHint] = useState(false);
   const [demoProgress] = useState(() => new Animated.Value(0));
   const [demoStage, setDemoStage] = useState<'shuffle' | 'hint' | 'demo'>('shuffle');
   const lesson = TUTORIAL_LESSONS[lessonIndex];
@@ -845,15 +846,24 @@ function FirstPlayTutorial({ onDone }: { onDone: () => void }) {
     if (!lesson.demo || demoCompleted || demoStage !== 'demo') return;
     demoProgress.setValue(0);
     const animation = Animated.sequence([
-      Animated.delay(450),
-      Animated.timing(demoProgress, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-      Animated.delay(950),
+      Animated.delay(1100),
+      Animated.timing(demoProgress, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.delay(1800),
     ]);
     animation.start(({ finished }) => {
-      if (finished) setDemoCompleted(true);
+      if (finished) {
+        setDemoCompleted(true);
+        setDemoPractice(true);
+      }
     });
     return () => animation.stop();
   }, [demoCompleted, demoProgress, demoStage, lesson.demo]);
+
+  useEffect(() => {
+    if (demoStage !== 'demo') return;
+    const timer = setTimeout(() => setDemoSecondHint(true), 1150);
+    return () => clearTimeout(timer);
+  }, [demoStage]);
 
 
   return <View style={styles.tutorialOverlay}>
@@ -861,9 +871,11 @@ function FirstPlayTutorial({ onDone }: { onDone: () => void }) {
       <Text style={styles.tutorialEyebrow}>OYUN EĞİTİMİ · {lessonIndex + 1}/5</Text>
       <Text style={styles.tutorialTitle}>{lesson.bonus ? 'BONUS HEDEFİ BUL' : 'HEDEF SAYIYI BUL'}</Text>
       <View style={styles.tutorialTargetCard}><Text style={styles.tutorialTarget}>{lesson.target}</Text><View style={styles.tutorialTargetMeta}><Text style={styles.tutorialOperationPill}>[{operation.symbol}]</Text><View style={styles.tutorialStepDots}>{Array.from({ length: lesson.steps }, (_, index) => <Animated.View key={index} style={[styles.tutorialStepDot, lesson.demo && demoStage === 'demo' && { backgroundColor: '#35AEB6', borderColor: '#167783', opacity: demoProgress.interpolate({ inputRange: [index / lesson.steps, (index + 1) / lesson.steps], outputRange: [0.28, 1] }) }]} />)}</View></View></View>
-      <Text style={styles.tutorialExplanation}>{localizeOperation(operation.symbol)} işlemi • {lesson.steps} adım</Text>
-      {lesson.demo && demoStage === 'hint' ? <View style={styles.tutorialCallouts}><Text style={styles.tutorialCallout}>↙ {localizeOperation(operation.symbol)}</Text><Text style={styles.tutorialCallout}>↘ ADIM SAYISI</Text></View> : null}
-      {lesson.demo && !demoCompleted ? demoStage !== 'demo' ? <NumberWheel key={demoStage} hintCredits={1} hintIndices={[]} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => { if (demoStage === 'hint') setDemoStage('demo'); }} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => { if (demoStage === 'shuffle') setDemoStage('hint'); }} size={230} tutorialFocus={demoStage} /> : <View style={styles.tutorialDemoWheel}><Animated.View style={[styles.tutorialDemoLine, { opacity: demoProgress, transform: [{ rotate: '12deg' }] }]} /><Animated.View style={[styles.tutorialDemoNode, styles.tutorialDemoNodeOne, { backgroundColor: '#36AEB6' }]}><Text style={styles.tutorialDemoNumber}>1</Text></Animated.View><Animated.View style={[styles.tutorialDemoNode, styles.tutorialDemoNodeTwo, { backgroundColor: '#36AEB6', opacity: demoProgress.interpolate({ inputRange: [0, 0.45, 1], outputRange: [0.28, 1, 1] }) }]}><Text style={styles.tutorialDemoNumber}>2</Text></Animated.View><View style={[styles.tutorialDemoNode, styles.tutorialDemoNodeThree]}><Text style={[styles.tutorialDemoNumber, { color: '#284751' }]}>5</Text></View></View> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} hintCredits={0} hintIndices={[]} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => undefined} size={230} />}
+      <Animated.Text style={[styles.tutorialExpression, { opacity: lesson.demo ? demoProgress : 1 }]}>
+        {lesson.numbers.slice(0, lesson.steps).join(` ${operation.symbol} `)} = {lesson.target}
+      </Animated.Text>
+      <View style={styles.tutorialExplanationRow}><Text style={styles.tutorialExplanation}>{localizeOperation(operation.symbol)} → [{operation.symbol}]</Text><Text style={styles.tutorialExplanation}>ADIM SAYISI: {Array.from({ length: lesson.steps }, () => '●').join(' ')}</Text></View>
+      {lesson.demo && !demoCompleted ? <NumberWheel key={demoStage} hintCredits={1} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => { if (demoStage === 'hint') { setDemoSecondHint(false); setDemoStage('demo'); } }} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => { if (demoStage === 'shuffle') setDemoStage('hint'); }} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} hintCredits={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => undefined} size={230} />}
       <Text style={styles.tutorialHint}>{lesson.demo && !demoCompleted ? demoStage === 'shuffle' ? 'Önce sayıları karıştır.' : demoStage === 'hint' ? 'Şimdi ipucuna dokun; çözüm gösterilecek.' : 'İpucu: 1 ve 2 sırayla bağlanır.' : lesson.demo && !demoPractice ? 'Aynı soruyu şimdi sen çözeceksin.' : 'Doğru sayıları sırayla birleştir.'}</Text>
     </View>
   </View>;
@@ -2289,6 +2301,8 @@ const styles = StyleSheet.create({
   tutorialStepDots: { flexDirection: 'row', gap: 3 },
   tutorialStepDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: '#789AA1', backgroundColor: '#E1ECEB' },
   tutorialExplanation: { color: '#456975', fontFamily: FONTS.extraBold, fontSize: 12, fontWeight: '900' },
+  tutorialExplanationRow: { width: '100%', marginTop: 2, marginBottom: 4, flexDirection: 'row', justifyContent: 'space-between' },
+  tutorialExpression: { marginTop: 4, color: '#176E78', fontFamily: FONTS.black, fontSize: 17, lineHeight: 21, fontWeight: '900' },
   tutorialCallouts: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
   tutorialCallout: { color: '#186E78', fontFamily: FONTS.extraBold, fontSize: 9, fontWeight: '900' },
   tutorialDemoWheel: { width: 230, height: 230, marginTop: 4, position: 'relative', borderWidth: 5, borderColor: '#567883', borderRadius: 115 },
