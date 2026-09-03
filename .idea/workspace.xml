@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1f1286ff-0618-41fb-995e-c5757f0c5d40" name="Changes" comment="ver-1" />
+    <list default="true" id="1f1286ff-0618-41fb-995e-c5757f0c5d40" name="Changes" comment="ver-1">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -60,11 +62,11 @@
       <recent name="$PROJECT_DIR$/assets/images/img" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/assets/images/country" />
       <recent name="$PROJECT_DIR$/assets/lotties" />
       <recent name="$PROJECT_DIR$/assets/images/countries/hidden-africa" />
       <recent name="$PROJECT_DIR$/assets/images/countries/north-america-arctic" />
       <recent name="$PROJECT_DIR$/assets/images/countries/pacific-islands" />
-      <recent name="$PROJECT_DIR$/assets/images/countries/west-africa" />
     </key>
   </component>
   <component name="RunManager" selected="npm.android">
