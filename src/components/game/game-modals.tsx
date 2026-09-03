@@ -5,6 +5,7 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { FONTS } from '@/constants/fonts';
+import { localizeCountry, useI18n } from '@/i18n';
 import {
   COUNTRY_LEVEL_COUNT,
   PASSPORT_COUNTRIES,
@@ -36,6 +37,7 @@ function GameModal({
   blurTarget,
   onClose,
 }: BaseModalProps) {
+  const { t } = useI18n();
   useEffect(() => {
     if (!visible) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -65,7 +67,7 @@ function GameModal({
             <Text style={styles.modalSubtitle}>{subtitle}</Text>
           </View>
           <Pressable
-            accessibilityLabel="Pencereyi kapat"
+            accessibilityLabel={t('common.closeWindow')}
             accessibilityRole="button"
             hitSlop={8}
             onPress={onClose}
@@ -98,6 +100,7 @@ export function PassportModal({
   blurTarget: RefObject<View | null>;
   onClose: () => void;
 }) {
+  const { language, t } = useI18n();
   const earnedCountries = PASSPORT_COUNTRIES.filter((country) =>
     isPassportEarned(currentLevel, country.passportId),
   );
@@ -107,22 +110,21 @@ export function PassportModal({
       blurTarget={blurTarget}
       footer={
         <Text style={styles.footerText}>
-          Her ülkenin 3 destinasyonu ve Country Challenge&apos;ı tamamlandığında yeni bir
-          pasaport kazanılır. Koleksiyon: {earnedCountries.length}/{TOTAL_COUNTRIES}.
+          {t('modal.passportFooter', { done: earnedCountries.length, total: TOTAL_COUNTRIES })}
         </Text>
       }
       icon="📘"
       onClose={onClose}
-      subtitle={`${earnedCountries.length}/${TOTAL_COUNTRIES} kazanılmış pasaport`}
-      title="Pasaport Koleksiyonu"
+      subtitle={t('passport.earned', { done: earnedCountries.length, total: TOTAL_COUNTRIES })}
+      title={t('modal.passportTitle')}
       visible={visible}>
       <View style={styles.stampGrid}>
         {earnedCountries.length === 0 ? (
           <View style={styles.emptyPassportCollection}>
             <Text style={styles.emptyPassportIcon}>📘</Text>
-            <Text style={styles.emptyPassportTitle}>Henüz pasaport kazanılmadı</Text>
+            <Text style={styles.emptyPassportTitle}>{t('passport.emptyTitle')}</Text>
             <Text style={styles.emptyPassportText}>
-              Bir ülkenin tüm bölümlerini tamamladığında ilk pasaportun burada yer alacak.
+              {t('modal.firstPassport')}
             </Text>
           </View>
         ) : earnedCountries.map((country, index) => (
@@ -137,8 +139,8 @@ export function PassportModal({
               <Rect fill={`url(#stamp-${index})`} height="100%" rx={24} width="100%" />
             </Svg>
             <Text style={styles.stampEmoji}>{country.flag}</Text>
-            <Text style={styles.stampCountry}>{country.country}</Text>
-            <Text style={styles.stampStatus}>PASAPORT KAZANILDI ✓</Text>
+            <Text style={styles.stampCountry}>{localizeCountry(country, language)}</Text>
+            <Text style={styles.stampStatus}>{t('modal.passportWon')}</Text>
           </View>
         ))}
       </View>
@@ -161,23 +163,25 @@ export function ChallengeIntroModal({
   blurTarget: RefObject<View | null>;
   onClose: () => void;
 }) {
-  const title = worldTourFinal ? 'WORLD TOUR FINAL CHALLENGE' : 'COUNTRY CHALLENGE';
+  const { language, t } = useI18n();
+  const countryName = localizeCountry({ country, flag }, language);
+  const title = worldTourFinal ? t('modal.worldFinal') : t('modal.countryChallenge');
 
   return (
     <GameModal
       blurTarget={blurTarget}
       footer={
         <Pressable
-          accessibilityLabel="Oyuna başla"
+          accessibilityLabel={t('modal.startGame')}
           accessibilityRole="button"
           onPress={onClose}
           style={({ pressed }) => [styles.challengeStartButton, pressed && styles.pressed]}>
-          <Text style={styles.challengeStartText}>BAŞLA</Text>
+          <Text style={styles.challengeStartText}>{t('modal.start')}</Text>
         </Pressable>
       }
       icon="🏆"
       onClose={onClose}
-      subtitle={`${flag} ${country} • SON OYUN`}
+      subtitle={`${flag} ${countryName} • ${t('modal.finalGame')}`}
       title={title}
       visible={visible}>
       <View style={styles.challengeIntroHero}>
@@ -196,12 +200,15 @@ export function CountryCompletionModal({
   blurTarget: RefObject<View | null>;
   onContinue: () => void;
 }) {
+  const { language, t } = useI18n();
   if (completedLevel === null) return null;
 
   const destination = resolveTravelLevel(completedLevel);
   const completion = getTravelLevelCompletion(completedLevel);
   const country = destination.country;
   const nextCountry = completion.nextDestination.country;
+  const countryName = localizeCountry(country, language);
+  const nextCountryName = localizeCountry(nextCountry, language);
   const worldTourCompleted = completion.worldTourCompleted;
   const passportWasAlreadyEarned = isPassportEarned(completedLevel, country.passportId);
 
@@ -212,16 +219,16 @@ export function CountryCompletionModal({
         <Pressable
           accessibilityLabel={
             worldTourCompleted
-              ? 'Master World Tour turuna geç'
-              : `${nextCountry.country} ülkesine geç`
+              ? t('modal.masterTour')
+              : t('modal.goToCountry', { country: nextCountryName })
           }
           accessibilityRole="button"
           onPress={onContinue}
           style={({ pressed }) => [styles.countryContinueButton, pressed && styles.pressed]}>
           <Text style={styles.countryContinueText}>
             {worldTourCompleted
-              ? 'MASTER WORLD TOUR’A GEÇ'
-              : `${nextCountry.flag} ${nextCountry.country}’A GEÇ`}
+              ? t('modal.masterTourButton')
+              : t('modal.countryButton', { flag: nextCountry.flag, country: nextCountryName })}
           </Text>
         </Pressable>
       }
@@ -229,14 +236,14 @@ export function CountryCompletionModal({
       onClose={onContinue}
       subtitle={
         worldTourCompleted
-          ? `${TOTAL_COUNTRIES} / ${TOTAL_COUNTRIES} ülke keşfedildi`
-          : `${COUNTRY_LEVEL_COUNT} / ${COUNTRY_LEVEL_COUNT} puzzle • Pasaport damgası kazanıldı`
+          ? t('modal.worldDiscovered', { count: TOTAL_COUNTRIES })
+          : t('modal.countryReward', { count: COUNTRY_LEVEL_COUNT })
       }
-      title={worldTourCompleted ? 'WORLD TOUR COMPLETED' : `${country.country} Tamamlandı!`}
+      title={worldTourCompleted ? 'WORLD TOUR COMPLETED' : t('modal.countryComplete', { country: countryName })}
       visible>
       <View style={styles.countryCompleteHero}>
         <Text style={styles.countryCompleteFlag}>{country.flag}</Text>
-        <Text style={styles.countryCompleteName}>{country.country}</Text>
+        <Text style={styles.countryCompleteName}>{countryName}</Text>
         <View style={styles.countryCompleteProgress}>
           <Text style={styles.countryCompleteProgressText}>
             {COUNTRY_LEVEL_COUNT} / {COUNTRY_LEVEL_COUNT} ✓
@@ -255,7 +262,7 @@ export function CountryCompletionModal({
         ))}
         <View style={styles.completedLocationRow}>
           <Text style={styles.completedLocationIcon}>✓</Text>
-          <Text style={styles.completedLocationName}>🏆 {country.country} Challenge</Text>
+          <Text style={styles.completedLocationName}>🏆 {countryName} {t('common.challenge')}</Text>
         </View>
       </View>
 
@@ -263,7 +270,7 @@ export function CountryCompletionModal({
         <View style={styles.countryRewardCard}>
           <Text style={styles.countryRewardIcon}>📘</Text>
           <Text style={styles.countryRewardTitle}>
-            {passportWasAlreadyEarned ? 'Yeni Rota Mührü' : 'Pasaport Damgası'}
+            {passportWasAlreadyEarned ? t('modal.newRouteStamp') : t('modal.passportStamp')}
           </Text>
         </View>
         <View style={styles.countryRewardCard}>
@@ -276,20 +283,19 @@ export function CountryCompletionModal({
 
       {!worldTourCompleted ? (
         <View style={styles.nextCountryCard}>
-          <Text style={styles.nextCountryLabel}>YENİ ROTA ETABI AÇILDI</Text>
+          <Text style={styles.nextCountryLabel}>{t('modal.newLeg')}</Text>
           <Text style={styles.nextCountryName}>
-            {country.flag} {country.country}　→　{nextCountry.flag} {nextCountry.country}
+            {country.flag} {countryName}　→　{nextCountry.flag} {nextCountryName}
           </Text>
           <Text style={styles.nextCountryDestination}>
-            İlk durak: {completion.nextDestination.location.emoji}{' '}
-            {completion.nextDestination.location.name}
+            {t('modal.firstStop', { destination: `${completion.nextDestination.location.emoji} ${completion.nextDestination.location.name}` })}
           </Text>
         </View>
       ) : (
         <View style={styles.nextCountryCard}>
-          <Text style={styles.nextCountryLabel}>ÖZEL ÖDÜLLER</Text>
+          <Text style={styles.nextCountryLabel}>{t('modal.specialRewards')}</Text>
           <Text style={styles.nextCountryName}>Golden Compass • World Explorer</Text>
-          <Text style={styles.nextCountryDestination}>Dünya haritasının tamamı aydınlandı.</Text>
+          <Text style={styles.nextCountryDestination}>{t('modal.worldLit')}</Text>
         </View>
       )}
     </GameModal>

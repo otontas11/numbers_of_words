@@ -69,6 +69,7 @@ import {
 import { useBackgroundMusic } from '@/hooks/use-background-music';
 import { useContentImageVersion } from '@/hooks/use-content-image-cache';
 import { useGameSounds, type GameSound } from '@/hooks/use-game-sounds';
+import { localizeCountry, localizeOperation, useI18n } from '@/i18n';
 
 const PersistentMainMenu = memo(MainMenu);
 const PersistentProfileScreen = memo(ProfileScreen);
@@ -301,6 +302,7 @@ function DestinationTransition({
 }: {
   transition: DestinationTransitionState | null;
 }) {
+  const { t } = useI18n();
   const [progress] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
@@ -342,12 +344,12 @@ function DestinationTransition({
             ],
           },
         ]}>
-        <Text style={styles.destinationTransitionEyebrow}>DESTİNASYON TAMAMLANDI</Text>
+        <Text style={styles.destinationTransitionEyebrow}>{t('game.destinationComplete')}</Text>
         <Text style={styles.destinationTransitionTitle}>
           ✓ {transition.completedEmoji} {transition.completedName}
         </Text>
         <View style={styles.destinationTransitionDivider} />
-        <Text style={styles.destinationTransitionNext}>YENİ DESTİNASYON AÇILDI</Text>
+        <Text style={styles.destinationTransitionNext}>{t('game.newDestination')}</Text>
         <Text style={styles.destinationTransitionNextName}>
           {transition.nextEmoji} {transition.nextName} →
         </Text>
@@ -401,6 +403,7 @@ function TargetCard({
   measureRef: (view: View | null) => void;
   width: `${number}%`;
 }) {
+  const { t } = useI18n();
   const operation = OPERATION_DETAILS[target.op];
   const [scale] = useState(() => new Animated.Value(1));
   const colorReveal = useTargetColorReveal(solved, landed);
@@ -451,7 +454,7 @@ function TargetCard({
   return (
     <View ref={measureRef} collapsable={false} style={{ width }}>
       <Animated.View
-        accessibilityLabel={`${target.value} hedefi, ${target.steps} sayı`}
+        accessibilityLabel={t('game.targetA11y', { value: target.value, steps: target.steps })}
         style={[
           styles.targetCardFrame,
           solved && styles.targetSolvedFrame,
@@ -515,6 +518,7 @@ function BonusTargetCard({
   solved: boolean;
   target: Target;
 }) {
+  const { t } = useI18n();
   const operation = OPERATION_DETAILS[target.op];
   const reward = getBonusGemReward(target.steps, countryChallenge);
   const [scale] = useState(() => new Animated.Value(1));
@@ -535,7 +539,7 @@ function BonusTargetCard({
 
   return (
     <LinearGradient
-      accessibilityLabel={`İsteğe bağlı bonus hedef ${target.value}, ödül ${reward} mücevher`}
+      accessibilityLabel={t('game.bonusA11y', { value: target.value, reward })}
       colors={['rgba(255,247,206,0.98)', 'rgba(236,216,255,0.98)']}
       end={{ x: 1, y: 1 }}
       start={{ x: 0, y: 0 }}
@@ -554,12 +558,12 @@ function BonusTargetCard({
       ) : null}
       <View style={styles.bonusTargetCopy}>
         <Text style={[styles.bonusTargetTitle, solved && styles.bonusTargetSolvedText]}>
-          SAYILARI BİRLEŞTİR
+          {t('game.combine')}
         </Text>
         <Text style={[styles.bonusTargetSubtitle, solved && styles.bonusTargetSolvedText]}>
           {solved
-            ? `💎 +${reward} mücevher kazanıldı`
-            : `Sağdaki bonus sayısını oluştur • +${reward} mücevher`}
+            ? t('game.bonusEarned', { reward })
+            : t('game.makeBonus', { reward })}
         </Text>
       </View>
 
@@ -672,6 +676,7 @@ function PulsingGems({
   compact: boolean;
   measureRef?: MutableRefObject<View | null>;
 }) {
+  const { locale, t } = useI18n();
   const [pulse] = useState(() => new Animated.Value(0));
   const { displayValue, gain, gainOpacity, gainScale, gainTranslateY } = useAnimatedCounter(count);
 
@@ -694,7 +699,7 @@ function PulsingGems({
   return (
     <Animated.View
       ref={measureRef}
-      accessibilityLabel={`${displayValue} mücevher`}
+      accessibilityLabel={t('home.gemsA11y', { value: displayValue })}
       style={[
         styles.bonusButton,
         compact && styles.bonusButtonCompact,
@@ -709,7 +714,7 @@ function PulsingGems({
       ]}>
       <Text style={styles.bonusStar}>💎</Text>
       <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={styles.bonusText}>
-        {displayValue.toLocaleString('tr-TR')}
+        {displayValue.toLocaleString(locale)}
       </Text>
       {gain > 0 ? (
         <Animated.Text
@@ -718,7 +723,7 @@ function PulsingGems({
             styles.counterGain,
             { opacity: gainOpacity, transform: [{ translateY: gainTranslateY }] },
           ]}>
-          +{gain.toLocaleString('tr-TR')}
+          +{gain.toLocaleString(locale)}
         </Animated.Text>
       ) : null}
     </Animated.View>
@@ -726,11 +731,12 @@ function PulsingGems({
 }
 
 function ScorePill({ compact, score }: { compact: boolean; score: number }) {
+  const { locale, t } = useI18n();
   const { displayValue, gain, gainOpacity, gainScale, gainTranslateY } = useAnimatedCounter(score);
 
   return (
     <Animated.View
-      accessibilityLabel={`${displayValue} puan`}
+      accessibilityLabel={t('home.pointsA11y', { value: displayValue })}
       style={[
         styles.scoreButton,
         compact && styles.scoreButtonCompact,
@@ -738,13 +744,13 @@ function ScorePill({ compact, score }: { compact: boolean; score: number }) {
       ]}>
       <Text style={styles.scoreStar}>★</Text>
       <View style={styles.scoreCopy}>
-        <Text style={styles.scoreLabel}>PUAN</Text>
+        <Text style={styles.scoreLabel}>{t('common.score')}</Text>
         <Text
           adjustsFontSizeToFit
           minimumFontScale={0.62}
           numberOfLines={1}
           style={[styles.scoreText, compact && styles.scoreTextCompact]}>
-          {displayValue.toLocaleString('tr-TR')}
+          {displayValue.toLocaleString(locale)}
         </Text>
       </View>
       {gain > 0 ? (
@@ -754,7 +760,7 @@ function ScorePill({ compact, score }: { compact: boolean; score: number }) {
             styles.counterGain,
             { opacity: gainOpacity, transform: [{ translateY: gainTranslateY }] },
           ]}>
-          +{gain.toLocaleString('tr-TR')}
+          +{gain.toLocaleString(locale)}
         </Animated.Text>
       ) : null}
     </Animated.View>
@@ -783,7 +789,9 @@ function JourneyStrip({
   level: number;
   levelData: LevelData;
 }) {
+  const { language, t } = useI18n();
   const country = COUNTRY_BY_ID.get(levelData.countryId);
+  const countryName = country ? localizeCountry(country, language) : levelData.country;
   const operation = OPERATION_DETAILS[levelData.op];
   const countryProgress = country ? getCountryProgress(level, country.id) : 0;
   const challengeProgress = Math.max(0, Math.min(1, countryProgress - 19));
@@ -829,7 +837,7 @@ function JourneyStrip({
       <View style={styles.journeyTopRow}>
         <View style={styles.journeyCountryGroup}>
           <Text numberOfLines={1} style={styles.journeyCountry}>
-            ✦ {levelData.flag} {levelData.country}
+            ✦ {levelData.flag} {countryName}
           </Text>
           {levelData.countryChallenge ? (
             <Animated.Text
@@ -851,13 +859,13 @@ function JourneyStrip({
                   ],
                 },
               ]}>
-              CHALLENGE
+              {t('common.challenge')}
             </Animated.Text>
           ) : null}
         </View>
         <View style={styles.journeyOperationChip}>
           <Text numberOfLines={1} style={styles.journeyOperationText}>
-            {operation.name.toLocaleUpperCase('tr-TR')} • {operation.symbol}
+            {localizeOperation(operation.symbol).toLocaleUpperCase()} • {operation.symbol}
           </Text>
         </View>
         <View style={styles.journeyCountChip}>
@@ -867,7 +875,7 @@ function JourneyStrip({
         </View>
       </View>
 
-      <View accessibilityLabel={`${levelData.country} şehir ilerlemesi`} style={styles.citySteps}>
+      <View accessibilityLabel={t('game.cityProgress', { country: countryName })} style={styles.citySteps}>
         {country?.locations.map((location, index) => {
           const progress = getLocationProgress(level, country, location);
           const completed = progress >= location.levelCount;
@@ -907,7 +915,7 @@ function JourneyStrip({
           );
         })}
         <View
-          accessibilityLabel={`Challenge ilerlemesi ${challengeProgress}/1`}
+          accessibilityLabel={t('game.challengeProgress', { progress: challengeProgress })}
           style={[styles.cityStepGroup, styles.challengeStepGroup]}>
           <View style={[styles.cityStepLine, styles.challengeStepLine]}>
             <Text
@@ -936,6 +944,7 @@ function JourneyStrip({
 }
 
 export default function HomeScreen() {
+  const { t } = useI18n();
   const { width, height } = useWindowDimensions();
   const contentImageVersion = useContentImageVersion();
   const [level, setLevel] = useState(1);
@@ -1483,10 +1492,10 @@ export default function HomeScreen() {
       setFeedback(
         calculation
           ? { text: `${calculation.expression} = ${calculation.result}`, tone: 'live' }
-          : { text: 'Başka bir sıra dene', tone: 'info' },
+          : { text: t('feedback.tryAnother'), tone: 'info' },
       );
     },
-    [levelData],
+    [levelData, t],
   );
 
   const handleComplete = useCallback(
@@ -1501,7 +1510,7 @@ export default function HomeScreen() {
       const calculation = computeResult(values, levelData.op);
       if (!calculation) {
         puzzleActivityRef.current.wrongAttempts += 1;
-        showTimedFeedback({ text: 'Bu sıra geçerli bir işlem oluşturmuyor', tone: 'info' });
+        showTimedFeedback({ text: t('feedback.invalid'), tone: 'info' });
         return 'invalid';
       }
 
@@ -1546,24 +1555,25 @@ export default function HomeScreen() {
           const passportReward =
             completedCountryRecord &&
             isPassportEarned(completedPuzzleLevel, completedCountryRecord.passportId)
-              ? 'yeni rota mührü'
-              : 'pasaport damgası';
+              ? t('feedback.newRouteStamp')
+              : t('feedback.passportStamp');
+          const completedCountryName = completedCountryRecord
+            ? localizeCountry(completedCountryRecord)
+            : levelData.country;
           const completionMessage = travelCompletion.worldTourCompleted
-            ? `${TOTAL_COUNTRIES}/${TOTAL_COUNTRIES} ülke • WORLD TOUR COMPLETED! Golden Compass ve World Explorer kazanıldı`
+            ? t('feedback.worldComplete', { done: TOTAL_COUNTRIES, total: TOTAL_COUNTRIES })
             : completedCountry
-              ? `${levelData.country} tamamlandı! ${passportReward} ve ${completedCountryRecord?.rewardLandmark ?? levelData.country} kartı kazanıldı`
+              ? t('feedback.countryComplete', { country: completedCountryName, passport: passportReward, landmark: completedCountryRecord?.rewardLandmark ?? completedCountryName })
               : completedLocation
-                ? `${levelData.city} tamamlandı! ${
+                ? t('feedback.locationComplete', { city: levelData.city, next:
                     nextDestination.countryChallenge
-                      ? `${levelData.country} Challenge açıldı`
-                      : `${nextDestination.location.name} açıldı`
-                  }`
-                : `Puzzle ${levelData.locationLevel}/${levelData.locationLevelCount} tamamlandı • ${levelData.city}`;
+                      ? t('feedback.challengeUnlocked', { country: completedCountryName })
+                      : t('feedback.destinationUnlocked', { destination: nextDestination.location.name })
+                  })
+                : t('feedback.puzzleComplete', { current: levelData.locationLevel, total: levelData.locationLevelCount, city: levelData.city });
           showTimedFeedback(
             {
-              text: `Bölüm tamamlandı • +${
-                levelScorePending.current
-              } puan • Harika! ${completionMessage} 🎉`,
+              text: t('feedback.levelComplete', { points: levelScorePending.current, message: completionMessage }),
               tone: 'success',
             },
             LEVEL_CELEBRATION_DELAY + 1100,
@@ -1605,7 +1615,7 @@ export default function HomeScreen() {
         } else {
           showTimedFeedback(
             {
-              text: `Hedef bulundu: ${calculation.result} ✓ • +${earnedPoints} puan`,
+              text: t('feedback.targetFound', { result: calculation.result, points: earnedPoints }),
               tone: 'success',
             },
             1150,
@@ -1639,7 +1649,7 @@ export default function HomeScreen() {
         void launchGemFlight(bonusGemReward);
         showTimedFeedback(
           {
-            text: `💎 Bonus hedef çözüldü! +${bonusGemReward} mücevher`,
+            text: t('feedback.bonusSolved', { reward: bonusGemReward }),
             tone: 'bonus',
           },
           1550,
@@ -1654,7 +1664,7 @@ export default function HomeScreen() {
         triggerEffect('bonus');
         showTimedFeedback(
           {
-            text: `⭐ Bonus Keşif! +${BONUS_DISCOVERY_GEM_REWARD} mücevher • ${calculation.expression} = ${calculation.result}`,
+            text: t('feedback.bonusDiscovery', { reward: BONUS_DISCOVERY_GEM_REWARD, expression: calculation.expression, result: calculation.result }),
             tone: 'bonus',
           },
           1450,
@@ -1662,7 +1672,7 @@ export default function HomeScreen() {
         return 'bonus';
       } else {
         puzzleActivityRef.current.wrongAttempts += 1;
-        showTimedFeedback({ text: 'Bu kombinasyonu zaten keşfettin', tone: 'info' });
+        showTimedFeedback({ text: t('feedback.alreadyFound'), tone: 'info' });
         return 'invalid';
       }
     },
@@ -1676,6 +1686,7 @@ export default function HomeScreen() {
       showTimedFeedback,
       solvedTargets,
       startLevel,
+      t,
       triggerEffect,
     ],
   );
@@ -1684,7 +1695,7 @@ export default function HomeScreen() {
     markPuzzleActivity();
     if (hintCredits <= 0) {
       showTimedFeedback(
-        { text: 'İpucu kredin bitti • Ödüllü reklam veya yeni rota ile +3 kazan', tone: 'info' },
+        { text: t('feedback.noHints'), tone: 'info' },
         1800,
       );
       return;
@@ -1693,7 +1704,7 @@ export default function HomeScreen() {
     if (targetIndex < 0) return;
     const solution = findSolutionIndices(levelData.targets[targetIndex], levelData.numbers);
     if (!solution) {
-      showTimedFeedback({ text: 'Bu hedef için ipucu hazırlanamadı', tone: 'info' });
+      showTimedFeedback({ text: t('feedback.hintUnavailable'), tone: 'info' });
       return;
     }
 
@@ -1703,13 +1714,13 @@ export default function HomeScreen() {
     setHintIndices(solution);
     setHintedTarget(targetIndex);
     triggerEffect('hint');
-    showTimedFeedback({ text: 'Parlayan sayıları sırayla birleştir', tone: 'bonus' }, 1700);
+    showTimedFeedback({ text: t('feedback.followGlow'), tone: 'bonus' }, 1700);
     hintTimer.current = setTimeout(() => {
       setHintIndices([]);
       setHintedTarget(null);
       hintTimer.current = null;
     }, 1800);
-  }, [hintCredits, levelData, markPuzzleActivity, showTimedFeedback, solvedTargets, triggerEffect]);
+  }, [hintCredits, levelData, markPuzzleActivity, showTimedFeedback, solvedTargets, t, triggerEffect]);
 
   const handleWheelNodeAdded = useCallback(
     (selectionCount: number) => {
@@ -1764,10 +1775,15 @@ export default function HomeScreen() {
     showTimedFeedback(
       {
         text: completion.worldTourCompleted
-          ? '🌍 Master World Tour başladı!'
-          : `${completion.nextDestination.country.flag} ${completion.nextDestination.country.country} açıldı • ${completion.nextDestination.location.name}${
-              earnedRouteHints ? ` • Yeni rota ödülü: +${HINT_REWARD_AMOUNT} ipucu` : ''
-            }`,
+          ? t('feedback.masterStarted')
+          : t('feedback.countryUnlocked', {
+              flag: completion.nextDestination.country.flag,
+              country: localizeCountry(completion.nextDestination.country),
+              destination: completion.nextDestination.location.name,
+              reward: earnedRouteHints
+                ? t('feedback.routeHintReward', { count: HINT_REWARD_AMOUNT })
+                : '',
+            }),
         tone: 'success',
       },
       1800,
@@ -1779,6 +1795,7 @@ export default function HomeScreen() {
     rewardedRouteIds,
     showTimedFeedback,
     startLevel,
+    t,
   ]);
 
   if (!hydrated) return <View style={styles.screen} />;
@@ -1923,7 +1940,7 @@ export default function HomeScreen() {
           <View style={[styles.header, compactHeader && styles.headerCompact]}>
             <View style={[styles.headerSide, compactHeader && styles.headerSideCompact]}>
               <Pressable
-                accessibilityLabel="Ana sayfaya dön"
+                accessibilityLabel={t('game.homeA11y')}
                 accessibilityRole="button"
                 hitSlop={5}
                 onPress={navigateHome}
@@ -1951,7 +1968,7 @@ export default function HomeScreen() {
               />
 
               <Pressable
-                accessibilityLabel="Oyun ayarlarını aç"
+                accessibilityLabel={t('settings.openA11y')}
                 accessibilityRole="button"
                 hitSlop={5}
                 onPress={() => setSettingsVisible(true)}
@@ -1986,7 +2003,7 @@ export default function HomeScreen() {
                 style={styles.topSection}>
                 <View style={styles.operationRow}>
                   <View style={styles.operationSide}>
-                    <Text style={styles.operationLabel}>İŞLEM TÜRÜ</Text>
+                    <Text style={styles.operationLabel}>{t('game.operationType')}</Text>
                     <LinearGradient
                       colors={['rgba(66,107,120,0.96)', 'rgba(52,87,100,0.96)']}
                       end={{ x: 0, y: 1 }}
@@ -1996,7 +2013,7 @@ export default function HomeScreen() {
                     </LinearGradient>
                   </View>
                   <View style={styles.requiredBadge}>
-                    <Text style={styles.requiredLabel}>ADIM SAYISI</Text>
+                    <Text style={styles.requiredLabel}>{t('game.stepCount')}</Text>
                     <Text style={styles.requiredDots}>{levelData.steps}</Text>
                   </View>
                 </View>
@@ -2068,7 +2085,7 @@ export default function HomeScreen() {
               </View>
 
               <Text style={styles.instruction}>
-                Ana hedefleri çöz; bonus mücevher isteğe bağlı!
+                {t('game.instruction')}
               </Text>
             </View>
           </ScrollView>

@@ -36,6 +36,7 @@ import {
   type TravelRoute,
 } from '@/game/travel';
 import { useContentImageVersion } from '@/hooks/use-content-image-cache';
+import { localizeCountry, localizeRoute, useI18n } from '@/i18n';
 
 const WORLD_BACKGROUND = require('../../../assets/images/img/bg.png');
 type MapLayer = 'world' | 'route';
@@ -67,6 +68,7 @@ function RouteCard({
   onPress: () => void;
   route: TravelRoute;
 }) {
+  const { language, t } = useI18n();
   const countries = routeCountries(route);
   const progress = countries.reduce((sum, country) => sum + getCountryProgress(level, country.id), 0);
   const total = countries.reduce((sum, country) => sum + country.levelCount, 0);
@@ -77,7 +79,7 @@ function RouteCard({
   return (
     <Entrance>
       <Pressable
-        accessibilityLabel={`${route.name}, ${progress}/${total} bölüm`}
+        accessibilityLabel={t('map.routeA11y', { route: localizeRoute(route, language), done: progress, total })}
         accessibilityRole="button"
         onPress={onPress}
         style={({ pressed }) => [
@@ -106,19 +108,19 @@ function RouteCard({
               minimumFontScale={0.72}
               numberOfLines={1}
               style={[styles.worldRouteName, !unlocked && styles.worldRouteTextLocked]}>
-              {route.name}
+              {localizeRoute(route, language)}
             </Text>
             {unlocked ? (
               <Text style={styles.worldRouteCount}>{progress}/{total}</Text>
             ) : (
               <View style={styles.worldLockBadge}>
                 <Text style={styles.worldLockIcon}>♙</Text>
-                <Text style={styles.worldLockText}>KİLİTLİ</Text>
+                <Text style={styles.worldLockText}>{t('common.locked')}</Text>
               </View>
             )}
           </View>
           <Text numberOfLines={1} style={[styles.worldRouteCaption, !unlocked && styles.worldRouteTextLocked]}>
-            {route.theme}.
+            {t('map.routeSummary', { countries: countries.length, levels: total })}
           </Text>
           <View style={styles.worldRouteFooter}>
             <View style={styles.worldStageRail}>
@@ -142,7 +144,7 @@ function RouteCard({
             </View>
             {active && !complete ? (
               <LinearGradient colors={['#FFF3A7', '#EAAF35', '#C27B13']} style={styles.worldContinueButton}>
-                <Text style={styles.worldContinueText}>DEVAM ET</Text>
+                <Text style={styles.worldContinueText}>{t('common.continue')}</Text>
               </LinearGradient>
             ) : null}
           </View>
@@ -194,6 +196,7 @@ function CountryCard({
   level: number;
   onPress: () => void;
 }) {
+  const { language, t } = useI18n();
   const progress = getCountryProgress(level, country.id);
   const unlocked = isCountryUnlocked(level, country.id);
   const complete = isCountryComplete(level, country.id);
@@ -201,8 +204,8 @@ function CountryCard({
   return (
     <Entrance>
       <Pressable
-        accessibilityHint={active ? 'Mevcut sayı bulmacasını açar' : undefined}
-        accessibilityLabel={`${country.country}, ${progress}/${country.levelCount} bölüm`}
+        accessibilityHint={active ? t('map.currentPuzzleHint') : undefined}
+        accessibilityLabel={t('map.routeA11y', { route: localizeCountry(country, language), done: progress, total: country.levelCount })}
         accessibilityRole="button"
         accessibilityState={{ disabled: !unlocked }}
         disabled={!unlocked}
@@ -232,14 +235,14 @@ function CountryCard({
               minimumFontScale={0.72}
               numberOfLines={1}
               style={[styles.routeCountryName, !unlocked && styles.routeCountryTextLocked]}>
-              {country.flag} {country.country}
+              {country.flag} {localizeCountry(country, language)}
             </Text>
             <Text style={[styles.routeCountryCount, !unlocked && styles.routeCountryTextLocked]}>
               {unlocked ? `${progress}/${country.levelCount}` : '🔒'}
             </Text>
           </View>
           <Text style={[styles.routeCountryCaption, !unlocked && styles.routeCountryTextLocked]}>
-            {!unlocked ? 'Önceki ülkeyi tamamlayarak aç' : complete ? 'Ülke tamamlandı' : active ? 'Mevcut yolculuk' : 'Keşfedilmeye hazır'}
+            {!unlocked ? t('map.unlockCountry') : complete ? t('map.countryCompleted') : active ? t('map.currentJourney') : t('map.ready')}
           </Text>
           <Text
             numberOfLines={2}
@@ -249,7 +252,7 @@ function CountryCard({
           <DestinationRail country={country} level={level} />
           {active && !complete ? (
             <LinearGradient colors={['#FFF3A7', '#EAAF35', '#C27B13']} style={styles.routeCountryContinue}>
-              <Text style={styles.routeCountryContinueText}>DEVAM ET</Text>
+              <Text style={styles.routeCountryContinueText}>{t('common.continue')}</Text>
             </LinearGradient>
           ) : null}
         </View>
@@ -268,6 +271,7 @@ export function JourneyMap({
   onOpenTasks,
 }: JourneyMapProps) {
   useContentImageVersion();
+  const { language, t } = useI18n();
   const insets = useSafeAreaInsets();
   const worldListRef = useRef<FlatList<TravelRoute>>(null);
   const countryListRef = useRef<FlatList<TravelCountry>>(null);
@@ -325,7 +329,7 @@ export function JourneyMap({
   const openRoute = (route: TravelRoute) => {
     if (!isRouteUnlocked(level, route)) {
       const previous = TRAVEL_ROUTES[route.order - 2];
-      showNotice(`Önce ${previous.name} rotasını tamamla`);
+      showNotice(t('map.completePreviousRoute', { route: localizeRoute(previous, language) }));
       return;
     }
     setSelectedRouteId(route.id);
@@ -334,7 +338,7 @@ export function JourneyMap({
 
   const openCountry = (country: TravelCountry) => {
     if (!isCountryUnlocked(level, country.id)) {
-      showNotice('Bu ülke seyahat rotasında henüz açılmadı');
+      showNotice(t('map.countryUnavailable'));
       return;
     }
     if (country.id === activeCountry.id) {
@@ -343,8 +347,8 @@ export function JourneyMap({
     }
     showNotice(
       isCountryComplete(level, country.id)
-        ? `${country.country} tamamlandı ✓ • Mevcut yolculuk: ${activeCountry.country}`
-        : `Mevcut ülke: ${activeCountry.country}`,
+        ? t('map.completedCurrent', { country: localizeCountry(country, language), current: localizeCountry(activeCountry, language) })
+        : t('map.currentCountry', { country: localizeCountry(activeCountry, language) }),
     );
   };
 
@@ -433,24 +437,23 @@ export function JourneyMap({
         ListHeaderComponent={
           <View style={styles.routeSummary}>
             <Pressable
-              accessibilityLabel="Rota listesine dön"
+              accessibilityLabel={t('map.backToRoutes')}
               accessibilityRole="button"
               hitSlop={8}
               onPress={goBack}
               style={({ pressed }) => [styles.routeBackButton, pressed && styles.pressed]}>
               <Text style={styles.routeBackIcon}>‹</Text>
             </Pressable>
-            <Text style={styles.routeSummaryEyebrow}>ROTA {selectedRoute.order}</Text>
+            <Text style={styles.routeSummaryEyebrow}>{t('map.route', { number: selectedRoute.order })}</Text>
             <Text
               adjustsFontSizeToFit
               minimumFontScale={0.75}
               numberOfLines={1}
               style={styles.routeSummaryTitle}>
-              {selectedRoute.emoji} {selectedRoute.name}
+              {selectedRoute.emoji} {localizeRoute(selectedRoute, language)}
             </Text>
             <Text style={styles.routeSummaryCaption}>
-              {selectedRoute.countryIds.length} ülke •{' '}
-              {selectedRoute.countryIds.length * COUNTRY_LEVEL_COUNT} bölüm
+              {t('map.routeSummary', { countries: selectedRoute.countryIds.length, levels: selectedRoute.countryIds.length * COUNTRY_LEVEL_COUNT })}
             </Text>
           </View>
         }

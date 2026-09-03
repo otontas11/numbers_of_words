@@ -33,6 +33,7 @@ import Svg, {
 } from 'react-native-svg';
 
 import { FONTS } from '@/constants/fonts';
+import { useI18n } from '@/i18n';
 
 type Point = {
   x: number;
@@ -299,6 +300,7 @@ export const NumberWheel = memo(function NumberWheel({
   onNodeAdded,
   onDraggingChange,
 }: NumberWheelProps) {
+  const { t } = useI18n();
   const [slotOrder, setSlotOrder] = useState(() =>
     Array.from({ length: numbers.length }, (_, index) => index),
   );
@@ -731,7 +733,7 @@ export const NumberWheel = memo(function NumberWheel({
         <GestureDetector gesture={gesture} touchAction="none">
           <View
             ref={wheelRef}
-            accessibilityLabel="Sayı bağlantı çemberi"
+            accessibilityLabel={t('wheel.a11y')}
             onResponderGrant={startWebSelection}
             onResponderMove={moveWebSelection}
             onResponderRelease={finishWebSelection}
@@ -888,8 +890,8 @@ export const NumberWheel = memo(function NumberWheel({
         <Pressable
           accessibilityLabel={
             hintCredits > 0
-              ? `İpucu göster, ${hintCredits} kredi kaldı`
-              : 'İpucu kredisi bitti'
+              ? t('wheel.hintA11y', { count: hintCredits })
+              : t('wheel.noHints')
           }
           accessibilityRole="button"
           hitSlop={8}
@@ -901,12 +903,12 @@ export const NumberWheel = memo(function NumberWheel({
             start={{ x: 0, y: 0 }}
             style={styles.controlSurface}>
             <HintIcon />
-            <Text style={styles.controlLabel}>İpucu • {hintCredits}</Text>
+            <Text style={styles.controlLabel}>{t('wheel.hint', { count: hintCredits })}</Text>
           </ExpoLinearGradient>
         </Pressable>
 
         <Pressable
-          accessibilityLabel="Sayıları karıştır"
+          accessibilityLabel={t('wheel.shuffleA11y')}
           accessibilityRole="button"
           hitSlop={8}
           onPress={shuffleNodes}
@@ -919,7 +921,7 @@ export const NumberWheel = memo(function NumberWheel({
             <RNAnimated.View style={{ transform: [{ rotate: rotationStyle }] }}>
               <ShuffleIcon />
             </RNAnimated.View>
-            <Text style={styles.controlLabel}>Karıştır</Text>
+            <Text style={styles.controlLabel}>{t('wheel.shuffle')}</Text>
           </ExpoLinearGradient>
         </Pressable>
       </View>

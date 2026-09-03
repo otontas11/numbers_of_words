@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -17,6 +17,7 @@ import { AppFooter } from '@/components/common/app-footer';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import type { DifficultyModifier, PuzzlePerformance } from '@/game/adaptive-difficulty';
 import type { LevelData } from '@/game/levels';
+import { localizeCountry, localizeRoute, useI18n } from '@/i18n';
 import {
   COUNTRY_LEVEL_COUNT,
   COUNTRY_BY_ID,
@@ -49,6 +50,15 @@ const BIRD_FRAMES = [
   require('../../../assets/images/flying-bird/image_14.png'),
   require('../../../assets/images/flying-bird/image_15.png'),
 ] as const;
+const BIRD_FLIGHT_DURATION = 26000;
+const BIRD_FLIGHT_PAUSE = 14000;
+const BIRD_FORMATION = [
+  { frameOffset: 0, height: 48, horizontalOffset: 0, opacity: 1, top: '29%', width: 70, wave: [0, -6, 4, 0] },
+  { frameOffset: 3, height: 40, horizontalOffset: -42, opacity: 0.95, top: '8%', width: 58, wave: [0, 4, -3, 0] },
+  { frameOffset: 6, height: 33, horizontalOffset: -28, opacity: 0.9, top: '51%', width: 48, wave: [0, -4, 3, 0] },
+  { frameOffset: 9, height: 27, horizontalOffset: -86, opacity: 0.85, top: '24%', width: 39, wave: [0, 3, -2, 0] },
+  { frameOffset: 12, height: 22, horizontalOffset: -68, opacity: 0.8, top: '66%', width: 32, wave: [0, -3, 2, 0] },
+] as const;
 
 type MainMenuProps = {
   active: boolean;
@@ -63,9 +73,26 @@ type MainMenuProps = {
   onPlay: () => void;
 };
 
+function ScoreEmblem({ compact }: { compact?: boolean }) {
+  return (
+    <View style={[styles.scoreEmblem, compact && styles.scoreEmblemCompact]}>
+      <LinearGradient
+        colors={['#4B8194', '#214F68', '#17374E']}
+        end={{ x: 0.75, y: 1 }}
+        start={{ x: 0.2, y: 0 }}
+        style={styles.scoreEmblemSurface}>
+        <View style={styles.scoreEmblemRing} />
+        <View style={styles.scoreEmblemShine} />
+        <Text style={[styles.scoreEmblemStar, compact && styles.scoreEmblemStarCompact]}>★</Text>
+      </LinearGradient>
+    </View>
+  );
+}
+
 function ResourcePill({
   accessibilityLabel,
   icon,
+  iconVariant = 'default',
   label,
   value,
   onPress,
@@ -73,6 +100,7 @@ function ResourcePill({
 }: {
   accessibilityLabel: string;
   icon: string;
+  iconVariant?: 'default' | 'score';
   label: string;
   value: string;
   onPress: () => void;
@@ -88,7 +116,11 @@ function ResourcePill({
         compact && styles.resourcePillCompact,
         pressed && styles.pressed,
       ]}>
-      <Text style={[styles.resourceIcon, compact && styles.resourceIconCompact]}>{icon}</Text>
+      {iconVariant === 'score' ? (
+        <ScoreEmblem compact={compact} />
+      ) : (
+        <Text style={[styles.resourceIcon, compact && styles.resourceIconCompact]}>{icon}</Text>
+      )}
       <View style={styles.resourceCopy}>
         <Text numberOfLines={1} style={styles.resourceLabel}>{label}</Text>
         <Text numberOfLines={1} style={[styles.resourceValue, compact && styles.resourceValueCompact]}>
@@ -99,6 +131,89 @@ function ResourcePill({
         <Text style={styles.resourcePlusText}>+</Text>
       </View>
     </Pressable>
+  );
+}
+
+function FlyingBirds({ active }: { active: boolean }) {
+  const [birdFlight] = useState(() => new Animated.Value(0));
+  const [birdFrame, setBirdFrame] = useState(0);
+  const { width } = useWindowDimensions();
+  const flightStyles = useMemo(
+    () =>
+      BIRD_FORMATION.map((bird) => ({
+        width: bird.width,
+        height: bird.height,
+        opacity: bird.opacity,
+        top: bird.top,
+        transform: [
+          {
+            translateX: birdFlight.interpolate({
+              inputRange: [0, 1],
+              outputRange: [
+                -100 + bird.horizontalOffset,
+                width + 180 + bird.horizontalOffset,
+              ],
+            }),
+          },
+          {
+            translateY: birdFlight.interpolate({
+              inputRange: [0, 0.35, 0.7, 1],
+              outputRange: [...bird.wave],
+            }),
+          },
+        ],
+      })),
+    [birdFlight, width],
+  );
+
+  useEffect(() => {
+    birdFlight.stopAnimation();
+    birdFlight.setValue(0);
+    if (!active) return;
+
+    const flightAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(birdFlight, {
+          toValue: 1,
+          duration: BIRD_FLIGHT_DURATION,
+          easing: Easing.linear,
+          isInteraction: false,
+          useNativeDriver: true,
+        }),
+        Animated.timing(birdFlight, {
+          toValue: 0,
+          duration: 0,
+          isInteraction: false,
+          useNativeDriver: true,
+        }),
+        Animated.delay(BIRD_FLIGHT_PAUSE),
+      ]),
+    );
+    const wingTimer = setInterval(() => {
+      setBirdFrame((frame) => (frame + 1) % BIRD_FRAMES.length);
+    }, 155);
+
+    flightAnimation.start();
+    return () => {
+      clearInterval(wingTimer);
+      flightAnimation.stop();
+    };
+  }, [active, birdFlight]);
+
+  return (
+    <View style={styles.birdFlightLayer}>
+      {BIRD_FORMATION.map((bird, index) => (
+        <Animated.View
+          key={bird.horizontalOffset}
+          style={[styles.flyingBird, flightStyles[index]]}>
+          <Image
+            contentFit="contain"
+            source={BIRD_FRAMES[(birdFrame + bird.frameOffset) % BIRD_FRAMES.length]}
+            style={styles.birdImage}
+          />
+        </Animated.View>
+      ))}
+    </View>
   );
 }
 
@@ -114,46 +229,43 @@ export function MainMenu({
   onOpenTravel,
   onPlay,
 }: MainMenuProps) {
-  const [birdFlight] = useState(() => new Animated.Value(0));
-  const [birdFrame, setBirdFrame] = useState(0);
   const [pulse] = useState(() => new Animated.Value(0));
   const [orbit] = useState(() => new Animated.Value(0));
-  const { height, width } = useWindowDimensions();
+  const { height } = useWindowDimensions();
   const compact = height < 760;
+  const { language, locale, t } = useI18n();
   const route = ROUTE_BY_ID.get(levelData.routeId);
+  const currentCountry = COUNTRY_BY_ID.get(levelData.countryId);
+  const currentCountryName = currentCountry
+    ? localizeCountry(currentCountry, language)
+    : levelData.country;
+  const routeName = route ? localizeRoute(route, language) : t('home.worldRoute');
   const completedCountries = getCompletedCountryCount(currentLevel);
   const routeProgress = route ? getRouteProgress(currentLevel, route) : 0;
-
-  useEffect(() => {
-    if (!active) {
-      birdFlight.stopAnimation();
-      return;
-    }
-
-    birdFlight.setValue(0);
-    const flightAnimation = Animated.loop(
-      Animated.timing(birdFlight, {
-        toValue: 1,
-        duration: 9000,
-        easing: Easing.linear,
-        useNativeDriver: true,
+  const playGlowOpacity = useMemo(
+    () => pulse.interpolate({ inputRange: [0, 1], outputRange: [0.28, 0.58] }),
+    [pulse],
+  );
+  const playGlowScale = useMemo(
+    () => pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.09] }),
+    [pulse],
+  );
+  const activeStepRotation = useMemo(
+    () =>
+      orbit.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['0deg', '360deg'],
       }),
-    );
-    const wingTimer = setInterval(() => {
-      setBirdFrame((frame) => (frame + 1) % BIRD_FRAMES.length);
-    }, 110);
-
-    flightAnimation.start();
-    return () => {
-      clearInterval(wingTimer);
-      flightAnimation.stop();
-    };
-  }, [active, birdFlight]);
+    [orbit],
+  );
 
   useEffect(() => {
+    pulse.stopAnimation();
+    orbit.stopAnimation();
+    pulse.setValue(0);
+    orbit.setValue(0);
+
     if (!active) {
-      pulse.stopAnimation();
-      orbit.stopAnimation();
       return;
     }
     const pulseAnimation = Animated.loop(
@@ -162,12 +274,14 @@ export function MainMenu({
           toValue: 1,
           duration: 1150,
           easing: Easing.inOut(Easing.cubic),
+          isInteraction: false,
           useNativeDriver: true,
         }),
         Animated.timing(pulse, {
           toValue: 0,
           duration: 1150,
           easing: Easing.inOut(Easing.cubic),
+          isInteraction: false,
           useNativeDriver: true,
         }),
       ]),
@@ -177,8 +291,10 @@ export function MainMenu({
         toValue: 1,
         duration: 1800,
         easing: Easing.linear,
+        isInteraction: false,
         useNativeDriver: true,
       }),
+      { resetBeforeIteration: true },
     );
     pulseAnimation.start();
     orbitAnimation.start();
@@ -205,25 +321,26 @@ export function MainMenu({
         <View style={[styles.topBar, compact && styles.topBarCompact]}>
           <View style={styles.resourceRow}>
             <ResourcePill
-              accessibilityLabel={`${score} puan`}
+              accessibilityLabel={t('home.pointsA11y', { value: score })}
               compact={compact}
               icon="★"
-              label="PUAN"
+              iconVariant="score"
+              label={t('common.score')}
               onPress={onOpenProfile}
-              value={score.toLocaleString('tr-TR')}
+              value={score.toLocaleString(locale)}
             />
             <ResourcePill
-              accessibilityLabel={`${gemCount} mücevher`}
+              accessibilityLabel={t('home.gemsA11y', { value: gemCount })}
               compact={compact}
               icon="💎"
-              label="ELMAS"
+              label={t('common.gems')}
               onPress={onOpenProfile}
-              value={gemCount.toLocaleString('tr-TR')}
+              value={gemCount.toLocaleString(locale)}
             />
           </View>
 
           <Pressable
-            accessibilityLabel="Oyun ayarlarını aç"
+            accessibilityLabel={t('settings.openA11y')}
             accessibilityRole="button"
             onPress={onOpenSettings}
             style={({ pressed }) => [
@@ -243,85 +360,7 @@ export function MainMenu({
               source={HOME_LOGO}
               style={[styles.brandLogo, compact && styles.brandLogoCompact]}
             />
-            <View style={styles.birdFlightLayer}>
-              <Animated.View
-                style={[
-                  styles.flyingBird,
-                  styles.flyingBirdLarge,
-                  {
-                    transform: [
-                      {
-                        translateX: birdFlight.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [-100, width + 80],
-                        }),
-                      },
-                      {
-                        translateY: birdFlight.interpolate({
-                          inputRange: [0, 0.35, 0.7, 1],
-                          outputRange: [0, -7, 4, 0],
-                        }),
-                      },
-                    ],
-                  },
-                ]}>
-                <Image contentFit="contain" source={BIRD_FRAMES[birdFrame]} style={styles.birdImage} />
-              </Animated.View>
-              <Animated.View
-                style={[
-                  styles.flyingBird,
-                  styles.flyingBirdMedium,
-                  {
-                    transform: [
-                      {
-                        translateX: birdFlight.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [-170, width + 50],
-                        }),
-                      },
-                      {
-                        translateY: birdFlight.interpolate({
-                          inputRange: [0, 0.5, 1],
-                          outputRange: [0, 8, 0],
-                        }),
-                      },
-                    ],
-                  },
-                ]}>
-                <Image
-                  contentFit="contain"
-                  source={BIRD_FRAMES[(birdFrame + 5) % BIRD_FRAMES.length]}
-                  style={styles.birdImage}
-                />
-              </Animated.View>
-              <Animated.View
-                style={[
-                  styles.flyingBird,
-                  styles.flyingBirdSmall,
-                  {
-                    transform: [
-                      {
-                        translateX: birdFlight.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [-240, width + 20],
-                        }),
-                      },
-                      {
-                        translateY: birdFlight.interpolate({
-                          inputRange: [0, 0.4, 0.8, 1],
-                          outputRange: [0, -4, 6, 0],
-                        }),
-                      },
-                    ],
-                  },
-                ]}>
-                <Image
-                  contentFit="contain"
-                  source={BIRD_FRAMES[(birdFrame + 10) % BIRD_FRAMES.length]}
-                  style={styles.birdImage}
-                />
-              </Animated.View>
-            </View>
+            <FlyingBirds active={active} />
           </View>
 
           <View style={[styles.playButtonStack, compact && styles.playButtonStackCompact]}>
@@ -330,16 +369,14 @@ export function MainMenu({
                 styles.playGlow,
                 compact && styles.playGlowCompact,
                 {
-                  opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.28, 0.58] }),
-                  transform: [
-                    { scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.09] }) },
-                  ],
+                  opacity: playGlowOpacity,
+                  transform: [{ scale: playGlowScale }],
                 },
               ]}
             />
             <Pressable
-              accessibilityHint="Kaldığın sayı bulmacasını açar"
-              accessibilityLabel={`Bölüm ${currentLevel}, devam et`}
+              accessibilityHint={t('home.playHint')}
+              accessibilityLabel={t('home.playA11y', { level: currentLevel })}
               accessibilityRole="button"
               onPress={onPlay}
               style={({ pressed }) => [
@@ -359,7 +396,7 @@ export function MainMenu({
                   <Text style={[styles.playLevel, compact && styles.playLevelCompact]}>
                     {currentLevel}.
                   </Text>
-                  <Text style={styles.playCaption}>BÖLÜM</Text>
+                  <Text style={styles.playCaption}>{t('common.level')}</Text>
                 </LinearGradient>
               </LinearGradient>
             </Pressable>
@@ -367,14 +404,14 @@ export function MainMenu({
 
           <View
             accessible
-            accessibilityLabel={`${route?.name ?? 'Dünya rotası'}, ${routeProgress}/${route?.countryIds.length ?? 0} ülke tamamlandı`}
+            accessibilityLabel={t('home.routeProgress', { route: routeName, progress: routeProgress, total: route?.countryIds.length ?? 0 })}
             style={[styles.countryCard, compact && styles.countryCardCompact]}>
             <View style={styles.countryCopy}>
               <Text numberOfLines={1} style={[styles.countryTitle, compact && styles.countryTitleCompact]}>
-                {levelData.country.toLocaleUpperCase('tr-TR')}
+                {currentCountryName.toLocaleUpperCase(locale)}
               </Text>
               <Text numberOfLines={1} style={styles.routeTitle}>
-                {route?.name?.toLocaleUpperCase('tr-TR') ?? 'DÜNYA ROTASI'}
+                {routeName.toLocaleUpperCase(locale)}
               </Text>
               <View style={styles.ornamentRow}>
                 <View style={styles.ornamentLine} />
@@ -396,51 +433,36 @@ export function MainMenu({
                           ]}
                         />
                       ) : null}
-                      <Animated.View
-                        accessible
-                        accessibilityLabel={`${routeCountry?.country ?? countryId}, ${done ? 'tamamlandı' : active ? 'mevcut ülke' : 'henüz açılmadı'}`}
-                        style={[
-                          styles.stepDot,
-                          done && styles.stepDotDone,
-                          active && styles.stepDotActive,
-                          active && {
-                            transform: [
-                              {
-                                scale: pulse.interpolate({
-                                  inputRange: [0, 1],
-                                  outputRange: [1.12, 1.34],
-                                }),
-                              },
-                            ],
-                          },
-                        ]}>
-                        <Text style={styles.stepDotText}>{routeCountry?.flag ?? '•'}</Text>
+                      <View style={styles.stepDotSlot}>
                         {active ? (
                           <Animated.View
                             pointerEvents="none"
                             style={[
                               styles.stepActiveOrbit,
                               {
-                                transform: [
-                                  {
-                                    rotate: orbit.interpolate({
-                                      inputRange: [0, 1],
-                                      outputRange: ['0deg', '360deg'],
-                                    }),
-                                  },
-                                ],
+                                transform: [{ rotate: activeStepRotation }],
                               },
                             ]}>
                             <View style={styles.stepActiveMarker} />
                           </Animated.View>
                         ) : null}
-                      </Animated.View>
+                        <View
+                          accessible
+                          accessibilityLabel={`${routeCountry ? localizeCountry(routeCountry, language) : countryId}, ${done ? t('home.countryDone') : active ? t('home.currentCountry') : t('home.notUnlocked')}`}
+                          style={[
+                            styles.stepDot,
+                            done && styles.stepDotDone,
+                            active && styles.stepDotActive,
+                          ]}>
+                          <Text style={styles.stepDotText}>{routeCountry?.flag ?? '•'}</Text>
+                        </View>
+                      </View>
                     </View>
                   );
                 })}
               </View>
               <Text style={styles.discoveryText}>
-                🌍 {completedCountries}/{TOTAL_COUNTRIES} ülke keşfedildi
+                {t('home.discovered', { done: completedCountries, total: TOTAL_COUNTRIES })}
               </Text>
             </View>
             <View style={[styles.countryImageFrame, compact && styles.countryImageFrameCompact]}>
@@ -450,9 +472,6 @@ export function MainMenu({
                 source={{ uri: levelData.background }}
                 style={[StyleSheet.absoluteFill, styles.countryImage]}
               />
-              <View style={styles.mapPin}>
-                <Text style={styles.mapPinDot}>●</Text>
-              </View>
             </View>
           </View>
         </View>
@@ -490,24 +509,26 @@ export function ProfileScreen({
   cityDifficultyModifier: DifficultyModifier;
   score: number;
 }) {
+  const { language, locale, t } = useI18n();
   const completedCountries = getCompletedCountryCount(currentLevel);
   const completedLevels = getCompletedWorldLevelCount(currentLevel);
   const country = COUNTRY_BY_ID.get(levelData.countryId);
+  const countryName = country ? localizeCountry(country, language) : levelData.country;
   const countryProgress = country ? getCountryProgress(currentLevel, country.id) : 0;
-  const difficultyLabel = cityDifficultyModifier > 0 ? 'İLERİ' : cityDifficultyModifier < 0 ? 'DESTEKLİ' : 'DENGELİ';
+  const difficultyLabel = cityDifficultyModifier > 0 ? t('profile.difficultyAdvanced') : cityDifficultyModifier < 0 ? t('profile.difficultySupported') : t('profile.difficultyBalanced');
   const difficultyDescription = performanceHistory.length < 3
-    ? 'Birkaç puzzle daha çözüldüğünde sana uygun zorluk seviyesi netleşecek.'
+    ? t('profile.difficultyPending')
     : cityDifficultyModifier > 0
-      ? 'Son performansına göre sonraki şehirlerde sayı havuzu biraz daha geniş olacak.'
+      ? t('profile.difficultyHarder')
       : cityDifficultyModifier < 0
-        ? 'Son performansına göre sonraki şehirlerde sayı havuzu biraz daha erişilebilir olacak.'
-        : 'Son performansına göre mevcut zorluk seviyesi korunuyor.';
+        ? t('profile.difficultyEasier')
+        : t('profile.difficultySame');
 
   return (
     <LinearGradient colors={['#EAF5F5', '#F7EEDC', '#E6D0A9']} style={styles.profileScreen}>
       <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
         <View style={styles.profileHeader}>
-          <Text style={styles.profileHeaderTitle}>PROFİL</Text>
+          <Text style={styles.profileHeaderTitle}>{t('profile.title')}</Text>
         </View>
 
         <ScrollView
@@ -526,9 +547,9 @@ export function ProfileScreen({
               style={StyleSheet.absoluteFill}
             />
             <View style={styles.avatar}><Text style={styles.avatarText}>{levelData.flag}</Text></View>
-            <Text style={styles.explorerName}>Dünya Gezgini</Text>
+            <Text style={styles.explorerName}>{t('profile.explorer')}</Text>
             <Text style={styles.explorerLocation}>
-              Seviye {currentLevel} • {levelData.country} • {levelData.city}
+              {t('profile.location', { level: currentLevel, country: countryName, city: levelData.city })}
             </Text>
           </View>
 
@@ -536,20 +557,20 @@ export function ProfileScreen({
             <View style={styles.difficultyHeader}>
               <View style={styles.difficultyIcon}><Text style={styles.difficultyIconText}>⚙</Text></View>
               <View style={styles.difficultyCopy}>
-                <Text style={styles.difficultyEyebrow}>OYUN ZORLUK AYARI</Text>
-                <Text style={styles.difficultyTitle}>Öğrenme seviyesi: {difficultyLabel}</Text>
+                <Text style={styles.difficultyEyebrow}>{t('profile.difficultyEyebrow')}</Text>
+                <Text style={styles.difficultyTitle}>{t('profile.learningLevel', { level: difficultyLabel })}</Text>
               </View>
             </View>
             <Text style={styles.difficultyDescription}>{difficultyDescription}</Text>
-            <Text style={styles.difficultyMeta}>Son {performanceHistory.length} puzzle değerlendirildi • Zorluk yalnız yeni şehirde değişir</Text>
+            <Text style={styles.difficultyMeta}>{t('profile.difficultyMeta', { count: performanceHistory.length })}</Text>
           </View>
 
           <View style={styles.statsGrid}>
             {[
-              ['★', score.toLocaleString('tr-TR'), 'PUAN'],
-              ['✓', `${completedLevels}`, 'TAMAMLANAN PUZZLE'],
-              ['🌍', `${completedCountries}/${TOTAL_COUNTRIES}`, 'ÜLKE'],
-              ['💎', `${gemCount}`, 'MÜCEVHER'],
+              ['★', score.toLocaleString(locale), t('common.score')],
+              ['✓', `${completedLevels}`, t('profile.completedPuzzles')],
+              ['🌍', `${completedCountries}/${TOTAL_COUNTRIES}`, t('profile.country')],
+              ['💎', `${gemCount}`, t('profile.gem')],
             ].map(([icon, value, label]) => (
               <View key={label} style={styles.statCard}>
                 <Text style={styles.statIcon}>{icon}</Text>
@@ -562,8 +583,8 @@ export function ProfileScreen({
           <View style={styles.profileProgressCard}>
             <View style={styles.profileProgressHeader}>
               <View>
-                <Text style={styles.profileProgressEyebrow}>MEVCUT YOLCULUK</Text>
-                <Text style={styles.profileProgressTitle}>{levelData.flag} {levelData.country}</Text>
+                <Text style={styles.profileProgressEyebrow}>{t('profile.currentJourney')}</Text>
+                <Text style={styles.profileProgressTitle}>{levelData.flag} {countryName}</Text>
               </View>
               <Text style={styles.profileProgressCount}>
                 {countryProgress}/{COUNTRY_LEVEL_COUNT}
@@ -580,32 +601,32 @@ export function ProfileScreen({
                 ]}
               />
             </View>
-            <Text style={styles.worldProgress}>Dünya turu: {completedLevels}/{TOTAL_WORLD_LEVELS}</Text>
-            <Text style={styles.worldProgress}>Oyuncu seviyesi: {currentLevel}</Text>
-            <Text style={styles.worldProgress}>⭐ {bonusCount} bonus kombinasyon keşfedildi</Text>
+            <Text style={styles.worldProgress}>{t('profile.worldTour', { done: completedLevels, total: TOTAL_WORLD_LEVELS })}</Text>
+            <Text style={styles.worldProgress}>{t('profile.playerLevel', { level: currentLevel })}</Text>
+            <Text style={styles.worldProgress}>{t('profile.bonuses', { count: bonusCount })}</Text>
           </View>
 
           <Pressable
-            accessibilityLabel="Seyahat pasaportunu aç"
+            accessibilityLabel={t('profile.openPassport')}
             accessibilityRole="button"
             onPress={onOpenPassport}
             style={({ pressed }) => [styles.profileAction, pressed && styles.pressed]}>
             <Text style={styles.profileActionIcon}>📘</Text>
             <View style={styles.profileActionCopy}>
-              <Text style={styles.profileActionTitle}>Seyahat Pasaportu</Text>
+              <Text style={styles.profileActionTitle}>{t('profile.passport')}</Text>
               <Text style={styles.profileActionSubtitle}>
-                {completedCountries}/{TOTAL_COUNTRIES} ülke damgası
+                {t('profile.passportStamps', { done: completedCountries, total: TOTAL_COUNTRIES })}
               </Text>
             </View>
             <Text style={styles.profileActionArrow}>›</Text>
           </Pressable>
 
           <Pressable
-            accessibilityLabel="Kaldığın bölüme devam et"
+            accessibilityLabel={t('profile.resumeA11y')}
             accessibilityRole="button"
             onPress={onPlay}
             style={({ pressed }) => [styles.profilePlayButton, pressed && styles.pressed]}>
-            <Text style={styles.profilePlayText}>▶  BÖLÜME DEVAM ET</Text>
+            <Text style={styles.profilePlayText}>{t('profile.resume')}</Text>
           </Pressable>
         </ScrollView>
       </SafeAreaView>
@@ -659,6 +680,13 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   resourceIconCompact: { width: 23, fontSize: 20 },
+  scoreEmblem: { width: 32, height: 32, borderRadius: 16, shadowColor: '#8E5D17', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.36, shadowRadius: 3, elevation: 5 },
+  scoreEmblemCompact: { width: 27, height: 27, borderRadius: 13.5 },
+  scoreEmblemSurface: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 999, borderWidth: 2, borderColor: '#E8B94D' },
+  scoreEmblemRing: { position: 'absolute', top: 3, right: 3, bottom: 3, left: 3, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,238,172,0.42)' },
+  scoreEmblemShine: { position: 'absolute', top: 4, left: 6, width: 8, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.55)', transform: [{ rotate: '-24deg' }] },
+  scoreEmblemStar: { color: '#FFE27A', fontFamily: FONTS.black, fontSize: 20, lineHeight: 23, textAlign: 'center', textShadowColor: '#8C5811', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  scoreEmblemStarCompact: { fontSize: 17, lineHeight: 20 },
   resourceCopy: { flex: 1, minWidth: 0, justifyContent: 'center' },
   resourceLabel: { color: '#A46E20', fontFamily: FONTS.bold, fontSize: 6.5, lineHeight: 8, letterSpacing: 0.5, fontWeight: '700' },
   resourceValue: { color: '#173E72', fontFamily: FONTS.extraBold, fontSize: 13, lineHeight: 16, fontWeight: '800' },
@@ -691,9 +719,6 @@ const styles = StyleSheet.create({
   brandLogoCompact: { width: '66%', maxWidth: 300 },
   birdFlightLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 1, overflow: 'visible' },
   flyingBird: { position: 'absolute' },
-  flyingBirdLarge: { top: '12%', width: 68, height: 47 },
-  flyingBirdMedium: { top: '43%', width: 48, height: 33 },
-  flyingBirdSmall: { top: '68%', width: 34, height: 24 },
   birdImage: { width: '100%', height: '100%' },
   playButtonStack: { width: 154, height: 154, alignItems: 'center', justifyContent: 'center' },
   playButtonStackCompact: { width: 124, height: 124 },
@@ -719,21 +744,20 @@ const styles = StyleSheet.create({
   ornamentLine: { flex: 1, height: 1, backgroundColor: '#D6AB57' },
   ornament: { color: '#D19A34', fontSize: 10 },
   stepRow: { width: '100%', marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  stepItem: { flexDirection: 'row', alignItems: 'center' },
+  stepItem: { height: 29, flexDirection: 'row', alignItems: 'center' },
   stepConnector: { width: 6, height: 1.5, backgroundColor: '#AAB5BE' },
   stepConnectorDone: { backgroundColor: '#D19A34' },
+  stepDotSlot: { position: 'relative', width: 17, height: 29, alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
   stepDot: { width: 17, height: 17, alignItems: 'center', justifyContent: 'center', borderRadius: 9, borderWidth: 1.5, borderColor: '#57799B', backgroundColor: '#FFFFFF' },
   stepDotDone: { borderColor: '#D69B2B', backgroundColor: '#1A6096' },
   stepDotActive: { zIndex: 3, borderWidth: 2.4, borderColor: '#F2B62F', backgroundColor: '#DDF6FF', shadowColor: '#159FE3', shadowOpacity: 0.95, shadowRadius: 7, elevation: 6 },
   stepDotText: { color: '#FFFFFF', fontFamily: FONTS.bold, fontSize: 10, lineHeight: 12, fontWeight: '700' },
-  stepActiveOrbit: { position: 'absolute', top: -8, left: -8, width: 29, height: 29 },
+  stepActiveOrbit: { position: 'absolute', top: 0, left: -6, zIndex: 4, width: 29, height: 29, borderRadius: 14.5 },
   stepActiveMarker: { position: 'absolute', top: 0, left: 11.5, width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: '#FFFFFF', backgroundColor: '#F2B62F' },
   discoveryText: { marginTop: 9, color: '#234C78', fontFamily: FONTS.semibold, fontSize: 9.5, fontWeight: '600', textAlign: 'center' },
   countryImageFrame: { width: 112, height: 112, overflow: 'visible', borderRadius: 56, borderWidth: 3, borderColor: '#DBA643', backgroundColor: '#9EDCF4', shadowColor: '#B07B22', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
   countryImageFrameCompact: { width: 92, height: 92, borderRadius: 46 },
   countryImage: { borderRadius: 999 },
-  mapPin: { position: 'absolute', top: -17, left: '50%', width: 24, height: 30, marginLeft: -12, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 3, borderRadius: 13, borderWidth: 2, borderColor: '#B67A16', backgroundColor: '#F4B739', transform: [{ rotate: '45deg' }] },
-  mapPinDot: { color: '#FFF8DA', fontSize: 10, lineHeight: 12, transform: [{ rotate: '-45deg' }] },
   pressed: { opacity: 0.78, transform: [{ scale: 0.95 }] },
 
   profileScreen: { flex: 1 },
