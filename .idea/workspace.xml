@@ -6,11 +6,12 @@
   <component name="ChangeListManager">
     <list default="true" id="1f1286ff-0618-41fb-995e-c5757f0c5d40" name="Changes" comment="ver-1">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DESIGN_RULES.md" beforeDir="false" afterPath="$PROJECT_DIR$/DESIGN_RULES.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scripts/validate-levels.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/validate-levels.mjs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app/index.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/index.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/game/number-wheel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/game/number-wheel.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/game/levels.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/levels.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/game/progress-storage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/progress-storage.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/travel.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/travel.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -73,7 +74,7 @@
       <recent name="$PROJECT_DIR$/assets/images/countries/west-africa" />
     </key>
   </component>
-  <component name="RunManager" selected="npm.ios">
+  <component name="RunManager" selected="npm.android">
     <configuration name="android" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
       <package-json value="$PROJECT_DIR$/package.json" />
       <command value="run" />
@@ -94,10 +95,21 @@
       <envs />
       <method v="2" />
     </configuration>
+    <configuration name="validate:levels" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
+      <package-json value="$PROJECT_DIR$/package.json" />
+      <command value="run" />
+      <scripts>
+        <script value="validate:levels" />
+      </scripts>
+      <node-interpreter value="project" />
+      <envs />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="npm.ios" />
         <item itemvalue="npm.android" />
+        <item itemvalue="npm.validate:levels" />
+        <item itemvalue="npm.ios" />
       </list>
     </recent_temporary>
   </component>

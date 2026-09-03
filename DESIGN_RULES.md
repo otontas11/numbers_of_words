@@ -20,9 +20,9 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 - Referans oyun mantığı SHA-256: `5a977715ea99caed82d7231335af66922088b3ff91f3db6304fd973b210bf857`
 - Referansın ölçü, renk, metin ve zamanlamaları korunur.
 - Ürün dokümanındaki mekanik kurallar HTML prototipiyle çelişirse ürün dokümanı üstündür. Örneğin 31. seviyeden itibaren 7 düğüm ve en az `60×60 dp` düğüm kuralı uygulanır.
-- `WordJourneyActivity` yalnız yolculuk haritasının kart, hero, zikzak rota ve geçiş görsel diline referanstır. NOW seyahat verisinin tek doğrusu `src/game/travel.ts` içindeki 14 rota/100 ülke kataloğudur.
+- `WordJourneyActivity` yalnız yolculuk haritasının kart, hero, zikzak rota ve geçiş görsel diline referanstır. NOW seyahat verisinin tek doğrusu `src/game/travel.ts` içindeki 24 rota/170 ülke etabı kataloğudur.
 - `activity_word_path_game.xml` ve `WordWheelView` yalnız oyun ekranının yerleşim ve görsel diline referanstır. Android projesindeki kelime üretimi, skor, ipucu kredisi, reklam, tur ve oyun kuralları alınmaz; NOW matematik motoru ve callback akışı değiştirilemez.
-- Kullanıcının sağladığı “100 Ülkeli Dünya Turu” sırası önceki 6 ülke × 50 level prototipinin yerini tamamen alır.
+- Kullanıcının sağladığı dünya turu sırası önceki 6 ülke × 50 level prototipinin yerini tamamen alır.
 
 ## Ana oyun döngüsü
 
@@ -32,7 +32,7 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 4. Her seviyede ana hedeflerden farklı, garantili çözülebilen bir `💎 Bonus Hedef` kartı bulunur. Bu kart isteğe bağlıdır; ilk beş öğretici ülkede 2 adımlı, 6–8. ülkelerde 2/3 adımlı, sonrasında 2/3/4 adımlı olabilir. Normal ödüller 2/3/4 adım için `4/8/14` mücevherdir; Country Challenge ödülü `×1,5` ile `6/12/21` olur.
 5. Bonus kartı dışında hedef olmayan geçerli bir işlem ilk kez keşfedilirse Bonus Keşif sayacı artar ve `+1 mücevher` verir; aynı kombinasyon tekrar ödül vermez.
 6. Tüm **ana hedefler** bitince bonus kartının durumuna bakılmadan konfeti, güçlü başarı titreşimi ve seviye geçişi çalışır. Çözülmemiş bonus sonraki seviyeye geçişi hiçbir zaman engellemez.
-7. Her ülkede üç destinasyon da 8&apos;er puzzle içerir; 25. puzzle Country Challenge&apos;dır.
+7. Her ülkede üç destinasyon da 7&apos;şer puzzle içerir; 22. puzzle Country Challenge&apos;dır.
 8. Country Challenge tamamlanınca vize pulu ve landmark kazanılır. Oyuncu zorla rota ekranına gönderilmez; ister oyuna devam eder, ister ana ekrandaki Seyahat düğmesiyle yeni bağlantıyı inceler.
 9. Normal seviye geri bildirimi `Puzzle x/y tamamlandı • Şehir` biçimindedir. `Şehir tamamlandı` yalnız katalogda bir sonraki puzzle başka destinasyona geçtiğinde; ülke tamamlandı mesajı yalnız Country Challenge çözüldüğünde gösterilir.
 
@@ -41,7 +41,7 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 | İlerleme | Düğüm | Hedef | Temel işlem yapısı |
 | --- | ---: | ---: | --- |
 | 1. ülke, puzzle 1–10 | 5 | 3 | İki adımlı toplama |
-| 1. ülke, puzzle 11–25 | 6 | 4 | İki adımlı toplama; Challenge dahil |
+| 1. ülke, puzzle 11–22 | 6 | 4 | İki adımlı toplama; Challenge dahil |
 | 2–5. ülkeler | 6 | 4 | Şehir başına sabit işlem, iki adımlı öğretim |
 | 6–8. ülkeler | 7 | 4 | Şehir başına sabit işlem; toplama/çarpma 3, diğerleri 2 adım |
 | 9–16. ülkeler | 7 | 4 | Şehir başına sabit işlem; bölme 2, diğerleri 3 adım |
@@ -63,7 +63,7 @@ Bu dosya React Native uygulamasının bağlayıcı kabul ölçütüdür. Oyun ma
 
 ## Dünya rotası, ülkeler ve pasaport
 
-Katalog tam olarak 21 ardışık rota, 145 benzersiz ülke/149 ülke etabı, 447 gerçek destinasyon ve 3.725 ana puzzle içerir:
+Katalog tam olarak 24 ardışık rota, 166 benzersiz ülke/170 ülke etabı, 510 gerçek destinasyon ve 3.740 ana puzzle içerir:
 
 1. Akdeniz&apos;in Kapısı — Türkiye → Yunanistan → Arnavutluk → Karadağ → Hırvatistan → Slovenya → İtalya → Malta
 2. Batı Akdeniz & Atlantik — Tunus → Cezayir → Fas → İspanya → Portekiz → Fransa → Birleşik Krallık
@@ -79,11 +79,21 @@ Katalog tam olarak 21 ardışık rota, 145 benzersiz ülke/149 ülke etabı, 447
 12. Afrika Macerası — Namibya → Botsvana → Mozambik → Madagaskar → Mauritius → Gana → Senegal
 13. Amerika Yolculuğu — Kanada → ABD → Meksika → Guatemala → Kosta Rika → Kolombiya → Peru
 14. Andlar&apos;dan Büyük Okyanus&apos;a — Ekvador → Bolivya → Şili → Arjantin → Brezilya → Avustralya → Yeni Zelanda
+15. Karayip Hazineleri — Küba → Jamaika → Dominik Cumhuriyeti → Bahamalar → Barbados → Trinidad & Tobago → Haiti
+16. Orta Amerika & Guyanalar — Belize → Honduras → El Salvador → Nikaragua → Panama → Guyana → Surinam
+17. Afrika&apos;nın Kalbi — Uganda → Ruanda → Kongo Demokratik Cumhuriyeti → Kongo Cumhuriyeti → Kamerun → Gabon → Burundi
+18. Batı Afrika — Nijerya → Fildişi Sahili → Benin → Togo → Gambiya → Gine → Sierra Leone
+19. Pasifik Adaları — Fiji → Samoa → Tonga → Vanuatu → Solomon Adaları → Kiribati → Papua Yeni Gine
+20. Kuzey Amerika & Arktik — İzlanda → Grönland → Faroe Adaları → Svalbard → Alaska → Yukon → Nunavut
+21. Afrika&apos;nın Saklı Hazineleri — Angola → Malavi → Lesotho → Esvatini → Seyşeller → Komorlar → Cibuti
+22. Levant & Mezopotamya — Filistin → Lübnan → Suriye → Irak → Yemen → Kıbrıs → İsrail
+23. Batı Afrika Kıyıları — Moritanya → Mali → Burkina Faso → Liberya → Çad → Sudan → Ekvator Ginesi
+24. Güneydoğu Asya & Pasifik — Doğu Timor → Palau → Marshall Adaları → Mikronezya → Tuvalu → Nauru → Yeni Kaledonya
 
-- Her ülke tam `25` ana puzzle içerir: destinasyonlar `1–8`, `9–16`, `17–24`; Country Challenge `25`.
+- Her ülke tam `22` ana puzzle içerir: destinasyonlar `1–7`, `8–14`, `15–21`; Country Challenge `22`.
 - Ülke ve rota state&apos;leri `LOCKED`, `AVAILABLE`, `CURRENT`, `COMPLETED` semantiğini taşır. Bir sonraki ülke/rota ancak önceki tamamlanınca açılır.
 - Ulaşım yalnız ilerleme ödülüdür. Mesafeye göre araba, tren, gemi veya uçak gösterilir; coin/gem ödeme duvarı oluşturulmaz.
-- Pasaport yalnız tamamlanan ülkeleri sayar. Başlangıç `0/100`, her Country Challenge sonrası bir pul, Yeni Zelanda finali sonrası `100/100` gösterilir.
+- Pasaport yalnız tamamlanan benzersiz ülkeleri sayar. Başlangıç `0/166`, her Country Challenge sonrası ilgili ülke benzersizse bir pul, Yeni Zelanda finali sonrası `166/166` gösterilir.
 - Yeni Zelanda Challenge arayüzde `WORLD TOUR FINAL` adını alır. Tamamlandığında bütün rotalar tamamlanmış kalır, `WORLD TOUR COMPLETED`, `Golden Compass` ve `World Explorer` ödül metası tetiklenir; sonraki döngü Master World Tour&apos;dur.
 
 ## Yolculuk haritası ve giriş akışı
@@ -92,18 +102,18 @@ Katalog tam olarak 21 ardışık rota, 145 benzersiz ülke/149 ülke etabı, 447
 - Ana menü arka planı `assets/images/img/bg.png` görselini `cover` olarak kullanır; ülke veya seviye değişiminde başka bir arka planla değiştirilmez.
 - Ana menünün ve oyun HUD&apos;unun sol üst grubunda oyuncu puanı, sağ üst grubunda mücevher bakiyesi bulunur. Bölüm tamamlandığında, yapılan ana hedef işlemlerindeki sayıların toplamı × adım sayısı kadar puan toplu olarak eklenir. Bonus hedef ödülü sonuçtan bağımsız olarak 2/3/4 adım için `4/8/14`, Challenge&apos;da `6/12/21` mücevherdir. İlk kez bulunan serbest Bonus Keşif `+1 mücevher` verir. Toplam puan ve mücevher bakiyesi kalıcı progress&apos;te saklanır.
 - Ekranın merkezindeki büyük altın çerçeveli `BÖLÜM` düğmesi aktif ülke/destinasyon içindeki puzzle numarasını gösterir ve kayıtlı sayı matrisi ile çözülmüş hedeflerden **tek dokunuşla** devam eder.
-- Alt soldaki `PROFİL` düğmesi puan, tamamlanan puzzle, ülke, Bonus Keşif ve pasaport ilerlemesini açar. Alt sağdaki `SEYAHAT` düğmesi 14 rota, ülke kartları, şehir/lokasyon çipleri ve Challenge rayını içeren yolculuk sayfasını açar.
+- Alt soldaki `PROFİL` düğmesi puan, tamamlanan puzzle, ülke, Bonus Keşif ve pasaport ilerlemesini açar. Alt sağdaki `SEYAHAT` düğmesi 24 rota, ülke kartları, şehir/lokasyon çipleri ve Challenge rayını içeren yolculuk sayfasını açar.
 - Rota → ülke → şehir gezinmesi günlük oyuna giriş koşulu değildir. Şehirler ülke kartlarında ilerleme bilgisi olarak görünür; ayrıca şehir seçtirilmez.
 - Hero altındaki `OYUNA DEVAM ET` kartı, oyuncunun bulunduğu harita katmanından bağımsız olarak kayıtlı aktif puzzle&apos;ı **tek dokunuşla** açar. Günlük oyun akışında rota veya ülke seçimi zorunlu değildir.
 - Rota ve ülke listeleri progression engeli değil, keşif/navigasyon yüzeyidir. Oyuncu isterse dünya rotalarını inceler; hızlı oturumda doğrudan `OYUNA DEVAM ET` kullanır.
-- Zoom 1/Dünya aynı anda yalnız 14 tematik rotayı gösterir; 100 ülke pini gösterilmez. Mevcut rota parlak, tamamlanan rota altın, kilitli rota soluktur.
+- Zoom 1/Dünya aynı anda yalnız 24 tematik rotayı gösterir; 170 ülke pini gösterilmez. Mevcut rota parlak, tamamlanan rota altın, kilitli rota soluktur.
 - Dünya hero&apos;sunda `assets/images/world-tour-map.png` kullanılır: yaklaşık doğru kıta yerleşimi, politik sınır ve metin içermeyen 3D/illustrated arazi, altın seyahat izi ve koyu okunabilir UI alanı korunur.
 - Zoom 2/Rota yalnız seçili rotanın coğrafi seyahat sırasındaki 7–8 ülkesini ve aralarındaki ulaşım bağlantılarını gösterir.
 - Ayrı bir şehir/destinasyon seçim katmanı bulunmaz. Destinasyonlar progression verisi ve görsel keşif bilgisi olarak korunur; oyuncuya ek seçim adımı çıkarmaz.
 - Aktif ülke kartına dokunmak da doğrudan kayıtlı puzzle&apos;ı açar. Tamamlanmış veya kilitli ülke kartları kayıtlı seviyeyi değiştirmez.
 - Dünya → rota geçişi keşif içindir; puzzle&apos;a erişim `OYUNA DEVAM ET` veya aktif ülke kartı üzerinden gerçekleşir. Geri kontrolü rota katmanından Dünya&apos;ya, oyun içindeki harita düğmesi de Dünya katmanına götürür.
 - Üst hero alanı Dünya katmanında dünya haritasını, Rota katmanında seçili rota görselini kullanır; hero yüksekliği güvenli alan hariç `268 dp`dir. Alttaki koyu scrim başlık ve rota bilgisini her görselde okunur tutar.
-- Devam kartı hero üzerine `16 dp` biner, yatayda `16 dp` boşluk bırakır ve `18 dp` köşe yarıçapı kullanır. Başlık `OYUNA DEVAM ET`; alt satır aktif ülke, destinasyon ve destinasyon içi puzzle ilerlemesidir. Kartın ilerleme çizgisi aktif ülkenin `x/25` durumunu gösterir.
+- Devam kartı hero üzerine `16 dp` biner, yatayda `16 dp` boşluk bırakır ve `18 dp` köşe yarıçapı kullanır. Başlık `OYUNA DEVAM ET`; alt satır aktif ülke, destinasyon ve destinasyon içi puzzle ilerlemesidir. Kartın ilerleme çizgisi aktif ülkenin `x/22` durumunu gösterir.
 - Rota ve ülke kartları `24/54 dp` ile `54/24 dp` dönüşümlü yatay marjinlerle zikzak yerleşir. Kartlar en fazla `50 ms` aralıkla, `360 ms` sürede ve alttan `22 dp` kayarak açılır.
 - Ülkeler arasındaki bağlantı alanı `56 dp` yüksekliğindedir; ortadaki ulaşım/mesafe çipi rota verisinden okunur.
 - Her ülke kartı sıra/durum, ülke adı, üç şehir/lokasyonu ayrı ve okunabilir bilgi çipleriyle, `5 dp` ilerleme çubuğunu ve üç destinasyon + Challenge ilerleme rayını gösterir. Bu şehir çipleri seçim kontrolü değildir.
@@ -118,11 +128,11 @@ Katalog tam olarak 21 ardışık rota, 145 benzersiz ülke/149 ülke etabı, 447
 - Puzzle ekranı `assets/images/game-sky-background.png` görselini `cover` olarak kullanır. Bu dosya Android referansındaki sky background ile byte-byte aynıdır; üzerine yalnız yaklaşık `%3–10` koyu okunabilirlik katmanı gelir.
 - Puzzle ekranı üst HUD&apos;u güvenli alanın altında `46 dp` yüksekliğindedir; yatay marjin `12 dp`, üst marjin `8–10 dp`dir. Sıra yalnızca `geri → puan … mücevher → ayarlar` biçimindedir; oyun HUD&apos;unda pasaport veya başka kontrol bulunmaz.
 - Ülke/şehir şeridi HUD&apos;un `4 dp` altındadır; `106 dp` yüksekliğinde, ekranın `%94` genişliğinde ve en fazla `488 dp`dir. `28 dp` köşe, `1.5 dp` açık turkuaz kenarlık ve `#3E6472 → #263F4D` yarı saydam degrade kullanır.
-- Şeridin ilk satırı ülke/flag, aktif işlem çipi ve ülke içi `x/25` ilerlemesini gösterir. Challenge aktifken yalnız ülke adının sağında, layout değiştirmeyen hafif pulse animasyonlu `CHALLENGE` etiketi görünür; oyun alanının başka bir yerinde tekrar edilmez.
-- İkinci satır üç destinasyonu `✓ tamamlandı / ● aktif / ○ bekliyor` semantiğiyle sıralar. İlerleme rayı puzzle ağırlıklarıyla `8 + 8 + 8 + 1` oranında dört parçadır; son `%4` genişlikteki kupa parçası Country Challenge ilerlemesidir.
+- Şeridin ilk satırı ülke/flag, aktif işlem çipi ve ülke içi `x/22` ilerlemesini gösterir. Challenge aktifken yalnız ülke adının sağında, layout değiştirmeyen hafif pulse animasyonlu `CHALLENGE` etiketi görünür; oyun alanının başka bir yerinde tekrar edilmez.
+- İkinci satır üç destinasyonu `✓ tamamlandı / ● aktif / ○ bekliyor` semantiğiyle sıralar. İlerleme rayı puzzle ağırlıklarıyla `7 + 7 + 7 + 1` oranında dört parçadır; son yaklaşık `%5` genişlikteki kupa parçası Country Challenge ilerlemesidir.
 - Oyun açıkken 24. puzzle tamamlanıp Country Challenge seviyesine otomatik geçildiğinde ödül veya ek açıklama içermeyen, yalnız `COUNTRY CHALLENGE` bilgisini belirginleştiren kısa başlangıç modalı bir kez gösterilir. Ana sayfadaki `Devam Et` düğmesiyle kayıtlı Challenge&apos;a dönmek bu modalı yeniden açmaz. Challenge üçüncü şehrin işlemini kesintisiz sürdürür; adım sayısı ülkenin öğretim katmanına göre yükselir.
 - Bir destinasyonun son puzzle&apos;ı tamamlandığında otomatik seviye değişmeden önce ortada `DESTİNASYON TAMAMLANDI` kartı görünür; biten destinasyon ve açılan sıradaki destinasyon/Challenge açıkça yazılır. Bu kart bilgi amaçlıdır ve yaklaşık `1.6 sn` sonra akış devam eder.
-- Country Challenge tamamlandığında sonraki ülkeye otomatik ve sessiz geçilmez. Üç destinasyonun onay işaretlerini, `25/25`, pasaport damgasını, landmark ödülünü ve açılan sonraki ülkeyi gösteren zorunlu ülke tamamlama modalı açılır. Yeni ülkenin ilk puzzle&apos;ı yalnız `Sıradaki ülkeye geç` eylemiyle başlatılır; tamamlanmış kayıt uygulama yeniden açıldığında da bu modal atlanmaz.
+- Country Challenge tamamlandığında sonraki ülkeye otomatik ve sessiz geçilmez. Üç destinasyonun onay işaretlerini, `22/22`, pasaport damgasını, landmark ödülünü ve açılan sonraki ülkeyi gösteren zorunlu ülke tamamlama modalı açılır. Yeni ülkenin ilk puzzle&apos;ı yalnız `Sıradaki ülkeye geç` eylemiyle başlatılır; tamamlanmış kayıt uygulama yeniden açıldığında da bu modal atlanmaz.
 - Header ve ana içerik en fazla `512 dp`, modal en fazla `448 dp` genişliğindedir. Modal yüksekliği ekranın en fazla `%85`idir.
 - Ana yatay boşluk `16 dp`; yalnızca kullanılabilir genişliği `288 dp` altına düşen çok dar ekranlarda taşmayı önlemek için küçültülebilir.
 - Hedef alanı Android&apos;deki açık word-card yüzeyine uyarlanır: `#F8FCFB → #DCECEC`, `28 dp` dış köşe, `2 dp #D5EEF2` kenarlık. Üst bilgi satırı `İŞLEM TÜRÜ` altında yalnız işlem sembolünü ve `ADIM SAYISI` altında sayısal adım değerini gösterir. Üç hedef `%31.6`, dört hedef `%23.5` genişlikle tek satırda kalır; aralık `8 dp`, kart yüksekliği en az `62 dp`dir.
@@ -206,7 +216,7 @@ npx expo-doctor@latest
 npx expo export --platform all
 ```
 
-Seviye motoru tüm `1–3725` ana turu ve Master Tour başlangıcını tekrarlı rastgele koşularla doğrular: 21 rota, 145 benzersiz ülke/149 ülke etabı, 447 destinasyon, `8+8+8+Challenge`, doğru düğüm/hedef adedi, benzersiz hedefler, çözülebilirlik, adım tutarlılığı ve ardışık hedef tekrarsızlığı.
+Seviye motoru tüm `1–3740` ana turu ve Master Tour başlangıcını tekrarlı rastgele koşularla doğrular: 24 rota, 166 benzersiz ülke/170 ülke etabı, 510 destinasyon, `7+7+7+Challenge`, doğru düğüm/hedef adedi, benzersiz hedefler, çözülebilirlik, adım tutarlılığı ve ardışık hedef tekrarsızlığı.
 
 Görsel kontrol matrisi: `320×568`, `360×640`, `375×667`, `390×844`, `430×932`, `448×998` ve `768×1024 dp`. Beklenen çember çapları sırasıyla `224`, `240`, `240`, `304`, `304`, `304` ve `336 dp`dir.
 

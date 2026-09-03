@@ -86,8 +86,8 @@ for (const [steps, normalReward, challengeReward] of [
   }
 }
 
-// İlk Yunanistan destinasyonu Atina, Türkiye'nin 25 puzzle'ından sonra başlar.
-// İlk yedi puzzle şehri bitiremez; yalnız 8/8 olan puzzle Atina'yı tamamlar.
+// İlk Yunanistan destinasyonu Atina, Türkiye'nin 22 puzzle'ından sonra başlar.
+// İlk altı puzzle şehri bitiremez; yalnız 7/7 olan puzzle Atina'yı tamamlar.
 const firstGreeceLevel = COUNTRY_LEVEL_COUNT + 1;
 for (
   let level = firstGreeceLevel;
@@ -95,12 +95,12 @@ for (
   level += 1
 ) {
   if (getTravelLevelCompletion(level).locationCompleted) {
-    throw new Error(`Seviye ${level}: Atina 8/8 olmadan tamamlandı sayıldı.`);
+    throw new Error(`Seviye ${level}: Atina 7/7 olmadan tamamlandı sayıldı.`);
   }
 }
 const firstGreeceCompletionLevel = firstGreeceLevel + DESTINATION_LEVEL_COUNT - 1;
 if (!getTravelLevelCompletion(firstGreeceCompletionLevel).locationCompleted) {
-  throw new Error(`Seviye ${firstGreeceCompletionLevel}: Atina 8/8 tamamlanmadı sayıldı.`);
+  throw new Error(`Seviye ${firstGreeceCompletionLevel}: Atina 7/7 tamamlanmadı sayıldı.`);
 }
 
 const subtraction = computeResult([8, 3], '-');

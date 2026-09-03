@@ -1532,8 +1532,8 @@ export default function HomeScreen() {
         if (hasCompletedRequiredTargets(nextSolved.size, levelData)) {
           recordCompletedPuzzlePerformance();
           // Mesaj ve seyahat sınırı, paralel UI state'inden değil gerçekten çözülen
-          // puzzle'ın kendi level kimliğinden hesaplanır. Böylece örneğin Atina 1/8,
-          // gecikmiş bir state güncellemesi yüzünden 8/8 gibi değerlendirilemez.
+          // puzzle'ın kendi level kimliğinden hesaplanır. Böylece örneğin Atina 1/7,
+          // gecikmiş bir state güncellemesi yüzünden 7/7 gibi değerlendirilemez.
           const completedPuzzleLevel = levelData.level;
           const travelCompletion = getTravelLevelCompletion(completedPuzzleLevel);
           const completedLocation = travelCompletion.locationCompleted;

@@ -1,6 +1,6 @@
 # Number of Wonders
 
-Sayıları çember üzerinde birleştirerek 14 tematik rotada 100 ülke ve 300 destinasyon açtığın Expo SDK 57 tabanlı React Native oyunudur.
+Sayıları çember üzerinde birleştirerek 24 tematik rotada 170 ülke etabı ve 510 destinasyon açtığın Expo SDK 57 tabanlı React Native oyunudur. Her ülke 7+7+7+1 Challenge olmak üzere 22 puzzle içerir.
 
 Ana ekrandaki **Oyuna Devam Et** kartı kayıtlı puzzle'ı tek dokunuşla açar. Rota ve ülke ekranları keşif için kalır; şehirler ayrı bir seçim ekranı yerine ülke kartlarında gösterilir.
 

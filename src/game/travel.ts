@@ -3,9 +3,9 @@ import {
   routeContentImageUrl,
 } from '../constants/content-images.ts';
 
-export const DESTINATION_LEVEL_COUNT = 8;
-export const COUNTRY_CHALLENGE_LEVEL = 25;
-export const COUNTRY_LEVEL_COUNT = 25;
+export const DESTINATION_LEVEL_COUNT = 7;
+export const COUNTRY_CHALLENGE_LEVEL = 22;
+export const COUNTRY_LEVEL_COUNT = 22;
 
 export type TravelLocation = {
   id: string;
@@ -502,6 +502,57 @@ const ROUTE_SEEDS: readonly RouteSeed[] = [
       ['djibouti', 'Cibuti', '🇩🇯', ['Cibuti', 'Tadjoura', 'Ali Sabieh'], 'Assal Gölü'],
     ],
   },
+  {
+    id: 'levant-mesopotamia',
+    name: 'Levant & Mezopotamya',
+    shortName: 'Levant',
+    emoji: '🏺',
+    theme: 'Kadim şehirler, çöller ve Doğu Akdeniz kültürleri',
+    modes: ['✈️ Uçak', '🚗 Araba', '🚗 Araba', '🚗 Araba', '✈️ Uçak', '🚆 Tren'],
+    countries: [
+      ['palestine', 'Filistin', '🇵🇸', ['Kudüs', 'Ramallah', 'Beytüllahim'], 'Mescid-i Aksa'],
+      ['lebanon', 'Lübnan', '🇱🇧', ['Beyrut', 'Baalbek', 'Trablusşam'], 'Baalbek'],
+      ['syria', 'Suriye', '🇸🇾', ['Şam', 'Halep', 'Palmira'], 'Palmira'],
+      ['iraq', 'Irak', '🇮🇶', ['Bağdat', 'Erbil', 'Necef'], 'Mezopotamya'],
+      ['yemen', 'Yemen', '🇾🇪', ['Sana', 'Aden', 'Şibam'], 'Şibam'],
+      ['cyprus', 'Kıbrıs', '🇨🇾', ['Lefkoşa', 'Limasol', 'Baf'], 'Petra tou Romiou'],
+      ['israel', 'İsrail', '🇮🇱', ['Tel Aviv', 'Hayfa', 'Eilat'], 'Masada'],
+    ],
+  },
+  {
+    id: 'west-africa-coast',
+    name: 'Batı Afrika Kıyıları',
+    shortName: 'Batı Afrika',
+    emoji: '🌊',
+    theme: 'Atlantik kıyıları, yağmur ormanları ve Sahel mirası',
+    modes: ['✈️ Uçak', '🚗 Araba', '🚗 Araba', '✈️ Uçak', '🚗 Araba', '🚆 Tren'],
+    countries: [
+      ['mauritania', 'Moritanya', '🇲🇷', ['Nuakşot', 'Atar', 'Nouadhibou'], 'Chinguetti'],
+      ['mali', 'Mali', '🇲🇱', ['Bamako', 'Timbuktu', 'Djenne'], 'Djenne Camii'],
+      ['burkina-faso', 'Burkina Faso', '🇧🇫', ['Ouagadougou', 'Bobo-Dioulasso', 'Banfora'], 'Karfiguéla Şelaleleri'],
+      ['liberia', 'Liberya', '🇱🇷', ['Monrovia', 'Robertsport', 'Gbarnga'], 'Providence Adası'],
+      ['chad', 'Çad', '🇹🇩', ["N'Djamena", 'Faya-Largeau', 'Abéché'], 'Ennedi Platosu'],
+      ['sudan', 'Sudan', '🇸🇩', ['Hartum', 'Port Sudan', 'Meroe'], 'Meroe Piramitleri'],
+      ['equatorial-guinea', 'Ekvator Ginesi', '🇬🇶', ['Malabo', 'Bata', 'Mongomo'], 'Pico Basile'],
+    ],
+  },
+  {
+    id: 'southeast-asia-pacific',
+    name: 'Güneydoğu Asya & Pasifik',
+    shortName: 'Asya Pasifik',
+    emoji: '🌏',
+    theme: 'Adalar, mercan resifleri ve Pasifik medeniyetleri',
+    modes: ['✈️ Uçak', '✈️ Uçak', '🚆 Tren', '🚗 Araba', '✈️ Uçak', '⛴️ Gemi'],
+    countries: [
+      ['timor-leste', 'Doğu Timor', '🇹🇱', ['Dili', 'Baucau', 'Maubisse'], 'Atauro Adası'],
+      ['palau', 'Palau', '🇵🇼', ['Koror', 'Melekeok', 'Airai'], 'Rock Islands'],
+      ['marshall-islands', 'Marshall Adaları', '🇲🇭', ['Majuro', 'Ebeye', 'Wotje'], 'Bikini Atolü'],
+      ['micronesia', 'Mikronezya', '🇫🇲', ['Palikir', 'Kolonia', 'Weno'], 'Nan Madol'],
+      ['tuvalu', 'Tuvalu', '🇹🇻', ['Funafuti', 'Vaiaku', 'Asau'], 'Funafuti Lagünü'],
+      ['nauru', 'Nauru', '🇳🇷', ['Yaren', 'Anibare', 'Aiwo'], 'Anibare Körfezi'],
+      ['new-caledonia', 'Yeni Kaledonya', '🇳🇨', ['Nouméa', 'Lifou', 'Bourail'], 'Mercan Resifi'],
+    ],
+  },
 ] as const;
 
 function normalizeCountrySeed(seed: CountrySeed): CountrySeedConfig {
@@ -534,7 +585,7 @@ function makeLocations(
   background: string,
 ): TravelLocation[] {
   const counts = [DESTINATION_LEVEL_COUNT, DESTINATION_LEVEL_COUNT, DESTINATION_LEVEL_COUNT] as const;
-  const starts = [1, 9, 17] as const;
+  const starts = [1, 8, 15] as const;
   return names.map((name, index) => ({
     id: `${countryId}-${slugify(name)}`,
     name,
@@ -815,11 +866,11 @@ export function assertTravelCatalog() {
     const counts = country.locations.map((location) => location.levelCount).join(',');
     const starts = country.locations.map((location) => location.startLevel).join(',');
     if (
-      counts !== '8,8,8' ||
-      starts !== '1,9,17' ||
+      counts !== '7,7,7' ||
+      starts !== '1,8,15' ||
       country.challenge.startLevel !== COUNTRY_CHALLENGE_LEVEL
     ) {
-      throw new Error(`${country.country}: beklenen 8+8+8+Challenge progression yapısına uymuyor.`);
+      throw new Error(`${country.country}: beklenen 7+7+7+Challenge progression yapısına uymuyor.`);
     }
   });
 }
