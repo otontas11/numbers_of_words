@@ -1,4 +1,5 @@
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, type ReactNode, type RefObject } from 'react';
 import { BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
@@ -7,7 +8,6 @@ import { SoundPressable as Pressable } from '@/components/common/sound-pressable
 import { FONTS } from '@/constants/fonts';
 import { localizeCountry, useI18n } from '@/i18n';
 import {
-  COUNTRY_LEVEL_COUNT,
   PASSPORT_COUNTRIES,
   TOTAL_COUNTRIES,
   TOTAL_ROUTES,
@@ -57,13 +57,23 @@ function GameModal({
       blurMethod="dimezisBlurViewSdk31Plus"
       blurReductionFactor={2.2}
       blurTarget={blurTarget}
-      intensity={72}
+      intensity={appearance === 'journey' ? 18 : 72}
       style={styles.overlay}
       tint={appearance === 'journey' ? 'light' : 'dark'}>
-      <View
-        pointerEvents="none"
-        style={[styles.overlayTint, appearance === 'journey' && styles.journeyOverlayTint]}
-      />
+      {appearance === 'journey' ? (
+        <LinearGradient
+          colors={[
+            'rgba(188,234,247,0.96)',
+            'rgba(143,207,211,0.94)',
+            'rgba(240,217,173,0.96)',
+          ]}
+          locations={[0, 0.68, 1]}
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+        />
+      ) : (
+        <View pointerEvents="none" style={styles.overlayTint} />
+      )}
       <View style={[styles.modalCard, appearance === 'journey' && styles.journeyModalCard]}>
         <View style={[styles.modalHeader, appearance === 'journey' && styles.journeyModalHeader]}>
           <Text style={styles.modalIcon}>{icon}</Text>
@@ -130,7 +140,6 @@ export function PassportModal({
 
   return (
     <GameModal
-      appearance="journey"
       blurTarget={blurTarget}
       footer={
         <Text style={styles.footerText}>
@@ -195,6 +204,7 @@ export function CountryCompletionModal({
 
   return (
     <GameModal
+      appearance="journey"
       blurTarget={blurTarget}
       footer={
         <Pressable
@@ -354,6 +364,17 @@ const styles = StyleSheet.create({
     shadowRadius: 26,
     elevation: 24,
   },
+  journeyModalCard: {
+    maxWidth: 380,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: '#E2B65C',
+    backgroundColor: 'rgba(255,253,249,0.97)',
+    shadowColor: '#456E80',
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    elevation: 10,
+  },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -362,6 +383,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1E293B',
     backgroundColor: 'rgba(2,6,23,0.72)',
+  },
+  journeyModalHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomColor: '#D5E8E7',
+    backgroundColor: 'rgba(239,249,248,0.96)',
   },
   modalIcon: {
     fontSize: 26,
@@ -376,12 +403,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
   },
+  journeyModalTitle: {
+    color: '#24434D',
+  },
   modalSubtitle: {
     color: '#94A3B8',
     fontFamily: FONTS.regular,
     fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
+  },
+  journeyModalSubtitle: {
+    color: '#557782',
+    fontFamily: FONTS.bold,
   },
   closeButton: {
     width: 36,
@@ -391,11 +425,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#1E293B',
   },
+  journeyCloseButton: {
+    borderWidth: 1,
+    borderColor: '#C7E2E3',
+    backgroundColor: '#F7FCFB',
+  },
   closeText: {
     color: '#CBD5E1',
     fontFamily: FONTS.extraBold,
     fontSize: 15,
     fontWeight: '800',
+  },
+  journeyCloseText: {
+    color: '#557782',
   },
   pressed: {
     opacity: 0.72,
@@ -404,11 +446,19 @@ const styles = StyleSheet.create({
   modalContent: {
     padding: 24,
   },
+  journeyModalContent: {
+    padding: 18,
+  },
   modalFooter: {
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#1E293B',
     backgroundColor: 'rgba(2,6,23,0.7)',
+  },
+  journeyModalFooter: {
+    padding: 14,
+    borderTopColor: '#D5E8E7',
+    backgroundColor: 'rgba(247,252,250,0.96)',
   },
   footerText: {
     color: '#94A3B8',
@@ -420,14 +470,14 @@ const styles = StyleSheet.create({
   },
   countryCompleteHero: {
     alignItems: 'center',
-    paddingVertical: 16,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: '#D9AE45',
-    backgroundColor: '#FFF8E7',
+    paddingVertical: 14,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#E9D39B',
+    backgroundColor: '#FFF9EA',
   },
   countryCompleteFlag: {
-    fontSize: 46,
+    fontSize: 42,
   },
   countryCompleteName: {
     marginTop: 4,
@@ -436,86 +486,24 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
   },
-  countryCompleteProgress: {
-    marginTop: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: '#2E8B68',
-  },
-  countryCompleteProgressText: {
-    color: '#FFFFFF',
+  countryCompleteCheck: {
+    marginTop: 7,
+    color: '#2E8B68',
     fontFamily: FONTS.black,
-    fontSize: 12,
+    fontSize: 18,
     fontWeight: '900',
-  },
-  completedLocations: {
-    marginTop: 14,
-    gap: 7,
-  },
-  completedLocationRow: {
-    minHeight: 38,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: 'rgba(94,211,168,0.35)',
-    backgroundColor: 'rgba(26,89,68,0.24)',
-  },
-  completedLocationIcon: {
-    width: 24,
-    color: '#6EE7B7',
-    fontFamily: FONTS.black,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  completedLocationName: {
-    flex: 1,
-    color: '#E6F8F0',
-    fontFamily: FONTS.bold,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  countryRewards: {
-    marginTop: 14,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  countryRewardCard: {
-    minHeight: 78,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 9,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(245,190,73,0.46)',
-    backgroundColor: 'rgba(120,74,18,0.25)',
-  },
-  countryRewardIcon: {
-    fontSize: 24,
-  },
-  countryRewardTitle: {
-    marginTop: 4,
-    color: '#FFE5A4',
-    fontFamily: FONTS.extraBold,
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: '800',
-    textAlign: 'center',
   },
   nextCountryCard: {
-    marginTop: 14,
+    marginTop: 12,
     alignItems: 'center',
-    padding: 13,
+    padding: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#4B7887',
-    backgroundColor: 'rgba(47,91,105,0.35)',
+    borderColor: '#B9DCDD',
+    backgroundColor: '#EAF7F7',
   },
   nextCountryLabel: {
-    color: '#9FE2EA',
+    color: '#287A88',
     fontFamily: FONTS.black,
     fontSize: 9,
     letterSpacing: 1.1,
@@ -523,18 +511,10 @@ const styles = StyleSheet.create({
   },
   nextCountryName: {
     marginTop: 5,
-    color: '#FFFFFF',
+    color: '#24434D',
     fontFamily: FONTS.black,
     fontSize: 13,
     fontWeight: '900',
-    textAlign: 'center',
-  },
-  nextCountryDestination: {
-    marginTop: 4,
-    color: '#B9CED4',
-    fontFamily: FONTS.semibold,
-    fontSize: 10,
-    fontWeight: '600',
     textAlign: 'center',
   },
   countryContinueButton: {
@@ -544,11 +524,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#FFF1B9',
-    backgroundColor: '#D9A62E',
+    borderColor: '#D2F1F2',
+    backgroundColor: '#2F849B',
+    shadowColor: '#376B79',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 3,
   },
   countryContinueText: {
-    color: '#2E261F',
+    color: '#FFFFFF',
     fontFamily: FONTS.black,
     fontSize: 12,
     fontWeight: '900',
