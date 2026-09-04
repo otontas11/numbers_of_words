@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { AdMobBanner } from '@/components/ads/admob-banner';
 import { StartupSplash } from '@/components/startup-splash';
 import { useAudioSessionLifecycle } from '@/hooks/audio-session';
 import { useContentImageCache } from '@/hooks/use-content-image-cache';
@@ -50,6 +51,7 @@ export default function RootLayout() {
           }}>
           <Stack.Screen name="index" />
         </Stack>
+        <AdMobBanner />
       </ThemeProvider>
       {showStartupSplash ? (
         <StartupSplash

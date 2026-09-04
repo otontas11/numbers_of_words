@@ -107,14 +107,20 @@ type ScreenPoint = {
 
 type ResultFlight = {
   id: number;
-  kind: 'result' | 'gem';
+  kind: 'result' | 'gem' | 'points';
   value: number;
+  delay?: number;
   followUpGemReward?: number;
   targetIndex: number;
   fromX: number;
   fromY: number;
   toX: number;
   toY: number;
+};
+
+type ScoreAward = {
+  targetIndex: number;
+  value: number;
 };
 
 type PuzzleActivity = PuzzlePerformance & {
@@ -142,9 +148,14 @@ const RESULT_FLIGHT_ARRIVAL_PROGRESS = 0.9;
 const BONUS_GEM_LAUNCH_DELAY = 360;
 const BONUS_GEM_FLIGHT_DURATION = 960;
 const BONUS_GEM_ARRIVAL_PROGRESS = 0.92;
+const POINTS_FLIGHT_DURATION = 860;
+const POINTS_FLIGHT_ARRIVAL_PROGRESS = 0.9;
+const POINTS_FLIGHT_STAGGER = 120;
 const TARGET_COLOR_REVEAL_DURATION = 300;
 const RESULT_FLIGHT_WIDTH = 52;
 const RESULT_FLIGHT_HEIGHT = 52;
+const POINTS_FLIGHT_WIDTH = 66;
+const POINTS_FLIGHT_HEIGHT = 38;
 const LEVEL_CELEBRATION_DELAY = RESULT_FLIGHT_DURATION + 100;
 const BONUS_TARGET_INDEX = -1;
 const BONUS_DISCOVERY_GEM_REWARD = 1;
@@ -203,6 +214,8 @@ function ResultFlightBadge({
   onComplete: (flight: ResultFlight) => void;
 }) {
   const [progress] = useState(() => new Animated.Value(0));
+  const isGem = flight.kind === 'gem';
+  const isPoints = flight.kind === 'points';
 
   useEffect(() => {
     let arrived = false;
@@ -217,19 +230,33 @@ function ResultFlightBadge({
     // Native sürücüyle çalışan Animated animasyonlarında JS addListener
     // geri çağrıları tetiklenmez; bu yüzden varış noktası platformdan
     // bağımsız ve deterministik olarak zamanlayıcı ile kurulum yapılır.
-    const duration = flight.kind === 'gem' ? BONUS_GEM_FLIGHT_DURATION : RESULT_FLIGHT_DURATION;
+    const duration = isGem
+      ? BONUS_GEM_FLIGHT_DURATION
+      : isPoints
+        ? POINTS_FLIGHT_DURATION
+        : RESULT_FLIGHT_DURATION;
     const arrivalProgress =
-      flight.kind === 'gem' ? BONUS_GEM_ARRIVAL_PROGRESS : RESULT_FLIGHT_ARRIVAL_PROGRESS;
-    const arrivalTimer = setTimeout(markArrived, duration * arrivalProgress);
-    const animation = Animated.timing(progress, {
+      isGem
+        ? BONUS_GEM_ARRIVAL_PROGRESS
+        : isPoints
+          ? POINTS_FLIGHT_ARRIVAL_PROGRESS
+          : RESULT_FLIGHT_ARRIVAL_PROGRESS;
+    const launchDelay = flight.delay ?? 0;
+    const arrivalTimer = setTimeout(markArrived, launchDelay + duration * arrivalProgress);
+    const timingAnimation = Animated.timing(progress, {
       toValue: 1,
       duration,
       easing:
-        flight.kind === 'gem'
+        isGem
           ? Easing.bezier(0.22, 0.61, 0.36, 1)
-          : Easing.bezier(0.175, 0.885, 0.32, 1),
+          : isPoints
+            ? Easing.bezier(0.2, 0.72, 0.3, 1)
+            : Easing.bezier(0.175, 0.885, 0.32, 1),
       useNativeDriver: true,
     });
+    const animation = launchDelay > 0
+      ? Animated.sequence([Animated.delay(launchDelay), timingAnimation])
+      : timingAnimation;
     animation.start(({ finished }) => {
       if (!finished) return;
       completed = true;
@@ -240,10 +267,10 @@ function ResultFlightBadge({
       clearTimeout(arrivalTimer);
       if (!completed) animation.stop();
     };
-  }, [flight, onArrive, onComplete, progress]);
+  }, [flight, isGem, isPoints, onArrive, onComplete, progress]);
 
   const middleX = flight.fromX + (flight.toX - flight.fromX) * 0.56;
-  const middleY = (flight.fromY + flight.toY) / 2 - (flight.kind === 'gem' ? 82 : 48);
+  const middleY = (flight.fromY + flight.toY) / 2 - (isGem ? 82 : isPoints ? 64 : 48);
   const translateX = progress.interpolate({
     inputRange: [0, 0.56, 1],
     outputRange: [flight.fromX, middleX, flight.toX],
@@ -253,37 +280,55 @@ function ResultFlightBadge({
     outputRange: [flight.fromY, middleY, flight.toY],
   });
   const scale = progress.interpolate(
-    flight.kind === 'gem'
+    isGem
       ? {
           inputRange: [0, 0.16, 0.58, 0.84, 1],
           outputRange: [0.72, 1.16, 1, 1.08, 0.35],
         }
-      : {
-          inputRange: [0, 0.2, 0.8, 1],
-          outputRange: [1, 1.25, 1.02, 0.3],
-        },
+      : isPoints
+        ? {
+            inputRange: [0, 0.16, 0.72, 1],
+            outputRange: [0.64, 1.14, 1, 0.38],
+          }
+        : {
+            inputRange: [0, 0.2, 0.8, 1],
+            outputRange: [1, 1.25, 1.02, 0.3],
+          },
   );
-  const opacity = progress.interpolate({
-    inputRange: [0, 0.82, 1],
-    outputRange: [1, 1, 0],
-  });
+  const opacity = progress.interpolate(
+    isPoints
+      ? { inputRange: [0, 0.06, 0.82, 1], outputRange: [0, 1, 1, 0] }
+      : { inputRange: [0, 0.82, 1], outputRange: [1, 1, 0] },
+  );
   const rotate = progress.interpolate({
     inputRange: [0, 0.56, 1],
-    outputRange: ['-5deg', '2deg', '0deg'],
+    outputRange: isPoints ? ['-9deg', '5deg', '0deg'] : ['-5deg', '2deg', '0deg'],
   });
 
   return (
     <Animated.View
       style={[
         styles.resultFlight,
-        flight.kind === 'gem' && styles.resultGemFlight,
+        isGem && styles.resultGemFlight,
+        isPoints && styles.resultPointsFlight,
         {
           opacity,
           transform: [{ translateX }, { translateY }, { scale }, { rotate }],
         },
       ]}>
-      {flight.kind === 'gem' ? (
+      {isGem ? (
         <Text style={styles.resultFlightGem}>💎</Text>
+      ) : isPoints ? (
+        <LinearGradient
+          colors={['#FFE790', '#E7A928']}
+          end={{ x: 1, y: 1 }}
+          start={{ x: 0, y: 0 }}
+          style={styles.resultPointsSurface}>
+          <Text style={styles.resultPointsStar}>★</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.resultPointsValue}>
+            +{flight.value}
+          </Text>
+        </LinearGradient>
       ) : (
         <LinearGradient
           colors={['#63D5B1', '#16906B']}
@@ -780,12 +825,21 @@ function PulsingGems({
   );
 }
 
-function ScorePill({ compact, score }: { compact: boolean; score: number }) {
+function ScorePill({
+  compact,
+  measureRef,
+  score,
+}: {
+  compact: boolean;
+  measureRef?: MutableRefObject<View | null>;
+  score: number;
+}) {
   const { locale, t } = useI18n();
   const { displayValue, gain, gainOpacity, gainScale, gainTranslateY } = useAnimatedCounter(score);
 
   return (
     <Animated.View
+      ref={measureRef}
       accessibilityLabel={t('home.pointsA11y', { value: displayValue })}
       style={[
         styles.scoreButton,
@@ -1177,7 +1231,9 @@ export default function HomeScreen() {
   const targetCardRefs = useRef<(View | null)[]>([]);
   const bonusCardRef = useRef<View>(null);
   const gemTargetRef = useRef<View>(null);
+  const scoreTargetRef = useRef<View>(null);
   const levelScorePending = useRef(0);
+  const targetScoreAwardsRef = useRef(new Map<number, number>());
   const performanceHistoryRef = useRef<PuzzlePerformance[]>([]);
   const learningScoreRef = useRef(INITIAL_LEARNING_SCORE);
   const cityDifficultyModifierRef = useRef<DifficultyModifier>(0);
@@ -1554,15 +1610,66 @@ export default function HomeScreen() {
     [launchGemFlight, triggerEffect],
   );
 
+  const launchScoreFlights = useCallback(
+    async (awards: readonly ScoreAward[]) => {
+      const total = awards.reduce((sum, award) => sum + award.value, 0);
+      if (total <= 0) return 0;
+
+      const sourceViews = awards.map(
+        ({ targetIndex }) => targetCardRefs.current[targetIndex] ?? null,
+      );
+      const [rootRect, targetRect, ...sourceRects] = await Promise.all([
+        measureViewInWindow(resultLayerRef.current),
+        measureViewInWindow(scoreTargetRef.current),
+        ...sourceViews.map((view) => measureViewInWindow(view)),
+      ]);
+      const fallbackSource = sourceRects.find(
+        (rect): rect is MeasuredRect => rect !== null,
+      );
+
+      if (!rootRect || !targetRect || !fallbackSource) {
+        setScore((currentScore) => currentScore + total);
+        triggerEffect('points');
+        return 0;
+      }
+
+      const flights = awards.map((award, index): ResultFlight => {
+        const sourceRect = sourceRects[index] ?? fallbackSource;
+        const flight: ResultFlight = {
+          id: nextFlightId.current,
+          kind: 'points',
+          value: award.value,
+          delay: index * POINTS_FLIGHT_STAGGER,
+          targetIndex: award.targetIndex,
+          fromX: sourceRect.x + sourceRect.width / 2 - rootRect.x,
+          fromY: sourceRect.y + sourceRect.height / 2 - rootRect.y,
+          toX: targetRect.x + targetRect.width / 2 - rootRect.x,
+          toY: targetRect.y + targetRect.height / 2 - rootRect.y,
+        };
+        nextFlightId.current += 1;
+        return flight;
+      });
+
+      setResultFlights((current) => [...current, ...flights]);
+      return POINTS_FLIGHT_DURATION + (flights.length - 1) * POINTS_FLIGHT_STAGGER;
+    },
+    [triggerEffect],
+  );
+
   const handleResultFlightArrive = useCallback(
     (flight: ResultFlight) => {
       if (flight.kind === 'gem') {
         setGemCount((count) => count + flight.value);
         return;
       }
+      if (flight.kind === 'points') {
+        setScore((currentScore) => currentScore + flight.value);
+        triggerEffect('points');
+        return;
+      }
       revealTarget(flight.targetIndex);
     },
-    [revealTarget],
+    [revealTarget, triggerEffect],
   );
 
   const handleResultFlightComplete = useCallback(
@@ -1661,6 +1768,7 @@ export default function HomeScreen() {
     setLevel(nextLevel);
     setLevelData(nextLevelData);
     levelScorePending.current = 0;
+    targetScoreAwardsRef.current.clear();
     setSolvedTargets(new Set());
     setBonusSolved(false);
     setBonusFlying(false);
@@ -1732,6 +1840,7 @@ export default function HomeScreen() {
         setSolvedTargets(nextSolved);
         const earnedPoints = getTargetScore(values);
         levelScorePending.current += earnedPoints;
+        targetScoreAwardsRef.current.set(targetIndex, earnedPoints);
         triggerEffect('success');
         void launchResultFlight(calculation.result, targetIndex, resultOrigin);
 
@@ -1773,44 +1882,82 @@ export default function HomeScreen() {
               text: t('feedback.levelComplete', { points: levelScorePending.current, message: completionMessage }),
               tone: 'success',
             },
-            LEVEL_CELEBRATION_DELAY + 1100,
+            LEVEL_CELEBRATION_DELAY +
+              POINTS_FLIGHT_DURATION +
+              Math.max(0, nextSolved.size - 1) * POINTS_FLIGHT_STAGGER +
+              250,
           );
           clearTimer(levelTimer);
           levelTimer.current = setTimeout(() => {
             const completionScore = levelScorePending.current;
-            levelScorePending.current = 0;
-            if (completionScore > 0) {
-              setScore((currentScore) => currentScore + completionScore);
-              triggerEffect('points');
+            const scoreAwards = Array.from(
+              targetScoreAwardsRef.current,
+              ([awardTargetIndex, value]) => ({ targetIndex: awardTargetIndex, value }),
+            ).sort((left, right) => left.targetIndex - right.targetIndex);
+            const recordedScore = scoreAwards.reduce((sum, award) => sum + award.value, 0);
+            if (completionScore <= 0) {
+              scoreAwards.splice(0, scoreAwards.length);
+            } else if (recordedScore !== completionScore) {
+              const finalAward = scoreAwards.find((award) => award.targetIndex === targetIndex);
+              const otherAwardsScore = finalAward
+                ? recordedScore - finalAward.value
+                : recordedScore;
+              if (finalAward && completionScore > otherAwardsScore) {
+                finalAward.value = completionScore - otherAwardsScore;
+              } else {
+                scoreAwards.splice(0, scoreAwards.length, {
+                  targetIndex,
+                  value: completionScore,
+                });
+              }
             }
+            levelScorePending.current = 0;
+            targetScoreAwardsRef.current.clear();
             setCelebrating(true);
             triggerEffect('levelComplete');
 
-            if (completedLocation) {
-              setDestinationTransition({
-                completedEmoji: levelData.emoji,
-                completedName: levelData.city,
-                countryChallenge: nextDestination.countryChallenge,
-                nextEmoji: nextDestination.countryChallenge
-                  ? levelData.flag
-                  : nextDestination.location.emoji,
-                nextName: nextDestination.countryChallenge
-                  ? completedCountryName
-                  : nextDestination.location.name,
-              });
-            }
+            void launchScoreFlights(scoreAwards.filter((award) => award.value > 0)).then(
+              (scoreFlightDuration) => {
+                const settleDelay = scoreFlightDuration > 0 ? scoreFlightDuration + 140 : 0;
+                const finishCompletion = () => {
+                  if (completedCountry) {
+                    setCountryCompletionLevel(completedPuzzleLevel);
+                    return;
+                  }
 
-            levelTimer.current = setTimeout(() => {
-              if (completedCountry) {
-                setCountryCompletionLevel(completedPuzzleLevel);
-                return;
-              }
+                  startLevel(
+                    completedPuzzleLevel + 1,
+                    levelData.targets.map((target) => target.value),
+                  );
+                };
 
-              startLevel(
-                completedPuzzleLevel + 1,
-                levelData.targets.map((target) => target.value),
-              );
-            }, nextDestination.countryChallenge ? 2300 : completedLocation ? 1600 : 1000);
+                if (completedLocation) {
+                  levelTimer.current = setTimeout(() => {
+                    setDestinationTransition({
+                      completedEmoji: levelData.emoji,
+                      completedName: levelData.city,
+                      countryChallenge: nextDestination.countryChallenge,
+                      nextEmoji: nextDestination.countryChallenge
+                        ? levelData.flag
+                        : nextDestination.location.emoji,
+                      nextName: nextDestination.countryChallenge
+                        ? completedCountryName
+                        : nextDestination.location.name,
+                    });
+                    levelTimer.current = setTimeout(
+                      finishCompletion,
+                      nextDestination.countryChallenge ? 2300 : 1600,
+                    );
+                  }, settleDelay);
+                  return;
+                }
+
+                levelTimer.current = setTimeout(
+                  finishCompletion,
+                  Math.max(1000, settleDelay),
+                );
+              },
+            );
           }, LEVEL_CELEBRATION_DELAY);
         } else {
           showTimedFeedback(
@@ -1878,6 +2025,7 @@ export default function HomeScreen() {
     },
     [
       bonusSolved,
+      launchScoreFlights,
       launchResultFlight,
       levelData,
       markPuzzleActivity,
@@ -2161,7 +2309,11 @@ export default function HomeScreen() {
                 <BackIcon />
               </Pressable>
 
-              <ScorePill compact={compactHeader} score={score} />
+              <ScorePill
+                compact={compactHeader}
+                measureRef={scoreTargetRef}
+                score={score}
+              />
             </View>
 
             <View
@@ -3122,6 +3274,48 @@ const styles = StyleSheet.create({
     shadowColor: '#6B3E91',
     shadowOpacity: 0.32,
     shadowRadius: 5,
+  },
+  resultPointsFlight: {
+    left: -POINTS_FLIGHT_WIDTH / 2,
+    top: -POINTS_FLIGHT_HEIGHT / 2,
+    width: POINTS_FLIGHT_WIDTH,
+    height: POINTS_FLIGHT_HEIGHT,
+    borderRadius: POINTS_FLIGHT_HEIGHT / 2,
+    shadowColor: '#8A5A08',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.34,
+    shadowRadius: 7,
+    elevation: 18,
+  },
+  resultPointsSurface: {
+    flex: 1,
+    paddingHorizontal: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    borderRadius: POINTS_FLIGHT_HEIGHT / 2,
+    borderWidth: 2,
+    borderColor: 'rgba(255,250,220,0.98)',
+  },
+  resultPointsStar: {
+    color: '#FFFDF0',
+    fontFamily: FONTS.black,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '900',
+    textShadowColor: 'rgba(98,62,4,0.42)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  resultPointsValue: {
+    minWidth: 0,
+    flexShrink: 1,
+    color: '#583A0C',
+    fontFamily: FONTS.black,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '900',
   },
   resultFlightValue: {
     color: '#FFFFFF',
