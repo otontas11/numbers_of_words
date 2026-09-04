@@ -34,6 +34,7 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
+import { HintIcon, ShuffleIcon } from '@/components/common/game-icons';
 import { FONTS } from '@/constants/fonts';
 import { useI18n } from '@/i18n';
 
@@ -191,28 +192,6 @@ function updateSelectionOnUI(
   });
 
   return { selection, addedSelectionCounts, removedSelectionCounts, changed };
-}
-
-function HintIcon() {
-  return (
-    <Svg height={22} viewBox="0 0 24 24" width={22}>
-      <Path
-        d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4.35 12.48C8.48 15.14 9 16.12 9 17h6c0-.88.52-1.86 1.35-2.52A7 7 0 0 0 12 2zm-2 16v-1h4v1h-4zm5.1-5.08c-1.14.9-1.8 1.63-2.02 2.08h-2.16c-.22-.45-.88-1.18-2.02-2.08a5 5 0 1 1 6.2 0z"
-        fill="#FFFFFF"
-      />
-    </Svg>
-  );
-}
-
-function ShuffleIcon() {
-  return (
-    <Svg height={30} viewBox="0 0 24 24" width={30}>
-      <Path
-        d="M16 3h5v5l-1.8-1.8-3.55 3.55-1.4-1.4 3.55-3.55L16 3zM3 6h3.25c1.54 0 2.94.88 3.62 2.26l4.26 8.48A4.04 4.04 0 0 0 17.75 19H21v-2h-3.25c-.78 0-1.49-.44-1.84-1.14l-4.26-8.48A6.02 6.02 0 0 0 6.25 4H3v2zm5.63 8.28 1.12 2.23A6.03 6.03 0 0 1 6.25 20H3v-2h3.25c.78 0 1.49-.44 1.84-1.14l.54-1.08zm10.57 3.52L21 16v5h-5l1.8-1.8 1.4-1.4z"
-        fill="#FFFFFF"
-      />
-    </Svg>
-  );
 }
 
 function WheelGestureSurface({

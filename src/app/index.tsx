@@ -22,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CountryCompletionModal } from '@/components/game/game-modals';
 import { PassportCollection } from '@/components/collection/passport-collection';
+import { BackIcon, SettingsIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
 import { MainMenu, ProfileScreen } from '@/components/home/main-menu';
@@ -2144,7 +2145,7 @@ export default function HomeScreen() {
                   styles.skyControl,
                   pressed && styles.buttonPressed,
                 ]}>
-                <Text style={styles.backIcon}>‹</Text>
+                <BackIcon />
               </Pressable>
 
               <ScorePill compact={compactHeader} score={score} />
@@ -2169,7 +2170,7 @@ export default function HomeScreen() {
                 hitSlop={5}
                 onPress={() => setSettingsVisible(true)}
                 style={({ pressed }) => [styles.skyControl, pressed && styles.buttonPressed]}>
-                <Text style={styles.gameSettingsIcon}>⚙</Text>
+                <SettingsIcon />
               </Pressable>
             </View>
           </View>
@@ -2418,19 +2419,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 5,
     elevation: 5,
-  },
-  backIcon: {
-    marginTop: -3,
-    color: '#FFFFFF',
-    fontFamily: FONTS.medium,
-    fontSize: 40,
-    lineHeight: 42,
-    fontWeight: '500',
-  },
-  gameSettingsIcon: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    lineHeight: 27,
   },
   buttonPressed: {
     opacity: 0.76,
