@@ -795,35 +795,6 @@ function getFeedbackColors(tone: FeedbackTone) {
   return { background: 'rgba(61,127,145,0.97)', border: '#D8EFF1', text: '#FFFFFF' };
 }
 
-function StepCoachmark({ current, total }: { current: number; total: number }) {
-  const [progress] = useState(() => new Animated.Value(0));
-
-  useEffect(() => {
-    progress.setValue(0);
-    const animation = Animated.sequence([
-      Animated.timing(progress, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.delay(780),
-      Animated.timing(progress, { toValue: 0, duration: 220, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-    ]);
-    animation.start();
-    return () => animation.stop();
-  }, [current, progress, total]);
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.stepCoachmark,
-        {
-          opacity: progress,
-          transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [9, 0] }) }],
-        },
-      ]}>
-      <Text style={styles.stepCoachmarkText}>ADIM {current} → {total}</Text>
-    </Animated.View>
-  );
-}
-
 function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (sound: GameSound) => void }) {
   const { t } = useI18n();
   const [lessonIndex, setLessonIndex] = useState(0);
@@ -1126,7 +1097,6 @@ export default function HomeScreen() {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [hintIndices, setHintIndices] = useState<number[]>([]);
   const [hintedTarget, setHintedTarget] = useState<number | null>(null);
-  const [stepCoach, setStepCoach] = useState<number | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [activeScreen, setActiveScreen] = useState<AppScreen>('home');
   const [mountedShellScreens, setMountedShellScreens] = useState<Set<AppScreen>>(
@@ -1187,7 +1157,6 @@ export default function HomeScreen() {
   const discoveredBonuses = useRef(new Set<string>());
   const feedbackTimer = useRef<Timer | null>(null);
   const hintTimer = useRef<Timer | null>(null);
-  const stepCoachTimer = useRef<Timer | null>(null);
   const landingTimer = useRef<Timer | null>(null);
   const levelTimer = useRef<Timer | null>(null);
 
@@ -1893,14 +1862,6 @@ export default function HomeScreen() {
     (selectionCount: number) => {
       markPuzzleActivity();
       triggerEffect(getNodeSelectionSound(selectionCount));
-      if (selectionCount === 1) {
-        clearTimer(stepCoachTimer);
-        setStepCoach(selectionCount);
-        stepCoachTimer.current = setTimeout(() => {
-          setStepCoach(null);
-          stepCoachTimer.current = null;
-        }, 1300);
-      }
     },
     [markPuzzleActivity, triggerEffect],
   );
@@ -2234,9 +2195,6 @@ export default function HomeScreen() {
               </LinearGradient>
 
               <View style={styles.feedbackSlot}>
-                {stepCoach !== null ? (
-                  <StepCoachmark current={stepCoach} total={levelData.steps} />
-                ) : null}
                 {feedback && feedbackColors ? (
                   <View
                     style={[
@@ -2988,27 +2946,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 4,
-  },
-  stepCoachmark: {
-    position: 'absolute',
-    zIndex: 2,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#BCE8EA',
-    backgroundColor: '#287A88',
-    shadowColor: '#163E49',
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  stepCoachmarkText: {
-    color: '#FFFFFF',
-    fontFamily: FONTS.black,
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.6,
   },
   feedbackPill: {
     maxWidth: '94%',
