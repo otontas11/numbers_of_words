@@ -52,7 +52,9 @@ type NumberWheelProps = {
   onPreview: (indices: number[]) => void;
   onComplete: (indices: number[], resultOrigin?: Point) => WheelSelectionOutcome;
   onHint: () => void;
+  onHintPress?: () => void;
   onShuffle: () => void;
+  onShufflePress?: () => void;
   onNodeAdded: (selectionCount: number) => void;
   onNodeRemoved: (selectionCount: number) => void;
   onDraggingChange: (dragging: boolean) => void;
@@ -300,7 +302,9 @@ export const NumberWheel = memo(function NumberWheel({
   onPreview,
   onComplete,
   onHint,
+  onHintPress,
   onShuffle,
+  onShufflePress,
   onNodeAdded,
   onNodeRemoved,
   onDraggingChange,
@@ -1017,7 +1021,9 @@ export const NumberWheel = memo(function NumberWheel({
           accessibilityRole="button"
           hitSlop={8}
           disabled={tutorialFocus === 'shuffle'}
-          onPress={onHint}
+          // Basış anında tetiklemek, özellikle iOS'ta hızlı modal geçişlerinde
+          // onPress'in kaybolmasını önler.
+          onPressIn={onHintPress ?? onHint}
           style={({ pressed }) => [styles.controlButton, tutorialFocus === 'hint' && styles.controlFocused, pressed && styles.controlPressed]}>
           <ExpoLinearGradient
             colors={['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']}
@@ -1035,7 +1041,11 @@ export const NumberWheel = memo(function NumberWheel({
           accessibilityRole="button"
           hitSlop={8}
           disabled={tutorialFocus === 'hint'}
-          onPress={shuffleNodes}
+          // Karıştırma sesi ve aksiyonu parmağın ekrana değdiği anda çalışır.
+          onPressIn={() => {
+            onShufflePress?.();
+            shuffleNodes();
+          }}
           style={({ pressed }) => [styles.controlButton, tutorialFocus === 'shuffle' && styles.controlFocused, pressed && styles.controlPressed]}>
           <ExpoLinearGradient
             colors={['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']}

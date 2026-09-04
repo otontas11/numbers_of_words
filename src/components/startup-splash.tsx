@@ -12,7 +12,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const HOME_BACKGROUND = require('../../assets/images/img/bg.png');
 const HOME_LOGO = require('../../assets/images/img/number_of_wonders.png');
-const BIRD = require('../../assets/images/flying-bird/image_0.png');
+const BIRD_FRAMES = [
+  require('../../assets/images/flying-bird/image_0.png'),
+  require('../../assets/images/flying-bird/image_1.png'),
+  require('../../assets/images/flying-bird/image_2.png'),
+  require('../../assets/images/flying-bird/image_3.png'),
+  require('../../assets/images/flying-bird/image_4.png'),
+  require('../../assets/images/flying-bird/image_5.png'),
+  require('../../assets/images/flying-bird/image_6.png'),
+  require('../../assets/images/flying-bird/image_7.png'),
+  require('../../assets/images/flying-bird/image_8.png'),
+  require('../../assets/images/flying-bird/image_9.png'),
+  require('../../assets/images/flying-bird/image_10.png'),
+  require('../../assets/images/flying-bird/image_11.png'),
+  require('../../assets/images/flying-bird/image_12.png'),
+  require('../../assets/images/flying-bird/image_13.png'),
+  require('../../assets/images/flying-bird/image_14.png'),
+  require('../../assets/images/flying-bird/image_15.png'),
+] as const;
 
 export function StartupSplash({
   onReadyToDisplay,
@@ -29,6 +46,7 @@ export function StartupSplash({
   const [exitOpacity] = useState(() => new Animated.Value(1));
   const [backgroundLoaded, setBackgroundLoaded] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
+  const [birdFrame, setBirdFrame] = useState(0);
   const { height } = useWindowDimensions();
   const compact = height < 760;
 
@@ -61,6 +79,11 @@ export function StartupSplash({
     return () => animation.stop();
   }, [exitOpacity, exiting, onExitComplete]);
 
+  useEffect(() => {
+    const timer = setInterval(() => setBirdFrame((frame) => (frame + 1) % BIRD_FRAMES.length), 110);
+    return () => clearInterval(timer);
+  }, []);
+
   const progressWidth = animatedProgress.interpolate({
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
@@ -91,9 +114,9 @@ export function StartupSplash({
               source={HOME_LOGO}
               style={[styles.logo, compact && styles.logoCompact]}
             />
-            <Image contentFit="contain" source={BIRD} style={[styles.bird, styles.birdOne]} />
-            <Image contentFit="contain" source={BIRD} style={[styles.bird, styles.birdTwo]} />
-            <Image contentFit="contain" source={BIRD} style={[styles.bird, styles.birdThree]} />
+            <Image contentFit="contain" source={BIRD_FRAMES[birdFrame]} style={[styles.bird, styles.birdOne]} />
+            <Image contentFit="contain" source={BIRD_FRAMES[(birdFrame + 4) % BIRD_FRAMES.length]} style={[styles.bird, styles.birdTwo]} />
+            <Image contentFit="contain" source={BIRD_FRAMES[(birdFrame + 8) % BIRD_FRAMES.length]} style={[styles.bird, styles.birdThree]} />
           </View>
         </View>
 

@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CountryCompletionModal } from '@/components/game/game-modals';
+import { CountryCompletionModal, TutorialModal } from '@/components/game/game-modals';
 import { PassportCollection } from '@/components/collection/passport-collection';
 import { BackIcon, GemIcon, SettingsIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
@@ -884,7 +884,7 @@ function getFeedbackColors(tone: FeedbackTone) {
   return { background: 'rgba(61,127,145,0.97)', border: '#D8EFF1', text: '#FFFFFF' };
 }
 
-function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (sound: GameSound) => void }) {
+function FirstPlayTutorial({ onDone, onEffect }: { onDone: () => void; onEffect: (sound: GameSound) => void }) {
   const { t } = useI18n();
   const [lessonIndex, setLessonIndex] = useState(0);
   const [demoCompleted, setDemoCompleted] = useState(false);
@@ -893,25 +893,47 @@ function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (
   const [demoProgress] = useState(() => new Animated.Value(0));
   const [demoStage, setDemoStage] = useState<'shuffle' | 'hint' | 'demo'>('shuffle');
   const [tutorialCelebration, setTutorialCelebration] = useState(false);
+  const [selectedStepCount, setSelectedStepCount] = useState(0);
   const lesson = TUTORIAL_LESSONS[lessonIndex];
   const operation = OPERATION_DETAILS[lesson.op];
   const complete = useCallback((indices: number[]): WheelSelectionOutcome => {
     const values: number[] = indices.map((index) => lesson.numbers[index]);
-    const result = lesson.op === '+' ? values.reduce((a, b) => a + b, 0)
-      : lesson.op === '-' ? values.reduce((a, b) => a - b)
-      : values.reduce((a, b) => a * b, 1);
-    if (indices.length !== lesson.steps || result !== lesson.target) return 'invalid';
-    onSound(lesson.bonus ? 'bonus' : 'success');
+    const calculation = computeResult(values, lesson.op);
+    if (indices.length !== lesson.steps || calculation?.result !== lesson.target) return 'invalid';
+    onEffect(lesson.bonus ? 'bonus' : 'success');
     setTimeout(() => {
+      // Eğitim bölümü de gerçek oyundaki bölüm tamamlanma geri bildirimini
+      // kullanır; bir sonraki derse geçiş bu ses duyulduktan sonra gerçekleşir.
+      onEffect('levelComplete');
       if (lessonIndex === TUTORIAL_LESSONS.length - 1) {
         setTutorialCelebration(true);
-        onSound('success');
-        setTimeout(onDone, 1500);
+        setTimeout(onDone, 1800);
       }
-      else setLessonIndex((current) => current + 1);
-    }, 520);
+      else {
+        setSelectedStepCount(0);
+        setLessonIndex((current) => current + 1);
+      }
+    }, 900);
     return lesson.bonus ? 'bonus' : 'success';
-  }, [lesson, lessonIndex, onDone, onSound]);
+  }, [lesson, lessonIndex, onDone, onEffect]);
+
+  const handleNodeChange = useCallback((selectionCount: number) => {
+    setSelectedStepCount(Math.max(0, Math.min(lesson.steps, selectionCount)));
+    onEffect(getNodeSelectionSound(selectionCount));
+  }, [lesson.steps, onEffect]);
+
+  const handleTutorialHint = useCallback(() => {
+    onEffect('hint');
+    if (demoStage === 'hint') {
+      setDemoSecondHint(false);
+      setDemoStage('demo');
+    }
+  }, [demoStage, onEffect]);
+
+  const handleTutorialShuffle = useCallback(() => {
+    onEffect('shuffle');
+    if (demoStage === 'shuffle') setDemoStage('hint');
+  }, [demoStage, onEffect]);
 
   useEffect(() => {
     if (!lesson.demo || demoCompleted || demoStage !== 'demo') return;
@@ -921,14 +943,22 @@ function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (
       Animated.timing(demoProgress, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
       Animated.delay(1800),
     ]);
+    const soundTimers = [
+      setTimeout(() => onEffect(getNodeSelectionSound(1)), 1100),
+      setTimeout(() => onEffect(getNodeSelectionSound(2)), 1700),
+      setTimeout(() => onEffect('success'), 2300),
+    ];
     animation.start(({ finished }) => {
       if (finished) {
         setDemoCompleted(true);
         setDemoPractice(true);
       }
     });
-    return () => animation.stop();
-  }, [demoCompleted, demoProgress, demoStage, lesson.demo]);
+    return () => {
+      animation.stop();
+      soundTimers.forEach(clearTimeout);
+    };
+  }, [demoCompleted, demoProgress, demoStage, lesson.demo, onEffect]);
 
   useEffect(() => {
     if (demoStage !== 'demo') return;
@@ -937,20 +967,20 @@ function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (
   }, [demoStage]);
 
 
-  return <View style={styles.tutorialOverlay}>
-    <View style={styles.tutorialCard}>
+  return <TutorialModal visible>
+    <View style={styles.tutorialContent}>
       <Text style={styles.tutorialEyebrow}>{t('tutorial.eyebrow', { current: lessonIndex + 1, total: 5 })}</Text>
       <Text style={styles.tutorialTitle}>{lesson.bonus ? t('tutorial.bonusTitle') : t('tutorial.targetTitle')}</Text>
       <View style={[styles.tutorialTargetCard, lesson.bonus && styles.tutorialBonusTargetCard]}><Text style={styles.tutorialTarget}>{lesson.target}</Text><View style={styles.tutorialTargetMeta}><Text style={styles.tutorialOperationPill}>[{operation.symbol}]</Text><View style={styles.tutorialStepDots}>{Array.from({ length: lesson.steps }, (_, index) => <Animated.View key={index} style={[styles.tutorialStepDot, lesson.bonus && styles.tutorialBonusDot, lesson.demo && demoStage === 'demo' && { backgroundColor: '#35AEB6', borderColor: '#167783', opacity: demoProgress.interpolate({ inputRange: [index / lesson.steps, (index + 1) / lesson.steps], outputRange: [0.28, 1] }) }]} />)}</View></View></View>
       <Animated.Text style={[styles.tutorialExpression, { opacity: lesson.demo ? demoProgress : 1 }]}>
         {lesson.numbers.slice(0, lesson.steps).join(` ${operation.symbol} `)} = {lesson.target}
       </Animated.Text>
-      <View style={styles.tutorialExplanationRow}><Text style={styles.tutorialExplanation}>{localizeOperation(operation.symbol)} → [{operation.symbol}]</Text><Text style={styles.tutorialExplanation}>ADIM SAYISI: {Array.from({ length: lesson.steps }, () => '●').join(' ')}</Text></View>
-      {lesson.demo && !demoCompleted ? <NumberWheel key={demoStage} canUseHint hintCost={0} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => { onSound('hint'); if (demoStage === 'hint') { setDemoSecondHint(false); setDemoStage('demo'); } }} onNodeAdded={() => undefined} onNodeRemoved={() => undefined} onPreview={() => undefined} onShuffle={() => { if (demoStage === 'shuffle') setDemoStage('hint'); }} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} tutorialStepIndices={demoStage === 'demo' && demoSecondHint ? [0, 1] : undefined} tutorialOperator={demoStage === 'demo' && demoSecondHint ? operation.symbol : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} canUseHint={false} hintCost={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={() => undefined} onNodeRemoved={() => undefined} onPreview={() => undefined} onShuffle={() => undefined} size={230} />}
+      <View style={styles.tutorialExplanationRow}><Text style={styles.tutorialExplanation}>{localizeOperation(operation.symbol)} → [{operation.symbol}]</Text><View style={styles.tutorialStepsLabel}><Text style={styles.tutorialExplanation}>ADIM SAYISI:</Text><View style={styles.tutorialStepDots}>{Array.from({ length: lesson.steps }, (_, index) => <View key={index} style={[styles.tutorialStepDot, index < selectedStepCount && styles.tutorialStepDotFilled]} />)}</View></View></View>
+      {lesson.demo && !demoCompleted ? <NumberWheel key={demoStage} canUseHint hintCost={0} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => undefined} onHintPress={handleTutorialHint} onNodeAdded={handleNodeChange} onNodeRemoved={handleNodeChange} onPreview={() => undefined} onShuffle={() => undefined} onShufflePress={handleTutorialShuffle} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} tutorialStepIndices={demoStage === 'demo' && demoSecondHint ? [0, 1] : undefined} tutorialOperator={demoStage === 'demo' && demoSecondHint ? operation.symbol : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} canUseHint={false} hintCost={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={handleNodeChange} onNodeRemoved={handleNodeChange} onPreview={() => undefined} onShuffle={() => undefined} onShufflePress={handleTutorialShuffle} size={230} />}
       <Text style={styles.tutorialHint}>{lesson.demo && !demoCompleted ? demoStage === 'shuffle' ? t('tutorial.shuffleInstruction') : demoStage === 'hint' ? t('tutorial.hintInstruction') : t('tutorial.demoInstruction') : lesson.demo && !demoPractice ? t('tutorial.practiceInstruction') : t('tutorial.connectInstruction')}</Text>
     </View>
     <Celebration visible={tutorialCelebration} />
-  </View>;
+  </TutorialModal>;
 }
 
 function JourneyStrip({
@@ -1221,6 +1251,7 @@ export default function HomeScreen() {
   const [landedTarget, setLandedTarget] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [tutorialVisible, setTutorialVisible] = useState(false);
+  const [splashDismissed, setSplashDismissed] = useState(false);
   const blurTarget = useRef<View>(null);
   const navigateToScreen = useCallback((screen: AppScreen) => {
     setMountedShellScreens((current) => {
@@ -1524,8 +1555,8 @@ export default function HomeScreen() {
   ]);
 
   const triggerEffect = useCallback(
-    (kind: GameSound) => {
-      playSound(kind);
+    (kind: GameSound, force = false) => {
+      playSound(kind, force);
       if (!effectsEnabled) return;
       if (kind.startsWith('select')) {
         // Birleştirme sırasında ses olabilir, ancak düğüm düğüme
@@ -2169,8 +2200,12 @@ export default function HomeScreen() {
     t,
   ]);
 
-  if (!hydrated || !contentBootstrap.ready) {
-    return <StartupSplash progress={contentBootstrap.progress} />;
+  if (!hydrated || !contentBootstrap.ready || !splashDismissed) {
+    return <StartupSplash
+      exiting={hydrated && contentBootstrap.ready}
+      onExitComplete={() => setSplashDismissed(true)}
+      progress={contentBootstrap.progress}
+    />;
   }
 
   const overlays = (
@@ -2191,7 +2226,7 @@ export default function HomeScreen() {
         completedLevel={countryCompletionLevel}
         onContinue={continueAfterCountryCompletion}
       />
-      {tutorialVisible && activeScreen === 'game' ? <FirstPlayTutorial onSound={playSound} onDone={() => {
+      {tutorialVisible && activeScreen === 'game' ? <FirstPlayTutorial onEffect={(sound) => triggerEffect(sound, true)} onDone={() => {
         setTutorialVisible(false);
         void AsyncStorage.setItem(TUTORIAL_STORAGE_KEY, 'done');
       }} /> : null}
@@ -2503,17 +2538,20 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  tutorialOverlay: { position: 'absolute', inset: 0, zIndex: 100, alignItems: 'center', justifyContent: 'center', padding: 18, backgroundColor: 'rgba(12,29,38,0.72)' },
-  tutorialCard: { width: '100%', maxWidth: 370, alignItems: 'center', padding: 18, borderRadius: 28, backgroundColor: '#EEF8F7', borderWidth: 2, borderColor: '#D2EEF0' },
-  tutorialEyebrow: { color: '#527782', fontFamily: FONTS.extraBold, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
-  tutorialTitle: { marginTop: 6, color: '#25424D', fontFamily: FONTS.black, fontSize: 18, fontWeight: '900' },
+  tutorialOverlay: { position: 'absolute', inset: 0, zIndex: 100, alignItems: 'center', justifyContent: 'center', padding: 18, backgroundColor: 'rgba(20, 119, 145, 0.28)' },
+  tutorialCard: { width: '100%', maxWidth: 370, alignItems: 'center', padding: 18, borderRadius: 28, backgroundColor: '#F7FFFC', borderWidth: 2, borderColor: '#9CE2E4', shadowColor: '#075985', shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, elevation: 10 },
+  tutorialContent: { width: '100%', alignItems: 'center' },
+  tutorialEyebrow: { color: '#167783', fontFamily: FONTS.extraBold, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  tutorialTitle: { marginTop: 6, color: '#123F4D', fontFamily: FONTS.black, fontSize: 19, fontWeight: '900' },
   tutorialTargetCard: { width: 112, height: 70, marginTop: 7, marginBottom: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1.5, borderColor: '#BAD9DD', backgroundColor: '#FFFFFF' },
   tutorialBonusTargetCard: { borderColor: '#D4A84A', backgroundColor: '#F0E1FF' },
   tutorialTarget: { color: '#187E89', fontFamily: FONTS.black, fontSize: 30, lineHeight: 34, fontWeight: '900' },
   tutorialTargetMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   tutorialOperationPill: { color: '#557782', fontFamily: FONTS.bold, fontSize: 10, fontWeight: '900' },
   tutorialStepDots: { flexDirection: 'row', gap: 3 },
-  tutorialStepDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: '#789AA1', backgroundColor: '#E1ECEB' },
+  tutorialStepsLabel: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  tutorialStepDot: { width: 11, height: 11, borderRadius: 6, borderWidth: 1.5, borderColor: '#398D99', backgroundColor: '#E9F7F5' },
+  tutorialStepDotFilled: { backgroundColor: '#20A9A5', borderColor: '#08777C' },
   tutorialBonusDot: { borderColor: '#B987D8', backgroundColor: '#E4C7FA' },
   tutorialExplanation: { color: '#456975', fontFamily: FONTS.extraBold, fontSize: 12, fontWeight: '900' },
   tutorialExplanationRow: { width: '100%', marginTop: 2, marginBottom: 4, flexDirection: 'row', justifyContent: 'space-between' },

@@ -122,6 +122,22 @@ function GameModal({
   );
 }
 
+/** Eğitim ekranı için ortak, açık deniz temalı modal kabuğu. */
+export function TutorialModal({
+  visible,
+  children,
+}: {
+  visible: boolean;
+  children: ReactNode;
+}) {
+  if (!visible) return null;
+  return (
+    <View pointerEvents="box-none" style={styles.tutorialModalOverlay}>
+      <View style={styles.tutorialModalCard}>{children}</View>
+    </View>
+  );
+}
+
 export function PassportModal({
   visible,
   currentLevel,
@@ -343,6 +359,34 @@ export function AnalysisModal({
 }
 
 const styles = StyleSheet.create({
+  tutorialModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: 'rgba(20, 119, 145, 0.28)',
+  },
+  tutorialModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    maxHeight: '94%',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 30,
+    backgroundColor: '#F7FFFC',
+    borderWidth: 2,
+    borderColor: '#9CE2E4',
+    shadowColor: '#075985',
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 9 },
+    elevation: 10,
+  },
   overlay: {
     position: 'absolute',
     top: 0,

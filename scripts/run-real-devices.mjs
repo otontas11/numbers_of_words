@@ -1,16 +1,24 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { statfs } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
+import { networkInterfaces } from 'node:os';
 import process from 'node:process';
 
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+const appJson = JSON.parse(readFileSync(new URL('../app.json', import.meta.url), 'utf8'));
+const expoConfig = appJson.expo ?? appJson;
+const androidApplicationId = expoConfig.android?.package;
+const iosBundleIdentifier = expoConfig.ios?.bundleIdentifier;
+const developmentClientScheme = `exp+${String(expoConfig.slug ?? '').replace(/[^a-zA-Z0-9+.-]/g, '')}`;
 const requestedPlatform = process.argv[2] ?? 'all';
 const supportedPlatforms = new Set(['all', 'android', 'ios']);
 const metroPort = process.env.DEVICE_METRO_PORT ?? '8083';
 const metroMode = process.env.DEVICE_METRO_MODE ?? 'lan';
+const explicitMetroUrl = process.env.DEVICE_METRO_URL?.replace(/\/$/, '');
 const supportedMetroModes = new Set(['lan', 'localhost', 'tunnel']);
 
 if (!supportedPlatforms.has(requestedPlatform)) {
@@ -25,6 +33,11 @@ if (!/^\d+$/.test(metroPort) || Number(metroPort) < 1 || Number(metroPort) > 655
 
 if (!supportedMetroModes.has(metroMode)) {
   console.error('DEVICE_METRO_MODE; lan, localhost veya tunnel olmalıdır.');
+  process.exit(2);
+}
+
+if (!androidApplicationId || !iosBundleIdentifier || developmentClientScheme === 'exp+') {
+  console.error('app.json içinde slug, android.package ve ios.bundleIdentifier tanımlı olmalıdır.');
   process.exit(2);
 }
 
@@ -126,6 +139,91 @@ function isPackagerRunning() {
 
 function isChildProcessRunning(child) {
   return child.exitCode === null && child.signalCode === null;
+}
+
+function getLanHost() {
+  const candidates = Object.entries(networkInterfaces()).flatMap(([name, addresses]) =>
+    (addresses ?? [])
+      .filter((address) => address.family === 'IPv4' && !address.internal)
+      .map((address) => ({ name, address: address.address })),
+  );
+  const isPrivate = ({ address }) =>
+    address.startsWith('10.') ||
+    address.startsWith('192.168.') ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(address);
+
+  return (
+    candidates.find(({ name }) => name === 'en0') ??
+    candidates.find(({ name }) => name === 'en1') ??
+    candidates.find(isPrivate) ??
+    candidates[0]
+  )?.address;
+}
+
+function getMetroProjectUrl(platform) {
+  if (explicitMetroUrl) return explicitMetroUrl;
+  if (platform === 'android') return `http://127.0.0.1:${metroPort}`;
+
+  const lanHost = getLanHost();
+  if (!lanHost) return null;
+  return `http://${lanHost}:${metroPort}`;
+}
+
+function getDevelopmentClientUrl(platform) {
+  const projectUrl = getMetroProjectUrl(platform);
+  if (!projectUrl) return null;
+  return `${developmentClientScheme}://expo-development-client/?url=${encodeURIComponent(projectUrl)}`;
+}
+
+async function openNativeDevelopmentClient(target) {
+  const developmentClientUrl = getDevelopmentClientUrl(target.platform);
+  if (!developmentClientUrl) {
+    console.error(`✗ ${target.name}: Metro adresi belirlenemedi.`);
+    console.error('DEVICE_METRO_URL ile erişilebilir Metro adresini belirtin.');
+    return 1;
+  }
+
+  if (target.platform === 'android') {
+    const reverseResult = runForOutput('adb', [
+      '-s',
+      target.id,
+      'reverse',
+      `tcp:${metroPort}`,
+      `tcp:${metroPort}`,
+    ]);
+    if (reverseResult.status !== 0) {
+      console.error(
+        `✗ ${target.name}: USB Metro yönlendirmesi kurulamadı: ${reverseResult.stderr.trim()}`,
+      );
+      return 1;
+    }
+
+    return runInteractive('adb', [
+      '-s',
+      target.id,
+      'shell',
+      'am',
+      'start',
+      '-a',
+      'android.intent.action.VIEW',
+      '-d',
+      developmentClientUrl,
+      androidApplicationId,
+    ]);
+  }
+
+  return runInteractive('xcrun', [
+    'devicectl',
+    'device',
+    'process',
+    'launch',
+    '--device',
+    target.id,
+    '--terminate-existing',
+    '--payload-url',
+    developmentClientUrl,
+    iosBundleIdentifier,
+  ]);
 }
 
 async function waitForPackager(child) {
@@ -324,6 +422,15 @@ for (const target of targets) {
   if (exitCode !== 0) {
     failed = true;
     console.error(`✗ ${target.platform.toUpperCase()} başlatılamadı (kod: ${exitCode}).`);
+    continue;
+  }
+
+  const openExitCode = await openNativeDevelopmentClient(target);
+  if (openExitCode !== 0) {
+    failed = true;
+    console.error(`✗ ${target.name}: oyun Metro'ya otomatik bağlanamadı (kod: ${openExitCode}).`);
+  } else {
+    console.log(`✓ ${target.name}: oyun Metro'ya bağlandı.`);
   }
 }
 
