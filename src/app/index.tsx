@@ -109,6 +109,7 @@ type ResultFlight = {
   id: number;
   kind: 'result' | 'gem';
   value: number;
+  followUpGemReward?: number;
   targetIndex: number;
   fromX: number;
   fromY: number;
@@ -137,6 +138,9 @@ type DestinationTransitionState = {
 
 const RESULT_FLIGHT_DURATION = 720;
 const RESULT_FLIGHT_ARRIVAL_PROGRESS = 0.9;
+const BONUS_GEM_LAUNCH_DELAY = 360;
+const BONUS_GEM_FLIGHT_DURATION = 960;
+const BONUS_GEM_ARRIVAL_PROGRESS = 0.92;
 const TARGET_COLOR_REVEAL_DURATION = 300;
 const RESULT_FLIGHT_WIDTH = 52;
 const RESULT_FLIGHT_HEIGHT = 52;
@@ -195,7 +199,7 @@ function ResultFlightBadge({
 }: {
   flight: ResultFlight;
   onArrive: (flight: ResultFlight) => void;
-  onComplete: (flightId: number) => void;
+  onComplete: (flight: ResultFlight) => void;
 }) {
   const [progress] = useState(() => new Animated.Value(0));
 
@@ -212,21 +216,24 @@ function ResultFlightBadge({
     // Native sürücüyle çalışan Animated animasyonlarında JS addListener
     // geri çağrıları tetiklenmez; bu yüzden varış noktası platformdan
     // bağımsız ve deterministik olarak zamanlayıcı ile kurulum yapılır.
-    const arrivalTimer = setTimeout(
-      markArrived,
-      RESULT_FLIGHT_DURATION * RESULT_FLIGHT_ARRIVAL_PROGRESS,
-    );
+    const duration = flight.kind === 'gem' ? BONUS_GEM_FLIGHT_DURATION : RESULT_FLIGHT_DURATION;
+    const arrivalProgress =
+      flight.kind === 'gem' ? BONUS_GEM_ARRIVAL_PROGRESS : RESULT_FLIGHT_ARRIVAL_PROGRESS;
+    const arrivalTimer = setTimeout(markArrived, duration * arrivalProgress);
     const animation = Animated.timing(progress, {
       toValue: 1,
-      duration: RESULT_FLIGHT_DURATION,
-      easing: Easing.bezier(0.175, 0.885, 0.32, 1),
+      duration,
+      easing:
+        flight.kind === 'gem'
+          ? Easing.bezier(0.22, 0.61, 0.36, 1)
+          : Easing.bezier(0.175, 0.885, 0.32, 1),
       useNativeDriver: true,
     });
     animation.start(({ finished }) => {
       if (!finished) return;
       completed = true;
       markArrived();
-      onComplete(flight.id);
+      onComplete(flight);
     });
     return () => {
       clearTimeout(arrivalTimer);
@@ -235,7 +242,7 @@ function ResultFlightBadge({
   }, [flight, onArrive, onComplete, progress]);
 
   const middleX = flight.fromX + (flight.toX - flight.fromX) * 0.56;
-  const middleY = (flight.fromY + flight.toY) / 2 - 48;
+  const middleY = (flight.fromY + flight.toY) / 2 - (flight.kind === 'gem' ? 82 : 48);
   const translateX = progress.interpolate({
     inputRange: [0, 0.56, 1],
     outputRange: [flight.fromX, middleX, flight.toX],
@@ -244,10 +251,17 @@ function ResultFlightBadge({
     inputRange: [0, 0.56, 1],
     outputRange: [flight.fromY, middleY, flight.toY],
   });
-  const scale = progress.interpolate({
-    inputRange: [0, 0.2, 0.8, 1],
-    outputRange: [1, 1.25, 1.02, 0.3],
-  });
+  const scale = progress.interpolate(
+    flight.kind === 'gem'
+      ? {
+          inputRange: [0, 0.16, 0.58, 0.84, 1],
+          outputRange: [0.72, 1.16, 1, 1.08, 0.35],
+        }
+      : {
+          inputRange: [0, 0.2, 0.8, 1],
+          outputRange: [1, 1.25, 1.02, 0.3],
+        },
+  );
   const opacity = progress.interpolate({
     inputRange: [0, 0.82, 1],
     outputRange: [1, 1, 0],
@@ -261,27 +275,23 @@ function ResultFlightBadge({
     <Animated.View
       style={[
         styles.resultFlight,
+        flight.kind === 'gem' && styles.resultGemFlight,
         {
           opacity,
           transform: [{ translateX }, { translateY }, { scale }, { rotate }],
         },
       ]}>
-      <LinearGradient
-        colors={
-          flight.targetIndex === BONUS_TARGET_INDEX
-            ? ['#FFE98A', '#B56AE8']
-            : ['#63D5B1', '#16906B']
-        }
-        end={{ x: 1, y: 1 }}
-        start={{ x: 0, y: 0 }}
-        style={styles.resultFlightSurface}>
-        {flight.kind === 'gem' || flight.targetIndex === BONUS_TARGET_INDEX ? (
-          <Text style={styles.resultFlightGem}>💎</Text>
-        ) : null}
-        {flight.kind === 'gem' ? null : (
+      {flight.kind === 'gem' ? (
+        <Text style={styles.resultFlightGem}>💎</Text>
+      ) : (
+        <LinearGradient
+          colors={['#63D5B1', '#16906B']}
+          end={{ x: 1, y: 1 }}
+          start={{ x: 0, y: 0 }}
+          style={styles.resultFlightSurface}>
           <Text style={styles.resultFlightValue}>{flight.value}</Text>
-        )}
-      </LinearGradient>
+        </LinearGradient>
+      )}
     </Animated.View>
   );
 }
@@ -1157,6 +1167,7 @@ export default function HomeScreen() {
   const discoveredBonuses = useRef(new Set<string>());
   const feedbackTimer = useRef<Timer | null>(null);
   const hintTimer = useRef<Timer | null>(null);
+  const bonusGemTimer = useRef<Timer | null>(null);
   const landingTimer = useRef<Timer | null>(null);
   const levelTimer = useRef<Timer | null>(null);
 
@@ -1378,6 +1389,7 @@ export default function HomeScreen() {
     () => () => {
       clearTimer(feedbackTimer);
       clearTimer(hintTimer);
+      clearTimer(bonusGemTimer);
       clearTimer(landingTimer);
       clearTimer(levelTimer);
     },
@@ -1482,54 +1494,6 @@ export default function HomeScreen() {
     [pulseTarget],
   );
 
-  const handleResultFlightArrive = useCallback(
-    (flight: ResultFlight) => {
-      if (flight.kind === 'gem') {
-        setGemCount((count) => count + flight.value);
-        return;
-      }
-      revealTarget(flight.targetIndex);
-    },
-    [revealTarget],
-  );
-
-  const handleResultFlightComplete = useCallback((flightId: number) => {
-    setResultFlights((current) => current.filter((flight) => flight.id !== flightId));
-  }, []);
-
-  const launchResultFlight = useCallback(
-    async (value: number, targetIndex: number, resultOrigin?: ScreenPoint) => {
-      const [rootRect, sourceRect, targetRect] = await Promise.all([
-        measureViewInWindow(resultLayerRef.current),
-        measureViewInWindow(resultSourceRef.current),
-        measureViewInWindow(
-          targetIndex === BONUS_TARGET_INDEX
-            ? bonusCardRef.current
-            : (targetCardRefs.current[targetIndex] ?? null),
-        ),
-      ]);
-
-      if (!rootRect || !sourceRect || !targetRect) {
-        revealTarget(targetIndex);
-        return;
-      }
-
-      const flight: ResultFlight = {
-        id: nextFlightId.current,
-        kind: 'result',
-        value,
-        targetIndex,
-        fromX: (resultOrigin?.x ?? sourceRect.x + sourceRect.width / 2) - rootRect.x,
-        fromY: (resultOrigin?.y ?? sourceRect.y + sourceRect.height * 0.44) - rootRect.y,
-        toX: targetRect.x + targetRect.width / 2 - rootRect.x,
-        toY: targetRect.y + targetRect.height / 2 - rootRect.y,
-      };
-      nextFlightId.current += 1;
-      setResultFlights((current) => [...current, flight]);
-    },
-    [revealTarget],
-  );
-
   const launchGemFlight = useCallback(async (reward: number) => {
     const [rootRect, sourceRect, targetRect] = await Promise.all([
       measureViewInWindow(resultLayerRef.current),
@@ -1556,9 +1520,82 @@ export default function HomeScreen() {
     setResultFlights((current) => [...current, flight]);
   }, []);
 
+  const scheduleBonusGemFlight = useCallback(
+    (reward: number, delay = BONUS_GEM_LAUNCH_DELAY) => {
+      clearTimer(bonusGemTimer);
+      bonusGemTimer.current = setTimeout(() => {
+        bonusGemTimer.current = null;
+        void launchGemFlight(reward);
+      }, delay);
+    },
+    [launchGemFlight],
+  );
+
+  const handleResultFlightArrive = useCallback(
+    (flight: ResultFlight) => {
+      if (flight.kind === 'gem') {
+        setGemCount((count) => count + flight.value);
+        return;
+      }
+      revealTarget(flight.targetIndex);
+    },
+    [revealTarget],
+  );
+
+  const handleResultFlightComplete = useCallback(
+    (flight: ResultFlight) => {
+      setResultFlights((current) => current.filter((item) => item.id !== flight.id));
+      if (flight.followUpGemReward !== undefined) {
+        scheduleBonusGemFlight(flight.followUpGemReward);
+      }
+    },
+    [scheduleBonusGemFlight],
+  );
+
+  const launchResultFlight = useCallback(
+    async (
+      value: number,
+      targetIndex: number,
+      resultOrigin?: ScreenPoint,
+      followUpGemReward?: number,
+    ) => {
+      const [rootRect, sourceRect, targetRect] = await Promise.all([
+        measureViewInWindow(resultLayerRef.current),
+        measureViewInWindow(resultSourceRef.current),
+        measureViewInWindow(
+          targetIndex === BONUS_TARGET_INDEX
+            ? bonusCardRef.current
+            : (targetCardRefs.current[targetIndex] ?? null),
+        ),
+      ]);
+
+      if (!rootRect || !sourceRect || !targetRect) {
+        revealTarget(targetIndex);
+        if (followUpGemReward !== undefined) scheduleBonusGemFlight(followUpGemReward);
+        return;
+      }
+
+      const flight: ResultFlight = {
+        id: nextFlightId.current,
+        kind: 'result',
+        value,
+        followUpGemReward,
+        targetIndex,
+        fromX: (resultOrigin?.x ?? sourceRect.x + sourceRect.width / 2) - rootRect.x,
+        fromY: (resultOrigin?.y ?? sourceRect.y + sourceRect.height * 0.44) - rootRect.y,
+        toX: targetRect.x + targetRect.width / 2 - rootRect.x,
+        toY: targetRect.y + targetRect.height / 2 - rootRect.y,
+      };
+      nextFlightId.current += 1;
+      setResultFlights((current) => [...current, flight]);
+    },
+    [revealTarget, scheduleBonusGemFlight],
+  );
+
   const startLevel = useCallback((nextLevel: number, previousTargetValues: readonly number[]) => {
     clearTimer(feedbackTimer);
     clearTimer(hintTimer);
+    clearTimer(bonusGemTimer);
     clearTimer(landingTimer);
     const nextDestination = resolveTravelLevel(nextLevel);
     const globalCountryIndex = Math.floor((nextLevel - 1) / COUNTRY_LEVEL_COUNT);
@@ -1781,14 +1818,14 @@ export default function HomeScreen() {
           calculation.result,
           BONUS_TARGET_INDEX,
           resultOrigin,
+          bonusGemReward,
         );
-        void launchGemFlight(bonusGemReward);
         showTimedFeedback(
           {
             text: t('feedback.bonusSolved', { reward: bonusGemReward }),
             tone: 'bonus',
           },
-          1550,
+          2250,
         );
         return 'bonus';
       }
@@ -1814,7 +1851,6 @@ export default function HomeScreen() {
     },
     [
       bonusSolved,
-      launchGemFlight,
       launchResultFlight,
       levelData,
       markPuzzleActivity,
@@ -3003,6 +3039,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(236,253,245,0.96)',
   },
+  resultGemFlight: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#6B3E91',
+    shadowOpacity: 0.32,
+    shadowRadius: 5,
+  },
   resultFlightValue: {
     color: '#FFFFFF',
     fontFamily: FONTS.black,
@@ -3014,10 +3057,10 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   resultFlightGem: {
-    position: 'absolute',
-    top: -10,
-    right: -8,
-    fontSize: 17,
+    fontSize: 32,
+    lineHeight: 40,
+    textAlign: 'center',
+    textAlignVertical: 'center',
   },
   instruction: {
     color: '#557782',
