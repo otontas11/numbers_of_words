@@ -52,9 +52,7 @@ type NumberWheelProps = {
   onPreview: (indices: number[]) => void;
   onComplete: (indices: number[], resultOrigin?: Point) => WheelSelectionOutcome;
   onHint: () => void;
-  onHintPress?: () => void;
   onShuffle: () => void;
-  onShufflePress?: () => void;
   onNodeAdded: (selectionCount: number) => void;
   onNodeRemoved: (selectionCount: number) => void;
   onDraggingChange: (dragging: boolean) => void;
@@ -302,9 +300,7 @@ export const NumberWheel = memo(function NumberWheel({
   onPreview,
   onComplete,
   onHint,
-  onHintPress,
   onShuffle,
-  onShufflePress,
   onNodeAdded,
   onNodeRemoved,
   onDraggingChange,
@@ -763,6 +759,9 @@ export const NumberWheel = memo(function NumberWheel({
   /* eslint-enable react-hooks/immutability, react-hooks/refs */
 
   const shuffleNodes = () => {
+    // Ses geri bildirimi animasyonun tamamlanmasını beklemez; kullanıcı
+    // dokunduğu anda karıştırma hareketiyle eşzamanlı başlar.
+    onShuffle();
     clearSelectionVisuals();
     let next = shuffledIndices(numbers.length);
     let attempts = 0;
@@ -813,7 +812,6 @@ export const NumberWheel = memo(function NumberWheel({
         shufflingOnUI.value = false;
       }
     });
-    onShuffle();
   };
 
   // Düğümler seçilirken artık büyümez; çizgi sabit görsel çapa tam oturur.
@@ -1023,7 +1021,7 @@ export const NumberWheel = memo(function NumberWheel({
           disabled={tutorialFocus === 'shuffle'}
           // Basış anında tetiklemek, özellikle iOS'ta hızlı modal geçişlerinde
           // onPress'in kaybolmasını önler.
-          onPressIn={onHintPress ?? onHint}
+          onPressIn={onHint}
           style={({ pressed }) => [styles.controlButton, tutorialFocus === 'hint' && styles.controlFocused, pressed && styles.controlPressed]}>
           <ExpoLinearGradient
             colors={['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']}
@@ -1042,10 +1040,7 @@ export const NumberWheel = memo(function NumberWheel({
           hitSlop={8}
           disabled={tutorialFocus === 'hint'}
           // Karıştırma sesi ve aksiyonu parmağın ekrana değdiği anda çalışır.
-          onPressIn={() => {
-            onShufflePress?.();
-            shuffleNodes();
-          }}
+          onPressIn={shuffleNodes}
           style={({ pressed }) => [styles.controlButton, tutorialFocus === 'shuffle' && styles.controlFocused, pressed && styles.controlPressed]}>
           <ExpoLinearGradient
             colors={['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']}

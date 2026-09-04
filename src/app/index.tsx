@@ -894,20 +894,31 @@ function FirstPlayTutorial({ onDone, onEffect }: { onDone: () => void; onEffect:
   const [demoStage, setDemoStage] = useState<'shuffle' | 'hint' | 'demo'>('shuffle');
   const [tutorialCelebration, setTutorialCelebration] = useState(false);
   const [selectedStepCount, setSelectedStepCount] = useState(0);
+  const completionLockedRef = useRef(false);
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lesson = TUTORIAL_LESSONS[lessonIndex];
   const operation = OPERATION_DETAILS[lesson.op];
   const complete = useCallback((indices: number[]): WheelSelectionOutcome => {
     const values: number[] = indices.map((index) => lesson.numbers[index]);
     const calculation = computeResult(values, lesson.op);
     if (indices.length !== lesson.steps || calculation?.result !== lesson.target) return 'invalid';
-    onEffect(lesson.bonus ? 'bonus' : 'success');
-    setTimeout(() => {
+    if (completionLockedRef.current) return lesson.bonus ? 'bonus' : 'success';
+
+    completionLockedRef.current = true;
+    // Bonus hedefi gerçek oyunda da elmas sesiyle tamamlanır.
+    onEffect(lesson.bonus ? 'diamond' : 'success');
+    advanceTimerRef.current = setTimeout(() => {
+      advanceTimerRef.current = null;
       // Eğitim bölümü de gerçek oyundaki bölüm tamamlanma geri bildirimini
       // kullanır; bir sonraki derse geçiş bu ses duyulduktan sonra gerçekleşir.
       onEffect('levelComplete');
       if (lessonIndex === TUTORIAL_LESSONS.length - 1) {
         setTutorialCelebration(true);
-        setTimeout(onDone, 1800);
+        doneTimerRef.current = setTimeout(() => {
+          doneTimerRef.current = null;
+          onDone();
+        }, 1800);
       }
       else {
         setSelectedStepCount(0);
@@ -916,6 +927,15 @@ function FirstPlayTutorial({ onDone, onEffect }: { onDone: () => void; onEffect:
     }, 900);
     return lesson.bonus ? 'bonus' : 'success';
   }, [lesson, lessonIndex, onDone, onEffect]);
+
+  useEffect(() => {
+    completionLockedRef.current = false;
+  }, [lessonIndex]);
+
+  useEffect(() => () => {
+    if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
+  }, []);
 
   const handleNodeChange = useCallback((selectionCount: number) => {
     setSelectedStepCount(Math.max(0, Math.min(lesson.steps, selectionCount)));
@@ -976,7 +996,7 @@ function FirstPlayTutorial({ onDone, onEffect }: { onDone: () => void; onEffect:
         {lesson.numbers.slice(0, lesson.steps).join(` ${operation.symbol} `)} = {lesson.target}
       </Animated.Text>
       <View style={styles.tutorialExplanationRow}><Text style={styles.tutorialExplanation}>{localizeOperation(operation.symbol)} → [{operation.symbol}]</Text><View style={styles.tutorialStepsLabel}><Text style={styles.tutorialExplanation}>ADIM SAYISI:</Text><View style={styles.tutorialStepDots}>{Array.from({ length: lesson.steps }, (_, index) => <View key={index} style={[styles.tutorialStepDot, index < selectedStepCount && styles.tutorialStepDotFilled]} />)}</View></View></View>
-      {lesson.demo && !demoCompleted ? <NumberWheel key={demoStage} canUseHint hintCost={0} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => undefined} onHintPress={handleTutorialHint} onNodeAdded={handleNodeChange} onNodeRemoved={handleNodeChange} onPreview={() => undefined} onShuffle={() => undefined} onShufflePress={handleTutorialShuffle} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} tutorialStepIndices={demoStage === 'demo' && demoSecondHint ? [0, 1] : undefined} tutorialOperator={demoStage === 'demo' && demoSecondHint ? operation.symbol : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} canUseHint={false} hintCost={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={handleNodeChange} onNodeRemoved={handleNodeChange} onPreview={() => undefined} onShuffle={() => undefined} onShufflePress={handleTutorialShuffle} size={230} />}
+      {lesson.demo && !demoCompleted ? <NumberWheel canUseHint hintCost={0} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={handleTutorialHint} onNodeAdded={handleNodeChange} onNodeRemoved={handleNodeChange} onPreview={() => undefined} onShuffle={handleTutorialShuffle} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} tutorialStepIndices={demoStage === 'demo' && demoSecondHint ? [0, 1] : undefined} tutorialOperator={demoStage === 'demo' && demoSecondHint ? operation.symbol : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} canUseHint={false} hintCost={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={handleTutorialHint} onNodeAdded={handleNodeChange} onNodeRemoved={handleNodeChange} onPreview={() => undefined} onShuffle={handleTutorialShuffle} size={230} />}
       <Text style={styles.tutorialHint}>{lesson.demo && !demoCompleted ? demoStage === 'shuffle' ? t('tutorial.shuffleInstruction') : demoStage === 'hint' ? t('tutorial.hintInstruction') : t('tutorial.demoInstruction') : lesson.demo && !demoPractice ? t('tutorial.practiceInstruction') : t('tutorial.connectInstruction')}</Text>
     </View>
     <Celebration visible={tutorialCelebration} />
@@ -2200,6 +2220,15 @@ export default function HomeScreen() {
     t,
   ]);
 
+  const handleTutorialEffect = useCallback(
+    (sound: GameSound) => triggerEffect(sound, true),
+    [triggerEffect],
+  );
+  const handleTutorialDone = useCallback(() => {
+    setTutorialVisible(false);
+    void AsyncStorage.setItem(TUTORIAL_STORAGE_KEY, 'done');
+  }, []);
+
   if (!hydrated || !contentBootstrap.ready || !splashDismissed) {
     return <StartupSplash
       exiting={hydrated && contentBootstrap.ready}
@@ -2226,10 +2255,9 @@ export default function HomeScreen() {
         completedLevel={countryCompletionLevel}
         onContinue={continueAfterCountryCompletion}
       />
-      {tutorialVisible && activeScreen === 'game' ? <FirstPlayTutorial onEffect={(sound) => triggerEffect(sound, true)} onDone={() => {
-        setTutorialVisible(false);
-        void AsyncStorage.setItem(TUTORIAL_STORAGE_KEY, 'done');
-      }} /> : null}
+      {tutorialVisible && activeScreen === 'game' ? (
+        <FirstPlayTutorial onEffect={handleTutorialEffect} onDone={handleTutorialDone} />
+      ) : null}
     </>
   );
 

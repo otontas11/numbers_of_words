@@ -1,7 +1,8 @@
-import { useAudioPlayer } from 'expo-audio';
-import { useCallback, useRef } from 'react';
+import { preload, useAudioPlayer } from 'expo-audio';
+import { useCallback, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 
-import { replayAudioPlayer } from '@/hooks/audio-session';
+import { prepareAudioPlayer, replayAudioPlayer } from '@/hooks/audio-session';
 
 export type GameSound =
   | 'select1'
@@ -21,8 +22,34 @@ export type GameSound =
 
 const PLAYER_OPTIONS = {
   keepAudioSessionActive: true,
-  updateInterval: 1000,
+  updateInterval: 100,
 } as const;
+
+const SELECT_SOURCES = [
+  require('../../assets/sounds/select.wav'),
+  require('../../assets/sounds/select-2.wav'),
+  require('../../assets/sounds/select-3.wav'),
+  require('../../assets/sounds/select-4.wav'),
+  require('../../assets/sounds/select-5.wav'),
+  require('../../assets/sounds/select-6.wav'),
+  require('../../assets/sounds/select-7.wav'),
+] as const;
+const HINT_SOURCE = require('../../assets/sounds/hint.mp3');
+const SUCCESS_SOURCE = require('../../assets/sounds/success.wav');
+const BONUS_SOURCE = require('../../assets/sounds/bonus.wav');
+const DIAMOND_SOURCE = require('../../assets/sounds/diamond.wav');
+const LEVEL_COMPLETE_SOURCE = require('../../assets/sounds/level-complete.wav');
+const POINTS_SOURCE = require('../../assets/sounds/points.wav');
+const SHUFFLE_SOURCE = require('../../assets/sounds/bubble_x.mp3');
+const HINT_START_TIME = 0.056;
+const SHUFFLE_START_TIME = 0.049;
+
+// Expo Audio'nun kendi preload önbelleği, tüm oyun ve eğitim efektlerini
+// component render edilmeden önce native decoder'a hazırlar.
+void Promise.all(
+  [...SELECT_SOURCES, HINT_SOURCE, SUCCESS_SOURCE, BONUS_SOURCE, DIAMOND_SOURCE,
+    LEVEL_COMPLETE_SOURCE, POINTS_SOURCE, SHUFFLE_SOURCE].map((source) => preload(source)),
+).catch(() => undefined);
 
 const SOUND_VOLUMES: Partial<Record<GameSound, number>> = {
   bonus: 0.55,
@@ -33,108 +60,197 @@ const SOUND_VOLUMES: Partial<Record<GameSound, number>> = {
 
 export function useGameSounds(enabled: boolean) {
   const selectOnePlayer = useAudioPlayer(
-    require('../../assets/sounds/select.wav'),
+    SELECT_SOURCES[0],
     PLAYER_OPTIONS,
   );
   const selectTwoPlayer = useAudioPlayer(
-    require('../../assets/sounds/select-2.wav'),
+    SELECT_SOURCES[1],
     PLAYER_OPTIONS,
   );
   const selectThreePlayer = useAudioPlayer(
-    require('../../assets/sounds/select-3.wav'),
+    SELECT_SOURCES[2],
     PLAYER_OPTIONS,
   );
   const selectFourPlayer = useAudioPlayer(
-    require('../../assets/sounds/select-4.wav'),
+    SELECT_SOURCES[3],
     PLAYER_OPTIONS,
   );
   const selectFivePlayer = useAudioPlayer(
-    require('../../assets/sounds/select-5.wav'),
+    SELECT_SOURCES[4],
     PLAYER_OPTIONS,
   );
   const selectSixPlayer = useAudioPlayer(
-    require('../../assets/sounds/select-6.wav'),
+    SELECT_SOURCES[5],
     PLAYER_OPTIONS,
   );
   const selectSevenPlayer = useAudioPlayer(
-    require('../../assets/sounds/select-7.wav'),
+    SELECT_SOURCES[6],
     PLAYER_OPTIONS,
   );
   // iOS aynı kısa sesi hızlıca seek edip yeniden başlatırken aradaki çağrıyı
   // yutabiliyor. İkinci ses bankası ardışık dokunuşları ayrı native
   // oynatıcılara dağıtarak her düğüm notasının gecikmeden duyulmasını sağlar.
   const selectOneAlternatePlayer = useAudioPlayer(
-    require('../../assets/sounds/select.wav'),
+    SELECT_SOURCES[0],
     PLAYER_OPTIONS,
   );
   const selectTwoAlternatePlayer = useAudioPlayer(
-    require('../../assets/sounds/select-2.wav'),
+    SELECT_SOURCES[1],
     PLAYER_OPTIONS,
   );
   const selectThreeAlternatePlayer = useAudioPlayer(
-    require('../../assets/sounds/select-3.wav'),
+    SELECT_SOURCES[2],
     PLAYER_OPTIONS,
   );
   const selectFourAlternatePlayer = useAudioPlayer(
-    require('../../assets/sounds/select-4.wav'),
+    SELECT_SOURCES[3],
     PLAYER_OPTIONS,
   );
   const selectFiveAlternatePlayer = useAudioPlayer(
-    require('../../assets/sounds/select-5.wav'),
+    SELECT_SOURCES[4],
     PLAYER_OPTIONS,
   );
   const selectSixAlternatePlayer = useAudioPlayer(
-    require('../../assets/sounds/select-6.wav'),
+    SELECT_SOURCES[5],
     PLAYER_OPTIONS,
   );
   const selectSevenAlternatePlayer = useAudioPlayer(
-    require('../../assets/sounds/select-7.wav'),
+    SELECT_SOURCES[6],
     PLAYER_OPTIONS,
   );
   const selectionVoiceRef = useRef(Array.from({ length: 7 }, () => 0));
   const hintPlayer = useAudioPlayer(
-    require('../../assets/sounds/hint.mp3'),
+    HINT_SOURCE,
     PLAYER_OPTIONS,
   );
   const hintAlternatePlayer = useAudioPlayer(
-    require('../../assets/sounds/hint.mp3'),
+    HINT_SOURCE,
     PLAYER_OPTIONS,
   );
   const hintThirdPlayer = useAudioPlayer(
-    require('../../assets/sounds/hint.mp3'),
+    HINT_SOURCE,
     PLAYER_OPTIONS,
   );
   const hintVoiceRef = useRef(0);
   const successPlayer = useAudioPlayer(
-    require('../../assets/sounds/success.wav'),
+    SUCCESS_SOURCE,
     PLAYER_OPTIONS,
   );
-  const bonusPlayer = useAudioPlayer(require('../../assets/sounds/bonus.wav'), PLAYER_OPTIONS);
+  const bonusPlayer = useAudioPlayer(BONUS_SOURCE, PLAYER_OPTIONS);
   const diamondPlayer = useAudioPlayer(
-    require('../../assets/sounds/diamond.wav'),
+    DIAMOND_SOURCE,
     PLAYER_OPTIONS,
   );
   const levelCompletePlayer = useAudioPlayer(
-    require('../../assets/sounds/level-complete.wav'),
+    LEVEL_COMPLETE_SOURCE,
     PLAYER_OPTIONS,
   );
   const pointsPlayer = useAudioPlayer(
-    require('../../assets/sounds/points.wav'),
+    POINTS_SOURCE,
     PLAYER_OPTIONS,
   );
   const shufflePlayer = useAudioPlayer(
-    require('../../assets/sounds/bubble.mp3'),
+    SHUFFLE_SOURCE,
     PLAYER_OPTIONS,
   );
   const shuffleAlternatePlayer = useAudioPlayer(
-    require('../../assets/sounds/bubble.mp3'),
+    SHUFFLE_SOURCE,
     PLAYER_OPTIONS,
   );
   const shuffleThirdPlayer = useAudioPlayer(
-    require('../../assets/sounds/bubble.mp3'),
+    SHUFFLE_SOURCE,
     PLAYER_OPTIONS,
   );
   const shuffleVoiceRef = useRef(0);
+
+  useEffect(() => {
+    const channels = [
+      { player: selectOnePlayer, startTime: 0 },
+      { player: selectTwoPlayer, startTime: 0 },
+      { player: selectThreePlayer, startTime: 0 },
+      { player: selectFourPlayer, startTime: 0 },
+      { player: selectFivePlayer, startTime: 0 },
+      { player: selectSixPlayer, startTime: 0 },
+      { player: selectSevenPlayer, startTime: 0 },
+      { player: selectOneAlternatePlayer, startTime: 0 },
+      { player: selectTwoAlternatePlayer, startTime: 0 },
+      { player: selectThreeAlternatePlayer, startTime: 0 },
+      { player: selectFourAlternatePlayer, startTime: 0 },
+      { player: selectFiveAlternatePlayer, startTime: 0 },
+      { player: selectSixAlternatePlayer, startTime: 0 },
+      { player: selectSevenAlternatePlayer, startTime: 0 },
+      { player: hintPlayer, startTime: HINT_START_TIME },
+      { player: hintAlternatePlayer, startTime: HINT_START_TIME },
+      { player: hintThirdPlayer, startTime: HINT_START_TIME },
+      { player: successPlayer, startTime: 0 },
+      { player: bonusPlayer, startTime: 0 },
+      { player: diamondPlayer, startTime: 0 },
+      { player: levelCompletePlayer, startTime: 0 },
+      { player: pointsPlayer, startTime: 0 },
+      { player: shufflePlayer, startTime: SHUFFLE_START_TIME },
+      { player: shuffleAlternatePlayer, startTime: SHUFFLE_START_TIME },
+      { player: shuffleThirdPlayer, startTime: SHUFFLE_START_TIME },
+    ] as const;
+
+    const prepareLoadedChannels = () => {
+      channels.forEach(({ player, startTime }) => {
+        if (player.isLoaded) void prepareAudioPlayer(player, startTime);
+      });
+    };
+
+    const subscriptions = channels.map(({ player, startTime }) => {
+      let loaded = player.isLoaded;
+      let finishHandled = false;
+
+      // Yerel dosya native tarafta hazır olur olmaz ilk dokunuş için
+      // konumlandır. Oynatma bitince de kanalı arka planda yeniden kur.
+      if (loaded) void prepareAudioPlayer(player, startTime);
+      return player.addListener('playbackStatusUpdate', (status) => {
+        const justLoaded = status.isLoaded && !loaded;
+        const justFinished = status.didJustFinish && !finishHandled;
+        loaded = status.isLoaded;
+        finishHandled = status.didJustFinish;
+
+        if (justLoaded || justFinished) {
+          void prepareAudioPlayer(player, startTime);
+        }
+      });
+    });
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') prepareLoadedChannels();
+    });
+
+    return () => {
+      appStateSubscription.remove();
+      subscriptions.forEach((subscription) => subscription.remove());
+    };
+  }, [
+    bonusPlayer,
+    diamondPlayer,
+    hintAlternatePlayer,
+    hintPlayer,
+    hintThirdPlayer,
+    levelCompletePlayer,
+    pointsPlayer,
+    selectFiveAlternatePlayer,
+    selectFivePlayer,
+    selectFourAlternatePlayer,
+    selectFourPlayer,
+    selectOneAlternatePlayer,
+    selectOnePlayer,
+    selectSevenAlternatePlayer,
+    selectSevenPlayer,
+    selectSixAlternatePlayer,
+    selectSixPlayer,
+    selectThreeAlternatePlayer,
+    selectThreePlayer,
+    selectTwoAlternatePlayer,
+    selectTwoPlayer,
+    shuffleAlternatePlayer,
+    shufflePlayer,
+    shuffleThirdPlayer,
+    successPlayer,
+  ]);
 
   return useCallback(
     (sound: GameSound, force = false) => {
@@ -193,7 +309,11 @@ export function useGameSounds(enabled: boolean) {
 
       if (!player) return;
 
-      replayAudioPlayer(player, SOUND_VOLUMES[sound] ?? 1);
+      replayAudioPlayer(
+        player,
+        SOUND_VOLUMES[sound] ?? 1,
+        sound === 'shuffle' ? SHUFFLE_START_TIME : sound === 'hint' ? HINT_START_TIME : 0,
+      );
     },
     [
       bonusPlayer,
