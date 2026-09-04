@@ -345,7 +345,7 @@ export const NumberWheel = memo(function NumberWheel({
     onPreview,
   });
 
-  const nodeSize = size < 300 ? 64 : 66;
+  const nodeSize = size < 330 ? 70 : 73;
   // Android WordWheelView ile aynı 1.18× yarıçap: kolay yakalanır, komşu düğüme
   // gereksiz yapışma üretmez. Hızlı hareketler ayrıca segment boyunca taranır.
   const hitRadius = (nodeSize / 2) * 1.18;
@@ -992,8 +992,8 @@ export const NumberWheel = memo(function NumberWheel({
                         styles.nodeText,
                         selected && styles.nodeTextSelected,
                         {
-                          fontSize: size < 300 ? 22 : 26,
-                          lineHeight: size < 300 ? 27 : 32,
+                          fontSize: size < 330 ? 24 : 28,
+                          lineHeight: size < 330 ? 29 : 34,
                         },
                       ]}>
                       {number}
@@ -1024,7 +1024,7 @@ export const NumberWheel = memo(function NumberWheel({
             end={{ x: 0, y: 1 }}
             start={{ x: 0, y: 0 }}
             style={styles.controlSurface}>
-            <HintIcon />
+            <HintIcon size={27} />
             <Text style={styles.controlLabel}>{t('wheel.hint', { cost: hintCost })}</Text>
           </ExpoLinearGradient>
           {tutorialFocus === 'hint' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
@@ -1043,7 +1043,7 @@ export const NumberWheel = memo(function NumberWheel({
             start={{ x: 0, y: 0 }}
             style={styles.controlSurface}>
             <RNAnimated.View style={{ transform: [{ rotate: rotationStyle }] }}>
-              <ShuffleIcon />
+              <ShuffleIcon size={32} />
             </RNAnimated.View>
           </ExpoLinearGradient>
           {tutorialFocus === 'shuffle' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
@@ -1126,7 +1126,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   actionRow: {
-    height: 62,
+    height: 68,
     marginTop: 1,
     paddingHorizontal: 2,
     flexDirection: 'row',
@@ -1134,10 +1134,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   controlButton: {
-    width: 52,
-    height: 52,
+    width: 57,
+    height: 57,
     overflow: 'visible',
-    borderRadius: 26,
+    borderRadius: 28.5,
     borderWidth: 1.5,
     borderColor: 'rgba(236,240,240,0.74)',
     shadowColor: '#000000',
@@ -1161,8 +1161,8 @@ const styles = StyleSheet.create({
   },
   tutorialHand: {
     position: 'absolute',
-    top: 35,
-    left: 25,
+    top: 39,
+    left: 28,
     zIndex: 4,
     width: 42,
     height: 42,
@@ -1179,7 +1179,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 1,
-    borderRadius: 26,
+    borderRadius: 28.5,
     overflow: 'visible',
     padding: 3,
   },

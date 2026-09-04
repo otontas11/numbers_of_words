@@ -508,7 +508,6 @@ function TargetCard({
           start={{ x: 0, y: 0 }}
           style={[
             styles.targetCard,
-            solved && styles.targetSolved,
             hinted && styles.targetHinted,
           ]}>
           {solved ? (
@@ -539,6 +538,7 @@ function TargetCard({
               {Array.from({ length: target.steps }, () => '●').join(' ')}
             </Text>
           </View>
+          {solved ? <View pointerEvents="none" style={styles.targetSolvedBorder} /> : null}
         </LinearGradient>
         {hinted ? <View pointerEvents="none" style={styles.targetHintRing} /> : null}
       </Animated.View>
@@ -913,6 +913,7 @@ function JourneyStrip({
   const countryName = country ? localizeCountry(country, language) : levelData.country;
   const operation = OPERATION_DETAILS[levelData.op];
   const countryProgress = country ? getCountryProgress(level, country.id) : 0;
+  const countryLevelCount = country?.levelCount ?? COUNTRY_LEVEL_COUNT;
   const challengeProgress = Math.max(0, Math.min(1, countryProgress - 19));
   const [challengePulse] = useState(() => new Animated.Value(0));
   const [operationHint] = useState(() => new Animated.Value(0));
@@ -1025,10 +1026,13 @@ function JourneyStrip({
             </Text>
           </Animated.View>
         ) : null}
-        <View style={styles.journeyCountChip}>
-          <Text style={styles.journeyCountText}>
-            {countryProgress}/{country?.levelCount ?? COUNTRY_LEVEL_COUNT}
-          </Text>
+        <View
+          accessible
+          accessibilityLabel={`${countryProgress} / ${countryLevelCount}`}
+          style={styles.journeyCountChip}>
+          <Text style={styles.journeyCountCurrent}>{countryProgress}</Text>
+          <Text style={styles.journeyCountDivider}>/</Text>
+          <Text style={styles.journeyCountTotal}>{countryLevelCount}</Text>
         </View>
       </View>
 
@@ -2530,12 +2534,12 @@ const styles = StyleSheet.create({
   journeyStrip: {
     width: '94%',
     maxWidth: 488,
-    height: 106,
+    height: 94,
     alignSelf: 'center',
     marginTop: 4,
     paddingHorizontal: 12,
-    paddingTop: 7,
-    paddingBottom: 7,
+    paddingTop: 6,
+    paddingBottom: 6,
     overflow: 'hidden',
     borderRadius: 28,
     borderWidth: 1.5,
@@ -2553,7 +2557,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.38,
   },
   journeyTopRow: {
-    minHeight: 22,
+    minHeight: 25,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -2608,27 +2612,45 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   journeyCountChip: {
-    minHeight: 19,
+    minWidth: 55,
+    minHeight: 25,
+    flexDirection: 'row',
+    alignItems: 'baseline',
     justifyContent: 'center',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 10,
-    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 13,
+    borderWidth: 1.5,
     borderColor: '#F8E9BA',
     backgroundColor: '#F3DA93',
   },
-  journeyCountText: {
+  journeyCountCurrent: {
+    color: '#283F48',
+    fontFamily: FONTS.black,
+    fontSize: 14,
+    lineHeight: 17,
+    fontWeight: '900',
+  },
+  journeyCountDivider: {
+    marginHorizontal: 2,
+    color: '#6D5B42',
+    fontFamily: FONTS.extraBold,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '800',
+  },
+  journeyCountTotal: {
     color: '#44342C',
     fontFamily: FONTS.black,
-    fontSize: 9,
-    lineHeight: 11,
+    fontSize: 11,
+    lineHeight: 15,
     fontWeight: '900',
   },
   citySteps: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'stretch',
-    marginTop: 5,
+    marginTop: 3,
     gap: 3,
   },
   cityStepGroup: {
@@ -2636,7 +2658,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   cityStepLine: {
-    height: 42,
+    height: 36,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -2669,7 +2691,7 @@ const styles = StyleSheet.create({
   },
   cityProgressTrack: {
     width: '100%',
-    height: 7,
+    height: 6,
     overflow: 'hidden',
     borderRadius: 8,
     backgroundColor: 'rgba(110,135,144,0.72)',
@@ -2853,7 +2875,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 90,
   },
-  targetSolved: {
+  targetSolvedBorder: {
+    position: 'absolute',
+    zIndex: 2,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: 16,
     borderWidth: 2,
     borderColor: '#10B981',
   },

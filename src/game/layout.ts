@@ -9,22 +9,26 @@ export function getGameLayout(windowWidth: number, windowHeight: number): GameLa
   const compact = windowWidth < 640;
   const compactHeader = windowWidth < 430;
   const contentHorizontalPadding = windowWidth < 320 ? 12 : 16;
-  const referenceWheelSize = compact ? 304 : 336;
+  const referenceWheelSize = compact ? 334 : 370;
   const heightBoundWheelSize =
     windowHeight < 600
-      ? 224
+      ? 246
       : windowHeight < 700
-        ? 240
+        ? 264
         : windowHeight < 780
-          ? 268
+          ? 295
           : windowHeight < 830
-            ? 288
+            ? 317
             : referenceWheelSize;
+  const widthBoundWheelSize = Math.max(
+    224,
+    windowWidth - Math.min(contentHorizontalPadding * 2, 16),
+  );
   const wheelSize = Math.round(
     Math.min(
       referenceWheelSize,
       heightBoundWheelSize,
-      Math.max(224, windowWidth - Math.min(contentHorizontalPadding * 2, 16)),
+      widthBoundWheelSize,
     ),
   );
 
