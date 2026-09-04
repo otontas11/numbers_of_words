@@ -1,8 +1,13 @@
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 
 type GameIconProps = {
   color?: string;
   size?: number;
+};
+
+type GemIconProps = GameIconProps & {
+  facetColor?: string;
+  outlineColor?: string;
 };
 
 export function BackIcon({ color = '#F2FAFC', size = 27 }: GameIconProps) {
@@ -32,21 +37,53 @@ export function SettingsIcon({ color = '#EDF8FA', size = 26 }: GameIconProps) {
   );
 }
 
-export function HintIcon({ color = '#FFF3B5', size = 25 }: GameIconProps) {
+export function HintIcon({ color = '#FFF5B8', size = 25 }: GameIconProps) {
   return (
     <Svg height={size} viewBox="0 0 24 24" width={size}>
       <Path
-        d="M12 2.25a6.55 6.55 0 0 0-3.93 11.79c.59.44.93 1.1.93 1.8V18h6v-2.16c0-.7.34-1.36.93-1.8A6.55 6.55 0 0 0 12 2.25Z"
+        d="M12 3.35a6.2 6.2 0 0 0-3.72 11.16c.58.43.92 1.08.92 1.78v1.46h5.6v-1.46c0-.7.34-1.35.92-1.78A6.2 6.2 0 0 0 12 3.35Z"
         fill={color}
       />
       <Path
-        d="M9.25 20h5.5M10.5 22h3"
+        d="M12 .9v1.25M4.75 3.9l1.2 1.2M19.25 3.9l-1.2 1.2M2.8 10.7h1.7M19.5 10.7h1.7"
         fill="none"
         stroke={color}
         strokeLinecap="round"
-        strokeWidth={1.8}
+        strokeWidth={1.7}
       />
-      <Circle cx={9.6} cy={6.8} fill="rgba(255,255,255,0.7)" r={1.05} />
+      <Path
+        d="M9.25 7.05c-.85.65-1.38 1.68-1.38 2.82"
+        fill="none"
+        stroke="rgba(255,255,255,0.72)"
+        strokeLinecap="round"
+        strokeWidth={1.2}
+      />
+    </Svg>
+  );
+}
+
+export function GemIcon({
+  color = '#C9F6FF',
+  facetColor = 'rgba(70,145,171,0.72)',
+  outlineColor = 'rgba(255,255,255,0.92)',
+  size = 12,
+}: GemIconProps) {
+  return (
+    <Svg height={size} viewBox="0 0 24 24" width={size}>
+      <Path
+        d="M5.1 4.2h13.8L22 9.25 12 20.8 2 9.25 5.1 4.2Z"
+        fill={color}
+        stroke={outlineColor}
+        strokeLinejoin="round"
+        strokeWidth={1.65}
+      />
+      <Path
+        d="m5.1 4.2 2.2 5.05L12 20.8l4.7-11.55 2.2-5.05M2 9.25h20M7.3 9.25 12 4.2l4.7 5.05"
+        fill="none"
+        stroke={facetColor}
+        strokeLinejoin="round"
+        strokeWidth={1.2}
+      />
     </Svg>
   );
 }

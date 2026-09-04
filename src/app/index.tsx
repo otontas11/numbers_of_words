@@ -22,7 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CountryCompletionModal } from '@/components/game/game-modals';
 import { PassportCollection } from '@/components/collection/passport-collection';
-import { BackIcon, SettingsIcon } from '@/components/common/game-icons';
+import { BackIcon, GemIcon, SettingsIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
 import { MainMenu, ProfileScreen } from '@/components/home/main-menu';
@@ -601,11 +601,17 @@ function BonusTargetCard({
         <Text style={[styles.bonusTargetTitle, solved && styles.bonusTargetSolvedText]}>
           {t('game.combine')}
         </Text>
-        <Text style={[styles.bonusTargetSubtitle, solved && styles.bonusTargetSolvedText]}>
-          {solved
-            ? t('game.bonusEarned', { reward })
-            : t('game.makeBonus', { reward })}
-        </Text>
+        <View style={[styles.bonusRewardPill, solved && styles.bonusRewardPillSolved]}>
+          <GemIcon
+            color={solved ? '#66D7FF' : '#BDEFFF'}
+            facetColor={solved ? '#FFFFFF' : '#258AAF'}
+            outlineColor="#0B5875"
+            size={15}
+          />
+          <Text style={[styles.bonusRewardValue, solved && styles.bonusRewardValueSolved]}>
+            +{reward}
+          </Text>
+        </View>
       </View>
 
       <View ref={measureRef} collapsable={false} style={styles.bonusTargetCardMeasure}>
@@ -628,9 +634,12 @@ function BonusTargetCard({
               </Animated.View>
             ) : null}
             <Text style={styles.bonusTargetValue}>{target.value}</Text>
-            <Text style={styles.bonusTargetMeta}>
-              [{operation.symbol}] {Array.from({ length: target.steps }, () => '●').join(' ')}
-            </Text>
+            <View style={styles.bonusTargetMeta}>
+              <Text style={styles.bonusTargetOperation}>[{operation.symbol}]</Text>
+              <Text style={styles.bonusTargetSteps}>
+                {Array.from({ length: target.steps }, () => '●').join(' ')}
+              </Text>
+            </View>
           </LinearGradient>
         </Animated.View>
       </View>
@@ -2934,13 +2943,32 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.45,
   },
-  bonusTargetSubtitle: {
+  bonusRewardPill: {
+    alignSelf: 'flex-start',
+    height: 20,
     marginTop: 1,
-    color: '#8B6E2D',
-    fontFamily: FONTS.bold,
-    fontSize: 9,
-    lineHeight: 12,
-    fontWeight: '800',
+    paddingHorizontal: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(47,145,177,0.38)',
+    backgroundColor: 'rgba(83,189,218,0.14)',
+  },
+  bonusRewardPillSolved: {
+    borderColor: 'rgba(28,119,91,0.42)',
+    backgroundColor: 'rgba(255,255,255,0.52)',
+  },
+  bonusRewardValue: {
+    color: '#176F8C',
+    fontFamily: FONTS.black,
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: '900',
+  },
+  bonusRewardValueSolved: {
+    color: '#176D58',
   },
   bonusTargetSolvedText: {
     color: '#23785B',
@@ -2976,11 +3004,25 @@ const styles = StyleSheet.create({
   },
   bonusTargetMeta: {
     zIndex: 1,
+    marginTop: -1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  bonusTargetOperation: {
+    color: 'rgba(255,255,255,0.9)',
+    fontFamily: FONTS.black,
+    fontSize: 11,
+    lineHeight: 12,
+    fontWeight: '900',
+  },
+  bonusTargetSteps: {
     color: 'rgba(255,255,255,0.9)',
     fontFamily: FONTS.bold,
-    fontSize: 8,
-    lineHeight: 10,
-    fontWeight: '800',
+    fontSize: 7,
+    lineHeight: 9,
+    fontWeight: '900',
   },
   feedbackSlot: {
     width: '100%',
