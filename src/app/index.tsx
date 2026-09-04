@@ -134,6 +134,7 @@ const TUTORIAL_LESSONS = [
   { numbers: [1, 2, 3, 7], target: 6, op: '+', steps: 3, bonus: false, demo: false },
   { numbers: [2, 3, 4, 5], target: 24, op: '*', steps: 3, bonus: true, demo: false },
 ] as const;
+const TUTORIAL_DEMO_CONNECTION = [0, 1] as const;
 
 type DestinationTransitionState = {
   completedEmoji: string;
@@ -884,17 +885,18 @@ function getFeedbackColors(tone: FeedbackTone) {
   return { background: 'rgba(61,127,145,0.97)', border: '#D8EFF1', text: '#FFFFFF' };
 }
 
-function FirstPlayTutorial({ onDone, onEffect }: { onDone: () => void; onEffect: (sound: GameSound) => void }) {
+function FirstPlayTutorial({ onDone, onEffect }: { onDone: () => void; onEffect: (sound: GameSound) => Promise<void> | undefined }) {
   const { t } = useI18n();
   const [lessonIndex, setLessonIndex] = useState(0);
   const [demoCompleted, setDemoCompleted] = useState(false);
   const [demoPractice, setDemoPractice] = useState(false);
-  const [demoSecondHint, setDemoSecondHint] = useState(false);
   const [demoProgress] = useState(() => new Animated.Value(0));
   const [demoStage, setDemoStage] = useState<'shuffle' | 'hint' | 'demo'>('shuffle');
   const [tutorialCelebration, setTutorialCelebration] = useState(false);
   const [selectedStepCount, setSelectedStepCount] = useState(0);
   const completionLockedRef = useRef(false);
+  const tutorialHintPendingRef = useRef(false);
+  const demoFinishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lesson = TUTORIAL_LESSONS[lessonIndex];
@@ -933,58 +935,69 @@ function FirstPlayTutorial({ onDone, onEffect }: { onDone: () => void; onEffect:
   }, [lessonIndex]);
 
   useEffect(() => () => {
+    if (demoFinishTimerRef.current) clearTimeout(demoFinishTimerRef.current);
     if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
     if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
   }, []);
 
   const handleNodeChange = useCallback((selectionCount: number) => {
     setSelectedStepCount(Math.max(0, Math.min(lesson.steps, selectionCount)));
-    onEffect(getNodeSelectionSound(selectionCount));
+    if (selectionCount > 0) return onEffect(getNodeSelectionSound(selectionCount));
+    return undefined;
   }, [lesson.steps, onEffect]);
 
+  const handleTutorialDraggingChange = useCallback((dragging: boolean) => {
+    if (!dragging) setSelectedStepCount(0);
+  }, []);
+
   const handleTutorialHint = useCallback(() => {
-    onEffect('hint');
-    if (demoStage === 'hint') {
-      setDemoSecondHint(false);
-      setDemoStage('demo');
-    }
+    if (demoStage === 'hint' && tutorialHintPendingRef.current) return undefined;
+    const playback = onEffect('hint');
+    if (demoStage !== 'hint') return playback;
+
+    tutorialHintPendingRef.current = true;
+    const beginDemo = () => {
+      tutorialHintPendingRef.current = false;
+      setSelectedStepCount(0);
+      setDemoStage((current) => current === 'hint' ? 'demo' : current);
+    };
+    if (playback) void playback.then(beginDemo, beginDemo);
+    else beginDemo();
+    return playback;
   }, [demoStage, onEffect]);
 
-  const handleTutorialShuffle = useCallback(() => {
-    onEffect('shuffle');
-    if (demoStage === 'shuffle') setDemoStage('hint');
-  }, [demoStage, onEffect]);
+  const handleTutorialShuffle = useCallback(() => onEffect('shuffle'), [onEffect]);
+
+  const handleTutorialShuffleComplete = useCallback(() => {
+    setSelectedStepCount(0);
+    setDemoStage((current) => current === 'shuffle' ? 'hint' : current);
+  }, []);
+
+  const handleTutorialAutoConnectComplete = useCallback(() => {
+    if (demoFinishTimerRef.current) clearTimeout(demoFinishTimerRef.current);
+    demoFinishTimerRef.current = setTimeout(() => {
+      onEffect('success');
+      demoFinishTimerRef.current = setTimeout(() => {
+        demoFinishTimerRef.current = null;
+        setSelectedStepCount(0);
+        setDemoCompleted(true);
+        setDemoPractice(true);
+      }, 850);
+    }, 220);
+  }, [onEffect]);
 
   useEffect(() => {
     if (!lesson.demo || demoCompleted || demoStage !== 'demo') return;
     demoProgress.setValue(0);
-    const animation = Animated.sequence([
-      Animated.delay(1100),
-      Animated.timing(demoProgress, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-      Animated.delay(1800),
-    ]);
-    const soundTimers = [
-      setTimeout(() => onEffect(getNodeSelectionSound(1)), 1100),
-      setTimeout(() => onEffect(getNodeSelectionSound(2)), 1700),
-      setTimeout(() => onEffect('success'), 2300),
-    ];
-    animation.start(({ finished }) => {
-      if (finished) {
-        setDemoCompleted(true);
-        setDemoPractice(true);
-      }
+    const animation = Animated.timing(demoProgress, {
+      toValue: 1,
+      duration: 760,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
     });
-    return () => {
-      animation.stop();
-      soundTimers.forEach(clearTimeout);
-    };
-  }, [demoCompleted, demoProgress, demoStage, lesson.demo, onEffect]);
-
-  useEffect(() => {
-    if (demoStage !== 'demo') return;
-    const timer = setTimeout(() => setDemoSecondHint(true), 1150);
-    return () => clearTimeout(timer);
-  }, [demoStage]);
+    animation.start();
+    return () => animation.stop();
+  }, [demoCompleted, demoProgress, demoStage, lesson.demo]);
 
 
   return <TutorialModal visible>
@@ -996,7 +1009,7 @@ function FirstPlayTutorial({ onDone, onEffect }: { onDone: () => void; onEffect:
         {lesson.numbers.slice(0, lesson.steps).join(` ${operation.symbol} `)} = {lesson.target}
       </Animated.Text>
       <View style={styles.tutorialExplanationRow}><Text style={styles.tutorialExplanation}>{localizeOperation(operation.symbol)} → [{operation.symbol}]</Text><View style={styles.tutorialStepsLabel}><Text style={styles.tutorialExplanation}>ADIM SAYISI:</Text><View style={styles.tutorialStepDots}>{Array.from({ length: lesson.steps }, (_, index) => <View key={index} style={[styles.tutorialStepDot, index < selectedStepCount && styles.tutorialStepDotFilled]} />)}</View></View></View>
-      {lesson.demo && !demoCompleted ? <NumberWheel canUseHint hintCost={0} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={handleTutorialHint} onNodeAdded={handleNodeChange} onNodeRemoved={handleNodeChange} onPreview={() => undefined} onShuffle={handleTutorialShuffle} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} tutorialStepIndices={demoStage === 'demo' && demoSecondHint ? [0, 1] : undefined} tutorialOperator={demoStage === 'demo' && demoSecondHint ? operation.symbol : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} canUseHint={false} hintCost={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={handleTutorialHint} onNodeAdded={handleNodeChange} onNodeRemoved={handleNodeChange} onPreview={() => undefined} onShuffle={handleTutorialShuffle} size={230} />}
+      {lesson.demo && !demoCompleted ? <NumberWheel canUseHint hintCost={0} hintIndices={[]} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={handleTutorialDraggingChange} onHint={handleTutorialHint} onNodeAdded={handleNodeChange} onNodeRemoved={handleNodeChange} onPreview={() => undefined} onShuffle={handleTutorialShuffle} onShuffleComplete={handleTutorialShuffleComplete} onTutorialAutoConnectComplete={handleTutorialAutoConnectComplete} size={230} tutorialAutoConnect={demoStage === 'demo' ? TUTORIAL_DEMO_CONNECTION : undefined} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialOperator={demoStage === 'demo' ? operation.symbol : undefined} tutorialStepIndices={demoStage === 'demo' ? TUTORIAL_DEMO_CONNECTION : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} canUseHint={false} hintCost={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={handleTutorialDraggingChange} onHint={handleTutorialHint} onNodeAdded={handleNodeChange} onNodeRemoved={handleNodeChange} onPreview={() => undefined} onShuffle={handleTutorialShuffle} size={230} />}
       <Text style={styles.tutorialHint}>{lesson.demo && !demoCompleted ? demoStage === 'shuffle' ? t('tutorial.shuffleInstruction') : demoStage === 'hint' ? t('tutorial.hintInstruction') : t('tutorial.demoInstruction') : lesson.demo && !demoPractice ? t('tutorial.practiceInstruction') : t('tutorial.connectInstruction')}</Text>
     </View>
     <Celebration visible={tutorialCelebration} />
@@ -1577,13 +1590,13 @@ export default function HomeScreen() {
   const triggerEffect = useCallback(
     (kind: GameSound, force = false) => {
       const playback = playSound(kind, force);
-      if (!effectsEnabled) return;
+      if (!effectsEnabled) return playback;
       if (kind.startsWith('select')) {
         // Birleştirme sırasında ses olabilir, ancak düğüm düğüme
         // titreşim verilmez; haptic yalnızca sonuç/aksiyon geri bildirimidir.
-        return;
+        return playback;
       }
-      if (kind === 'points') return;
+      if (kind === 'points') return playback;
       const playHaptic = () => {
         const effect =
           kind === 'levelComplete'
@@ -1606,6 +1619,7 @@ export default function HomeScreen() {
       } else {
         playHaptic();
       }
+      return playback;
     },
     [effectsEnabled, playSound],
   );
@@ -2232,10 +2246,12 @@ export default function HomeScreen() {
     t,
   ]);
 
-  const handleTutorialEffect = useCallback(
-    (sound: GameSound) => triggerEffect(sound, true),
-    [triggerEffect],
-  );
+  const handleTutorialEffect = useCallback((sound: GameSound) => {
+    // Eğitim shuffle'ı yalnız görsel + ses ile anlatılır; modal içindeki
+    // yönlendirme için ayrıca haptic geri bildirim gerekli değildir.
+    if (sound === 'shuffle') return playSound(sound, true);
+    return triggerEffect(sound, true);
+  }, [playSound, triggerEffect]);
   const handleTutorialDone = useCallback(() => {
     setTutorialVisible(false);
     void AsyncStorage.setItem(TUTORIAL_STORAGE_KEY, 'done');
