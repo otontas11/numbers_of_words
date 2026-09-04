@@ -107,9 +107,14 @@ export function useGameSounds(enabled: boolean) {
     PLAYER_OPTIONS,
   );
   const shufflePlayer = useAudioPlayer(
-    require('../../assets/sounds/pop_shuffle.wav'),
+    require('../../assets/sounds/bubble.mp3'),
     PLAYER_OPTIONS,
   );
+  const shuffleAlternatePlayer = useAudioPlayer(
+    require('../../assets/sounds/bubble.mp3'),
+    PLAYER_OPTIONS,
+  );
+  const shuffleVoiceRef = useRef(0);
 
   return useCallback(
     (sound: GameSound, force = false) => {
@@ -138,6 +143,8 @@ export function useGameSounds(enabled: boolean) {
         : -1;
       const useAlternateSelectionVoice = selectionVoiceRef.current % 2 === 1;
       if (selectionIndex >= 0) selectionVoiceRef.current += 1;
+      const useAlternateShuffleVoice = shuffleVoiceRef.current % 2 === 1;
+      if (sound === 'shuffle') shuffleVoiceRef.current += 1;
       const player =
         selectionIndex >= 0
           ? (useAlternateSelectionVoice ? alternateSelectionPlayers : selectionPlayers)[
@@ -155,7 +162,9 @@ export function useGameSounds(enabled: boolean) {
                     ? pointsPlayer
                     : sound === 'levelComplete'
                       ? levelCompletePlayer
-                      : shufflePlayer;
+                      : useAlternateShuffleVoice
+                        ? shuffleAlternatePlayer
+                        : shufflePlayer;
 
       if (!player) return;
 
@@ -186,6 +195,7 @@ export function useGameSounds(enabled: boolean) {
       selectThreeAlternatePlayer,
       selectTwoPlayer,
       selectTwoAlternatePlayer,
+      shuffleAlternatePlayer,
       shufflePlayer,
       successPlayer,
     ],
