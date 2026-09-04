@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactElement,
 } from 'react';
 import {
   Animated as RNAnimated,
@@ -44,7 +45,8 @@ type Point = {
 type NumberWheelProps = {
   size: number;
   numbers: number[];
-  hintCredits: number;
+  canUseHint: boolean;
+  hintCost: number;
   hintIndices: number[];
   onPreview: (indices: number[]) => void;
   onComplete: (indices: number[], resultOrigin?: Point) => WheelSelectionOutcome;
@@ -204,13 +206,27 @@ function HintIcon() {
 
 function ShuffleIcon() {
   return (
-    <Svg height={22} viewBox="0 0 24 24" width={22}>
+    <Svg height={30} viewBox="0 0 24 24" width={30}>
       <Path
         d="M16 3h5v5l-1.8-1.8-3.55 3.55-1.4-1.4 3.55-3.55L16 3zM3 6h3.25c1.54 0 2.94.88 3.62 2.26l4.26 8.48A4.04 4.04 0 0 0 17.75 19H21v-2h-3.25c-.78 0-1.49-.44-1.84-1.14l-4.26-8.48A6.02 6.02 0 0 0 6.25 4H3v2zm5.63 8.28 1.12 2.23A6.03 6.03 0 0 1 6.25 20H3v-2h3.25c.78 0 1.49-.44 1.84-1.14l.54-1.08zm10.57 3.52L21 16v5h-5l1.8-1.8 1.4-1.4z"
         fill="#FFFFFF"
       />
     </Svg>
   );
+}
+
+function WheelGestureSurface({
+  children,
+  gesture,
+}: {
+  children: ReactElement;
+  gesture: ReturnType<typeof Gesture.Manual>;
+}) {
+  // iOS'ta ScrollView içine yerleşen Manual RNGH recognizer bazı cihazlarda
+  // touchesDown olayını hiç teslim etmiyor. O platformda native recognizer'ı
+  // ağaca eklemeyip doğrudan RN responder kullanmak bu çakışmayı ortadan kaldırır.
+  if (Platform.OS !== 'android') return children;
+  return <GestureDetector gesture={gesture}>{children}</GestureDetector>;
 }
 
 function shuffledIndices(count: number): number[] {
@@ -299,7 +315,8 @@ function ActiveSelectionPath({
 export const NumberWheel = memo(function NumberWheel({
   size,
   numbers,
-  hintCredits,
+  canUseHint,
+  hintCost,
   hintIndices,
   onPreview,
   onComplete,
@@ -339,8 +356,8 @@ export const NumberWheel = memo(function NumberWheel({
   const selectionOnUI = useSharedValue<number[]>([]);
   const shufflingOnUI = useSharedValue(false);
   const holdingOnUI = useSharedValue(false);
-  const webGestureAcceptedRef = useRef(false);
-  const webSelectionRef = useRef<number[]>([]);
+  const responderGestureAcceptedRef = useRef(false);
+  const responderSelectionRef = useRef<number[]>([]);
   const callbacksRef = useRef({
     onComplete,
     onDraggingChange,
@@ -510,38 +527,38 @@ export const NumberWheel = memo(function NumberWheel({
    * SharedValues. React's generic ref/immutability rules cannot model them.
    */
   /* eslint-disable react-hooks/immutability, react-hooks/refs */
-  const getWebTouchPoint = useCallback((event: GestureResponderEvent): Point => {
+  const getResponderTouchPoint = useCallback((event: GestureResponderEvent): Point => {
     const { locationX, locationY } = event.nativeEvent;
     return { x: locationX, y: locationY };
   }, []);
 
-  const canStartWebSelection = useCallback(
+  const canStartResponderSelection = useCallback(
     (event: GestureResponderEvent) => {
       if (
-        Platform.OS !== 'web' ||
+        Platform.OS === 'android' ||
         tutorialFocus ||
         shufflingOnUI.value ||
         holdingOnUI.value ||
-        webGestureAcceptedRef.current
+        responderGestureAcceptedRef.current
       ) {
         return false;
       }
 
       return (
-        findNodeAtPoint(getWebTouchPoint(event), positionsRef.current, hitRadius) >= 0
+        findNodeAtPoint(getResponderTouchPoint(event), positionsRef.current, hitRadius) >= 0
       );
     },
-    [getWebTouchPoint, hitRadius, holdingOnUI, shufflingOnUI, tutorialFocus],
+    [getResponderTouchPoint, hitRadius, holdingOnUI, shufflingOnUI, tutorialFocus],
   );
 
-  const startWebSelection = useCallback(
+  const startResponderSelection = useCallback(
     (event: GestureResponderEvent) => {
-      const point = getWebTouchPoint(event);
+      const point = getResponderTouchPoint(event);
       const nodeIndex = findNodeAtPoint(point, positionsRef.current, hitRadius);
       if (nodeIndex < 0) return;
 
-      webGestureAcceptedRef.current = true;
-      webSelectionRef.current = [nodeIndex];
+      responderGestureAcceptedRef.current = true;
+      responderSelectionRef.current = [nodeIndex];
       selectionOnUI.value = [nodeIndex];
       pointerX.value = point.x;
       pointerY.value = point.y;
@@ -553,7 +570,7 @@ export const NumberWheel = memo(function NumberWheel({
     [
       activePointer,
       beginSelection,
-      getWebTouchPoint,
+      getResponderTouchPoint,
       hitRadius,
       lastPointerX,
       lastPointerY,
@@ -563,11 +580,11 @@ export const NumberWheel = memo(function NumberWheel({
     ],
   );
 
-  const moveWebSelection = useCallback(
+  const moveResponderSelection = useCallback(
     (event: GestureResponderEvent) => {
-      if (!webGestureAcceptedRef.current) return;
+      if (!responderGestureAcceptedRef.current) return;
 
-      const point = getWebTouchPoint(event);
+      const point = getResponderTouchPoint(event);
       const previousPoint = {
         x: lastPointerX.value,
         y: lastPointerY.value,
@@ -578,13 +595,13 @@ export const NumberWheel = memo(function NumberWheel({
       lastPointerY.value = point.y;
 
       const update = updateSelectionOnUI(
-        webSelectionRef.current,
+        responderSelectionRef.current,
         findNodesAlongSegment(previousPoint, point, positionsRef.current, hitRadius),
         numbers.length,
       );
       if (!update.changed) return;
 
-      webSelectionRef.current = update.selection;
+      responderSelectionRef.current = update.selection;
       selectionOnUI.value = update.selection;
       syncSelection(
         update.selection,
@@ -593,7 +610,7 @@ export const NumberWheel = memo(function NumberWheel({
       );
     },
     [
-      getWebTouchPoint,
+      getResponderTouchPoint,
       hitRadius,
       lastPointerX,
       lastPointerY,
@@ -605,22 +622,22 @@ export const NumberWheel = memo(function NumberWheel({
     ],
   );
 
-  const finishWebSelection = useCallback(() => {
-    if (!webGestureAcceptedRef.current) return;
+  const finishResponderSelection = useCallback(() => {
+    if (!responderGestureAcceptedRef.current) return;
 
-    const completedSelection = [...webSelectionRef.current];
-    webGestureAcceptedRef.current = false;
-    webSelectionRef.current = [];
+    const completedSelection = [...responderSelectionRef.current];
+    responderGestureAcceptedRef.current = false;
+    responderSelectionRef.current = [];
     holdingOnUI.value = true;
     finishSelection(completedSelection, true);
   }, [finishSelection, holdingOnUI]);
 
-  const cancelWebSelection = useCallback(() => {
-    if (!webGestureAcceptedRef.current) return;
+  const cancelResponderSelection = useCallback(() => {
+    if (!responderGestureAcceptedRef.current) return;
 
-    const cancelledSelection = [...webSelectionRef.current];
-    webGestureAcceptedRef.current = false;
-    webSelectionRef.current = [];
+    const cancelledSelection = [...responderSelectionRef.current];
+    responderGestureAcceptedRef.current = false;
+    responderSelectionRef.current = [];
     activePointer.value = false;
     selectionOnUI.value = [];
     finishSelection(cancelledSelection, false);
@@ -631,7 +648,7 @@ export const NumberWheel = memo(function NumberWheel({
       // A manual gesture claims node touches immediately, before the parent
       // ScrollView can turn them into scrolling and cancel the wheel path.
       Gesture.Manual()
-        .enabled(Platform.OS !== 'web' && !tutorialFocus)
+        .enabled(Platform.OS === 'android' && !tutorialFocus)
         .shouldCancelWhenOutside(false)
         .onTouchesDown((event, stateManager) => {
           'worklet';
@@ -830,16 +847,19 @@ export const NumberWheel = memo(function NumberWheel({
   return (
     <View style={[styles.wheelArea, { width: size }]}> 
       <View style={[styles.wheelShadow, { width: size, height: size }]}> 
-        <GestureDetector gesture={gesture} touchAction="none">
+        <WheelGestureSurface gesture={gesture}>
           <View
             ref={wheelRef}
             accessibilityLabel={t('wheel.a11y')}
-            onResponderGrant={startWebSelection}
-            onResponderMove={moveWebSelection}
-            onResponderRelease={finishWebSelection}
-            onResponderTerminate={cancelWebSelection}
+            collapsable={false}
+            onMoveShouldSetResponder={canStartResponderSelection}
+            onResponderGrant={startResponderSelection}
+            onResponderMove={moveResponderSelection}
+            onResponderRelease={finishResponderSelection}
+            onResponderTerminate={cancelResponderSelection}
             onResponderTerminationRequest={() => false}
-            onStartShouldSetResponder={canStartWebSelection}
+            onStartShouldSetResponder={canStartResponderSelection}
+            pointerEvents="box-only"
             onLayout={() => {
               wheelRef.current?.measureInWindow((x, y) => {
                 originRef.current = { x, y };
@@ -1005,14 +1025,14 @@ export const NumberWheel = memo(function NumberWheel({
             );
           })}
           </View>
-        </GestureDetector>
+        </WheelGestureSurface>
       </View>
 
       <View style={[styles.actionRow, { width: size }]}> 
         <Pressable
           accessibilityLabel={
-            hintCredits > 0
-              ? t('wheel.hintA11y', { count: hintCredits })
+            canUseHint
+              ? t('wheel.hintA11y', { cost: hintCost })
               : t('wheel.noHints')
           }
           accessibilityRole="button"
@@ -1026,7 +1046,7 @@ export const NumberWheel = memo(function NumberWheel({
             start={{ x: 0, y: 0 }}
             style={styles.controlSurface}>
             <HintIcon />
-            <Text style={styles.controlLabel}>{t('wheel.hint', { count: hintCredits })}</Text>
+            <Text style={styles.controlLabel}>{t('wheel.hint', { cost: hintCost })}</Text>
           </ExpoLinearGradient>
           {tutorialFocus === 'hint' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
         </Pressable>
@@ -1046,7 +1066,6 @@ export const NumberWheel = memo(function NumberWheel({
             <RNAnimated.View style={{ transform: [{ rotate: rotationStyle }] }}>
               <ShuffleIcon />
             </RNAnimated.View>
-            <Text style={styles.controlLabel}>{t('wheel.shuffle')}</Text>
           </ExpoLinearGradient>
           {tutorialFocus === 'shuffle' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
         </Pressable>

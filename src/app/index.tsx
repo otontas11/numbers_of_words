@@ -32,8 +32,6 @@ import { countryContentImageUrl } from '@/constants/content-images';
 import { FONTS } from '@/constants/fonts';
 import {
   ACTIVITY_IDLE_TIMEOUT_MS,
-  HINT_REWARD_AMOUNT,
-  INITIAL_HINT_CREDITS,
   INITIAL_LEARNING_SCORE,
   appendPerformance,
   ratePuzzlePerformance,
@@ -79,6 +77,10 @@ const PersistentMainMenu = memo(MainMenu);
 const PersistentProfileScreen = memo(ProfileScreen);
 const PersistentPassportCollection = memo(PassportCollection);
 const PersistentJourneyMap = memo(JourneyMap);
+
+const INITIAL_GEM_COUNT = 30;
+const HINT_GEM_COST = 10;
+const ROUTE_GEM_REWARD = 10;
 
 type FeedbackTone = 'live' | 'success' | 'bonus' | 'info';
 type AppScreen = 'home' | 'game' | 'profile' | 'travel' | 'collection';
@@ -880,7 +882,7 @@ function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (
         {lesson.numbers.slice(0, lesson.steps).join(` ${operation.symbol} `)} = {lesson.target}
       </Animated.Text>
       <View style={styles.tutorialExplanationRow}><Text style={styles.tutorialExplanation}>{localizeOperation(operation.symbol)} → [{operation.symbol}]</Text><Text style={styles.tutorialExplanation}>ADIM SAYISI: {Array.from({ length: lesson.steps }, () => '●').join(' ')}</Text></View>
-      {lesson.demo && !demoCompleted ? <NumberWheel key={demoStage} hintCredits={1} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => { if (demoStage === 'hint') { setDemoSecondHint(false); setDemoStage('demo'); } }} onNodeAdded={() => undefined} onNodeRemoved={() => undefined} onPreview={() => undefined} onShuffle={() => { if (demoStage === 'shuffle') setDemoStage('hint'); }} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} tutorialStepIndices={demoStage === 'demo' && demoSecondHint ? [0, 1] : undefined} tutorialOperator={demoStage === 'demo' && demoSecondHint ? operation.symbol : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} hintCredits={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={() => undefined} onNodeRemoved={() => undefined} onPreview={() => undefined} onShuffle={() => undefined} size={230} />}
+      {lesson.demo && !demoCompleted ? <NumberWheel key={demoStage} canUseHint hintCost={0} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => { onSound('hint'); if (demoStage === 'hint') { setDemoSecondHint(false); setDemoStage('demo'); } }} onNodeAdded={() => undefined} onNodeRemoved={() => undefined} onPreview={() => undefined} onShuffle={() => { if (demoStage === 'shuffle') setDemoStage('hint'); }} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} tutorialStepIndices={demoStage === 'demo' && demoSecondHint ? [0, 1] : undefined} tutorialOperator={demoStage === 'demo' && demoSecondHint ? operation.symbol : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} canUseHint={false} hintCost={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={() => undefined} onNodeRemoved={() => undefined} onPreview={() => undefined} onShuffle={() => undefined} size={230} />}
       <Text style={styles.tutorialHint}>{lesson.demo && !demoCompleted ? demoStage === 'shuffle' ? t('tutorial.shuffleInstruction') : demoStage === 'hint' ? t('tutorial.hintInstruction') : t('tutorial.demoInstruction') : lesson.demo && !demoPractice ? t('tutorial.practiceInstruction') : t('tutorial.connectInstruction')}</Text>
     </View>
     <Celebration visible={tutorialCelebration} />
@@ -1105,8 +1107,7 @@ export default function HomeScreen() {
   const [solvedTargets, setSolvedTargets] = useState<Set<number>>(() => new Set());
   const [bonusSolved, setBonusSolved] = useState(false);
   const [bonusCount, setBonusCount] = useState(0);
-  const [gemCount, setGemCount] = useState(0);
-  const [hintCredits, setHintCredits] = useState(INITIAL_HINT_CREDITS);
+  const [gemCount, setGemCount] = useState(INITIAL_GEM_COUNT);
   const [rewardedRouteIds, setRewardedRouteIds] = useState<Set<string>>(() => new Set());
   const [performanceHistory, setPerformanceHistory] = useState<PuzzlePerformance[]>([]);
   const [learningScore, setLearningScore] = useState(INITIAL_LEARNING_SCORE);
@@ -1179,6 +1180,7 @@ export default function HomeScreen() {
   const discoveredBonuses = useRef(new Set<string>());
   const feedbackTimer = useRef<Timer | null>(null);
   const hintTimer = useRef<Timer | null>(null);
+  const hintActiveRef = useRef(false);
   const bonusGemTimer = useRef<Timer | null>(null);
   const landingTimer = useRef<Timer | null>(null);
   const levelTimer = useRef<Timer | null>(null);
@@ -1322,7 +1324,6 @@ export default function HomeScreen() {
         setCountryCompletionLevel(restoredCountryCompletion ? saved.level : null);
         setBonusCount(saved.bonusCount);
         setGemCount(saved.gemCount);
-        setHintCredits(saved.hintCredits);
         setRewardedRouteIds(new Set(saved.rewardedRouteIds));
         setPerformanceHistory(saved.performanceHistory);
         performanceHistoryRef.current = saved.performanceHistory;
@@ -1363,7 +1364,6 @@ export default function HomeScreen() {
       bonusSolved,
       bonusCount,
       gemCount,
-      hintCredits,
       rewardedRouteIds: [...rewardedRouteIds],
       performanceHistory,
       learningScore,
@@ -1380,7 +1380,6 @@ export default function HomeScreen() {
     bonusSolved,
     effectsEnabled,
     gemCount,
-    hintCredits,
     hydrated,
     level,
     levelData,
@@ -1605,6 +1604,7 @@ export default function HomeScreen() {
   const startLevel = useCallback((nextLevel: number, previousTargetValues: readonly number[]) => {
     clearTimer(feedbackTimer);
     clearTimer(hintTimer);
+    hintActiveRef.current = false;
     clearTimer(bonusGemTimer);
     clearTimer(landingTimer);
     const nextDestination = resolveTravelLevel(nextLevel);
@@ -1706,6 +1706,7 @@ export default function HomeScreen() {
 
       if (targetIndex >= 0) {
         clearTimer(hintTimer);
+        hintActiveRef.current = false;
         setHintIndices([]);
         setHintedTarget(null);
         // Hedefi çözen yol da keşfedilmiş bir kombinasyondur; aynı yol daha
@@ -1877,9 +1878,11 @@ export default function HomeScreen() {
 
   const handleHint = useCallback(() => {
     markPuzzleActivity();
-    if (hintCredits <= 0) {
+    triggerEffect('hint');
+    if (hintActiveRef.current) return;
+    if (gemCount < HINT_GEM_COST) {
       showTimedFeedback(
-        { text: t('feedback.noHints'), tone: 'info' },
+        { text: t('feedback.noHints', { cost: HINT_GEM_COST }), tone: 'info' },
         1800,
       );
       return;
@@ -1893,18 +1896,19 @@ export default function HomeScreen() {
     }
 
     clearTimer(hintTimer);
-    setHintCredits((credits) => Math.max(0, credits - 1));
+    hintActiveRef.current = true;
+    setGemCount((count) => count - HINT_GEM_COST);
     puzzleActivityRef.current.hintsUsed += 1;
     setHintIndices(solution);
     setHintedTarget(targetIndex);
-    triggerEffect('hint');
     showTimedFeedback({ text: t('feedback.followGlow'), tone: 'bonus' }, 1700);
     hintTimer.current = setTimeout(() => {
       setHintIndices([]);
       setHintedTarget(null);
+      hintActiveRef.current = false;
       hintTimer.current = null;
     }, 1800);
-  }, [hintCredits, levelData, markPuzzleActivity, showTimedFeedback, solvedTargets, t, triggerEffect]);
+  }, [gemCount, levelData, markPuzzleActivity, showTimedFeedback, solvedTargets, t, triggerEffect]);
 
   const handleWheelNodeAdded = useCallback(
     (selectionCount: number) => {
@@ -1952,13 +1956,13 @@ export default function HomeScreen() {
         ? levelData.targets.map((target) => target.value)
         : [];
     const unlockedRouteId = completion.nextDestination.route.id;
-    const earnedRouteHints =
+    const earnedRouteReward =
       !completion.worldTourCompleted &&
       unlockedRouteId !== levelData.routeId &&
       !rewardedRouteIds.has(unlockedRouteId);
 
-    if (earnedRouteHints) {
-      setHintCredits((credits) => credits + HINT_REWARD_AMOUNT);
+    if (earnedRouteReward) {
+      setGemCount((count) => count + ROUTE_GEM_REWARD);
       setRewardedRouteIds((current) => new Set(current).add(unlockedRouteId));
     }
 
@@ -1972,8 +1976,8 @@ export default function HomeScreen() {
               flag: completion.nextDestination.country.flag,
               country: localizeCountry(completion.nextDestination.country),
               destination: completion.nextDestination.location.name,
-              reward: earnedRouteHints
-                ? t('feedback.routeHintReward', { count: HINT_REWARD_AMOUNT })
+              reward: earnedRouteReward
+                ? t('feedback.routeGemReward', { count: ROUTE_GEM_REWARD })
                 : '',
             }),
         tone: 'success',
@@ -2267,7 +2271,8 @@ export default function HomeScreen() {
                 style={styles.wheelContainer}>
                 <NumberWheel
                   key={`${level}-${wheelSize}`}
-                  hintCredits={hintCredits}
+                  canUseHint={gemCount >= HINT_GEM_COST}
+                  hintCost={HINT_GEM_COST}
                   hintIndices={hintIndices}
                   numbers={levelData.numbers}
                   onComplete={handleComplete}

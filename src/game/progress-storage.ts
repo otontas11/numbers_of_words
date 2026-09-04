@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
-  INITIAL_HINT_CREDITS,
   INITIAL_LEARNING_SCORE,
   isPuzzlePerformance,
   scorePuzzlePerformance,
@@ -41,7 +40,6 @@ export type StoredGameProgress = {
   bonusSolved: boolean;
   bonusCount: number;
   gemCount: number;
-  hintCredits: number;
   rewardedRouteIds: string[];
   performanceHistory: PuzzlePerformance[];
   learningScore: number;
@@ -260,10 +258,6 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       normalizedBonusSolved = false;
     }
 
-    const hintCredits =
-      Number.isInteger(value.hintCredits) && Number(value.hintCredits) >= 0
-        ? Number(value.hintCredits)
-        : INITIAL_HINT_CREDITS;
     const rewardedRouteIds =
       Array.isArray(value.rewardedRouteIds) &&
       value.rewardedRouteIds.every((routeId) => typeof routeId === 'string')
@@ -307,7 +301,6 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       ...(score === undefined ? {} : { score }),
       bonusCount,
       gemCount,
-      hintCredits,
       rewardedRouteIds,
       performanceHistory,
       learningScore,

@@ -84,11 +84,20 @@ export function useGameSounds(enabled: boolean) {
     require('../../assets/sounds/select-7.wav'),
     PLAYER_OPTIONS,
   );
-  const selectionVoiceRef = useRef(0);
+  const selectionVoiceRef = useRef(Array.from({ length: 7 }, () => 0));
   const hintPlayer = useAudioPlayer(
-    require('../../assets/sounds/pop_hint.wav'),
+    require('../../assets/sounds/hint.mp3'),
     PLAYER_OPTIONS,
   );
+  const hintAlternatePlayer = useAudioPlayer(
+    require('../../assets/sounds/hint.mp3'),
+    PLAYER_OPTIONS,
+  );
+  const hintThirdPlayer = useAudioPlayer(
+    require('../../assets/sounds/hint.mp3'),
+    PLAYER_OPTIONS,
+  );
+  const hintVoiceRef = useRef(0);
   const successPlayer = useAudioPlayer(
     require('../../assets/sounds/success.wav'),
     PLAYER_OPTIONS,
@@ -111,6 +120,10 @@ export function useGameSounds(enabled: boolean) {
     PLAYER_OPTIONS,
   );
   const shuffleAlternatePlayer = useAudioPlayer(
+    require('../../assets/sounds/bubble.mp3'),
+    PLAYER_OPTIONS,
+  );
+  const shuffleThirdPlayer = useAudioPlayer(
     require('../../assets/sounds/bubble.mp3'),
     PLAYER_OPTIONS,
   );
@@ -141,17 +154,24 @@ export function useGameSounds(enabled: boolean) {
       const selectionIndex = sound.startsWith('select')
         ? Number.parseInt(sound.slice('select'.length), 10) - 1
         : -1;
-      const useAlternateSelectionVoice = selectionVoiceRef.current % 2 === 1;
-      if (selectionIndex >= 0) selectionVoiceRef.current += 1;
-      const useAlternateShuffleVoice = shuffleVoiceRef.current % 2 === 1;
+      const useAlternateSelectionVoice =
+        selectionIndex >= 0 &&
+        (selectionVoiceRef.current[selectionIndex] ?? 0) % 2 === 1;
+      if (selectionIndex >= 0) {
+        selectionVoiceRef.current[selectionIndex] =
+          (selectionVoiceRef.current[selectionIndex] ?? 0) + 1;
+      }
+      const shuffleVoice = shuffleVoiceRef.current % 3;
       if (sound === 'shuffle') shuffleVoiceRef.current += 1;
+      const hintVoice = hintVoiceRef.current % 3;
+      if (sound === 'hint') hintVoiceRef.current += 1;
       const player =
         selectionIndex >= 0
           ? (useAlternateSelectionVoice ? alternateSelectionPlayers : selectionPlayers)[
               selectionIndex
             ]
           : sound === 'hint'
-            ? hintPlayer
+            ? [hintPlayer, hintAlternatePlayer, hintThirdPlayer][hintVoice]
             : sound === 'success'
               ? successPlayer
               : sound === 'bonus'
@@ -162,9 +182,7 @@ export function useGameSounds(enabled: boolean) {
                     ? pointsPlayer
                     : sound === 'levelComplete'
                       ? levelCompletePlayer
-                      : useAlternateShuffleVoice
-                        ? shuffleAlternatePlayer
-                        : shufflePlayer;
+                      : [shufflePlayer, shuffleAlternatePlayer, shuffleThirdPlayer][shuffleVoice];
 
       if (!player) return;
 
@@ -178,7 +196,9 @@ export function useGameSounds(enabled: boolean) {
       bonusPlayer,
       diamondPlayer,
       enabled,
+      hintAlternatePlayer,
       hintPlayer,
+      hintThirdPlayer,
       levelCompletePlayer,
       pointsPlayer,
       selectFivePlayer,
@@ -197,6 +217,7 @@ export function useGameSounds(enabled: boolean) {
       selectTwoAlternatePlayer,
       shuffleAlternatePlayer,
       shufflePlayer,
+      shuffleThirdPlayer,
       successPlayer,
     ],
   );

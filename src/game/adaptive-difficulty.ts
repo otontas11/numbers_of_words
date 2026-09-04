@@ -1,5 +1,3 @@
-export const INITIAL_HINT_CREDITS = 3;
-export const HINT_REWARD_AMOUNT = 3;
 export const ACTIVITY_IDLE_TIMEOUT_MS = 15_000;
 export const PERFORMANCE_HISTORY_LIMIT = 5;
 export const INITIAL_LEARNING_SCORE = 50;
