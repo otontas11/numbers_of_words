@@ -880,7 +880,7 @@ function FirstPlayTutorial({ onDone, onSound }: { onDone: () => void; onSound: (
         {lesson.numbers.slice(0, lesson.steps).join(` ${operation.symbol} `)} = {lesson.target}
       </Animated.Text>
       <View style={styles.tutorialExplanationRow}><Text style={styles.tutorialExplanation}>{localizeOperation(operation.symbol)} → [{operation.symbol}]</Text><Text style={styles.tutorialExplanation}>ADIM SAYISI: {Array.from({ length: lesson.steps }, () => '●').join(' ')}</Text></View>
-      {lesson.demo && !demoCompleted ? <NumberWheel key={demoStage} hintCredits={1} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => { if (demoStage === 'hint') { setDemoSecondHint(false); setDemoStage('demo'); } }} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => { if (demoStage === 'shuffle') setDemoStage('hint'); }} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} tutorialStepIndices={demoStage === 'demo' && demoSecondHint ? [0, 1] : undefined} tutorialOperator={demoStage === 'demo' && demoSecondHint ? operation.symbol : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} hintCredits={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={() => undefined} onPreview={() => undefined} onShuffle={() => undefined} size={230} />}
+      {lesson.demo && !demoCompleted ? <NumberWheel key={demoStage} hintCredits={1} hintIndices={demoStage === 'demo' ? (demoSecondHint ? [0, 1] : [0]) : []} numbers={[...lesson.numbers]} onComplete={() => 'invalid'} onDraggingChange={() => undefined} onHint={() => { if (demoStage === 'hint') { setDemoSecondHint(false); setDemoStage('demo'); } }} onNodeAdded={() => undefined} onNodeRemoved={() => undefined} onPreview={() => undefined} onShuffle={() => { if (demoStage === 'shuffle') setDemoStage('hint'); }} size={230} tutorialFocus={demoStage === 'demo' ? undefined : demoStage} tutorialGuideIndex={demoStage === 'demo' ? (demoSecondHint ? 1 : 0) : undefined} tutorialStepIndices={demoStage === 'demo' && demoSecondHint ? [0, 1] : undefined} tutorialOperator={demoStage === 'demo' && demoSecondHint ? operation.symbol : undefined} /> : lesson.demo && !demoPractice ? <Pressable onPress={() => setDemoPractice(true)} style={styles.tutorialPracticeButton}><Text style={styles.tutorialPracticeText}>ŞİMDİ SEN ÇÖZ</Text></Pressable> : <NumberWheel key={`${lessonIndex}-${demoCompleted}`} hintCredits={0} hintIndices={lesson.demo ? [0, 1] : []} numbers={[...lesson.numbers]} onComplete={complete} onDraggingChange={() => undefined} onHint={() => undefined} onNodeAdded={() => undefined} onNodeRemoved={() => undefined} onPreview={() => undefined} onShuffle={() => undefined} size={230} />}
       <Text style={styles.tutorialHint}>{lesson.demo && !demoCompleted ? demoStage === 'shuffle' ? t('tutorial.shuffleInstruction') : demoStage === 'hint' ? t('tutorial.hintInstruction') : t('tutorial.demoInstruction') : lesson.demo && !demoPractice ? t('tutorial.practiceInstruction') : t('tutorial.connectInstruction')}</Text>
     </View>
     <Celebration visible={tutorialCelebration} />
@@ -1534,10 +1534,11 @@ export default function HomeScreen() {
       clearTimer(bonusGemTimer);
       bonusGemTimer.current = setTimeout(() => {
         bonusGemTimer.current = null;
+        triggerEffect('diamond');
         void launchGemFlight(reward);
       }, delay);
     },
-    [launchGemFlight],
+    [launchGemFlight, triggerEffect],
   );
 
   const handleResultFlightArrive = useCallback(
@@ -1913,6 +1914,14 @@ export default function HomeScreen() {
     [markPuzzleActivity, triggerEffect],
   );
 
+  const handleWheelNodeRemoved = useCallback(
+    (selectionCount: number) => {
+      markPuzzleActivity();
+      triggerEffect(getNodeSelectionSound(selectionCount));
+    },
+    [markPuzzleActivity, triggerEffect],
+  );
+
   const handleWheelShuffle = useCallback(() => {
     markPuzzleActivity();
     setHintIndices([]);
@@ -2265,6 +2274,7 @@ export default function HomeScreen() {
                   onDraggingChange={setDragging}
                   onHint={handleHint}
                   onNodeAdded={handleWheelNodeAdded}
+                  onNodeRemoved={handleWheelNodeRemoved}
                   onPreview={handlePreview}
                   onShuffle={handleWheelShuffle}
                   size={wheelSize}

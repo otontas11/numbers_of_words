@@ -26,7 +26,7 @@ const PLAYER_OPTIONS = {
 
 export function useGameSounds(enabled: boolean) {
   const selectOnePlayer = useAudioPlayer(
-    require('../../assets/sounds/pop_select.wav'),
+    require('../../assets/sounds/select.wav'),
     PLAYER_OPTIONS,
   );
   const selectTwoPlayer = useAudioPlayer(

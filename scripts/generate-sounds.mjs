@@ -43,6 +43,28 @@ function renderPop(startFrequency) {
   });
 }
 
+function renderSelectionTone(frequency) {
+  const duration = 0.13;
+  const attackDuration = 0.008;
+  const sampleCount = Math.ceil(duration * SAMPLE_RATE);
+  const samples = new Float64Array(sampleCount);
+
+  for (let index = 0; index < sampleCount; index += 1) {
+    const time = index / SAMPLE_RATE;
+    const attack = Math.min(1, time / attackDuration);
+    const decay = Math.exp(-18 * Math.max(0, time - attackDuration));
+    const envelope = Math.sin((Math.PI / 2) * attack) * decay;
+    const phase = 2 * Math.PI * frequency * time;
+    const tone =
+      Math.sin(phase) * 0.34 +
+      triangle(phase) * 0.08 +
+      Math.sin(phase * 2) * 0.035;
+    samples[index] = tone * envelope;
+  }
+
+  return samples;
+}
+
 function triangle(phase) {
   return (2 / Math.PI) * Math.asin(Math.sin(phase));
 }
@@ -117,15 +139,15 @@ mkdirSync(outputDirectory, { recursive: true });
 const success = renderSuccess();
 
 [
-  ['select.wav', 420],
-  ['select-2.wav', 600],
-  ['select-3.wav', 690],
-  ['select-4.wav', 780],
-  ['select-5.wav', 870],
-  ['select-6.wav', 960],
-  ['select-7.wav', 1050],
+  ['select.wav', 523.25],
+  ['select-2.wav', 587.33],
+  ['select-3.wav', 659.25],
+  ['select-4.wav', 783.99],
+  ['select-5.wav', 880],
+  ['select-6.wav', 1046.5],
+  ['select-7.wav', 1174.66],
 ].forEach(([filename, frequency]) => {
-  writePcmWave(filename, renderPop(frequency));
+  writePcmWave(filename, renderSelectionTone(frequency));
 });
 writePcmWave('hint.wav', renderPop(620));
 writePcmWave('shuffle.wav', renderPop(360));

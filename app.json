@@ -33,7 +33,15 @@
     },
     "plugins": [
       "expo-router",
-      "@react-native-firebase/app",
+      [
+        "@react-native-firebase/app",
+        {
+          "ios": {
+            "disableSPM": true
+          }
+        }
+      ],
+      "./plugins/with-google-utilities-modular-headers",
       [
         "expo-splash-screen",
         {

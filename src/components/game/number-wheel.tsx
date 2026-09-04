@@ -51,6 +51,7 @@ type NumberWheelProps = {
   onHint: () => void;
   onShuffle: () => void;
   onNodeAdded: (selectionCount: number) => void;
+  onNodeRemoved: (selectionCount: number) => void;
   onDraggingChange: (dragging: boolean) => void;
   tutorialFocus?: 'shuffle' | 'hint';
   tutorialGuideIndex?: number;
@@ -158,6 +159,7 @@ function updateSelectionOnUI(
   'worklet';
   let selection = [...currentSelection];
   const addedSelectionCounts: number[] = [];
+  const removedSelectionCounts: number[] = [];
   let changed = false;
 
   traversedNodeIndices.forEach((nodeIndex) => {
@@ -167,6 +169,7 @@ function updateSelectionOnUI(
     const previousIndex = selection[selection.length - 2];
     if (selection.length > 1 && nodeIndex === previousIndex) {
       selection = selection.slice(0, -1);
+      removedSelectionCounts.push(selection.length);
       changed = true;
       return;
     }
@@ -185,7 +188,7 @@ function updateSelectionOnUI(
     changed = true;
   });
 
-  return { selection, addedSelectionCounts, changed };
+  return { selection, addedSelectionCounts, removedSelectionCounts, changed };
 }
 
 function HintIcon() {
@@ -303,6 +306,7 @@ export const NumberWheel = memo(function NumberWheel({
   onHint,
   onShuffle,
   onNodeAdded,
+  onNodeRemoved,
   onDraggingChange,
   tutorialFocus,
   tutorialGuideIndex,
@@ -340,6 +344,7 @@ export const NumberWheel = memo(function NumberWheel({
     onComplete,
     onDraggingChange,
     onNodeAdded,
+    onNodeRemoved,
     onPreview,
   });
 
@@ -388,8 +393,14 @@ export const NumberWheel = memo(function NumberWheel({
   }, [activePointer, holdingOnUI, selectionOnUI]);
 
   useEffect(() => {
-    callbacksRef.current = { onComplete, onDraggingChange, onNodeAdded, onPreview };
-  }, [onComplete, onDraggingChange, onNodeAdded, onPreview]);
+    callbacksRef.current = {
+      onComplete,
+      onDraggingChange,
+      onNodeAdded,
+      onNodeRemoved,
+      onPreview,
+    };
+  }, [onComplete, onDraggingChange, onNodeAdded, onNodeRemoved, onPreview]);
 
   useEffect(() => {
     positionsRef.current = positions;
@@ -446,10 +457,17 @@ export const NumberWheel = memo(function NumberWheel({
   }, []);
 
   const syncSelection = useCallback(
-    (next: number[], addedSelectionCounts: number[]) => {
+    (
+      next: number[],
+      addedSelectionCounts: number[],
+      removedSelectionCounts: number[],
+    ) => {
       setSelectedIndices(next);
       addedSelectionCounts.forEach((selectionCount) => {
         callbacksRef.current.onNodeAdded(selectionCount);
+      });
+      removedSelectionCounts.forEach((selectionCount) => {
+        callbacksRef.current.onNodeRemoved(selectionCount);
       });
       callbacksRef.current.onPreview(next);
     },
@@ -564,7 +582,11 @@ export const NumberWheel = memo(function NumberWheel({
 
       webSelectionRef.current = update.selection;
       selectionOnUI.value = update.selection;
-      syncSelection(update.selection, update.addedSelectionCounts);
+      syncSelection(
+        update.selection,
+        update.addedSelectionCounts,
+        update.removedSelectionCounts,
+      );
     },
     [
       getWebTouchPoint,
@@ -663,7 +685,11 @@ export const NumberWheel = memo(function NumberWheel({
           if (!update.changed) return;
 
           selectionOnUI.value = update.selection;
-          runOnJS(syncSelection)(update.selection, update.addedSelectionCounts);
+          runOnJS(syncSelection)(
+            update.selection,
+            update.addedSelectionCounts,
+            update.removedSelectionCounts,
+          );
         })
         .onTouchesUp((event, stateManager) => {
           'worklet';
@@ -686,7 +712,11 @@ export const NumberWheel = memo(function NumberWheel({
             );
             if (update.changed) {
               selectionOnUI.value = update.selection;
-              runOnJS(syncSelection)(update.selection, update.addedSelectionCounts);
+              runOnJS(syncSelection)(
+                update.selection,
+                update.addedSelectionCounts,
+                update.removedSelectionCounts,
+              );
             }
           }
 
