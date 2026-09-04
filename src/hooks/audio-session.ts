@@ -11,9 +11,11 @@ let desiredAudioSessionActive = false;
 let nativeAudioSessionActive = false;
 let audioSessionQueue: Promise<void> = Promise.resolve();
 const playerOperationQueues = new WeakMap<AudioPlayer, Promise<void>>();
+const playerLoadPromises = new WeakMap<AudioPlayer, Promise<void>>();
 const usedPlayers = new WeakSet<AudioPlayer>();
 const preparedPlayerStarts = new WeakMap<AudioPlayer, number>();
 const POSITION_TOLERANCE = 0.004;
+const PLAYER_LOAD_TIMEOUT = 3000;
 
 async function reconcileAudioSession() {
   while (desiredAudioSessionActive !== nativeAudioSessionActive) {
@@ -85,6 +87,35 @@ function enqueuePlayerOperation(player: AudioPlayer, operation: () => Promise<vo
   return queuedOperation;
 }
 
+function waitForAudioPlayerLoaded(player: AudioPlayer) {
+  if (player.isLoaded) return Promise.resolve();
+  const pendingLoad = playerLoadPromises.get(player);
+  if (pendingLoad) return pendingLoad;
+
+  let subscription: { remove: () => void } | undefined;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const load = new Promise<void>((resolve) => {
+    const finish = () => {
+      subscription?.remove();
+      if (timeout) clearTimeout(timeout);
+      resolve();
+    };
+
+    subscription = player.addListener('playbackStatusUpdate', (status) => {
+      if (status.isLoaded) finish();
+    });
+    timeout = setTimeout(finish, PLAYER_LOAD_TIMEOUT);
+    // Listener eklenirken gerçekleşen yüklemeyi kaçırma.
+    if (player.isLoaded) finish();
+  });
+
+  playerLoadPromises.set(player, load);
+  void load.finally(() => {
+    if (playerLoadPromises.get(player) === load) playerLoadPromises.delete(player);
+  });
+  return load;
+}
+
 /**
  * Kısa efekt player'ını sıfırdan yeniden başlatır.
  *
@@ -94,27 +125,59 @@ function enqueuePlayerOperation(player: AudioPlayer, operation: () => Promise<vo
  * play'i kesin sırayla yürütür; aynı kanala hızlı çağrılar da yarışmaz.
  */
 export function replayAudioPlayer(player: AudioPlayer, volume = 1, startTime = 0) {
+  const wasUsed = usedPlayers.has(player);
+  // Hazırlama işlemi henüz kuyruktaysa bile yeni bir dokunma talebinden
+  // sonra player'a müdahale edememesi için isteği senkron olarak işaretle.
+  usedPlayers.add(player);
+
+  const preparedStart = preparedPlayerStarts.get(player);
+  const isPrepared =
+    preparedStart !== undefined &&
+    Math.abs(preparedStart - startTime) <= POSITION_TOLERANCE;
+  const canPlayImmediately =
+    isPrepared &&
+    player.isLoaded &&
+    nativeAudioSessionActive &&
+    desiredAudioSessionActive &&
+    AppState.currentState !== 'background' &&
+    !playerOperationQueues.has(player);
+
+  if (canPlayImmediately) {
+    try {
+      player.volume = volume;
+      preparedPlayerStarts.delete(player);
+      player.play();
+      return Promise.resolve();
+    } catch {
+      // Native player hazır durumunu yarış sırasında kaybettiyse
+      // aşağıdaki sıralı ve yeniden deneyen yola geç.
+    }
+  }
+
   return enqueuePlayerOperation(player, async () => {
     await ensureAudioSessionActive();
+    await waitForAudioPlayerLoaded(player);
 
     player.volume = volume;
-    const preparedStart = preparedPlayerStarts.get(player);
-    const isPrepared =
-      preparedStart !== undefined &&
-      Math.abs(preparedStart - startTime) <= POSITION_TOLERANCE;
+    const queuedPreparedStart = preparedPlayerStarts.get(player);
+    const isQueuedPlaybackPrepared =
+      queuedPreparedStart !== undefined &&
+      Math.abs(queuedPreparedStart - startTime) <= POSITION_TOLERANCE;
 
-    if (!isPrepared && usedPlayers.has(player)) {
+    if (!isQueuedPlaybackPrepared && wasUsed) {
       player.pause();
-      await player.seekTo(startTime, 0, 0);
+      // Kaynak ilk kez decode edilirken bazı cihazlar seek'i reddedebilir.
+      // Bu durumda dokunmayı tamamen sessiz bırakmak yerine play komutunu
+      // yine gönder; player dosya hazır olduğunda başlar.
+      await player.seekTo(startTime, 0, 0).catch(() => undefined);
     } else if (
-      !isPrepared &&
+      !isQueuedPlaybackPrepared &&
       Math.abs(player.currentTime - startTime) > POSITION_TOLERANCE
     ) {
-      await player.seekTo(startTime, 0, 0);
+      await player.seekTo(startTime, 0, 0).catch(() => undefined);
     }
 
     preparedPlayerStarts.delete(player);
-    usedPlayers.add(player);
     player.play();
   });
 }
@@ -126,7 +189,7 @@ export function prepareAudioPlayer(player: AudioPlayer, startTime = 0) {
 
     // Bu kontrol kuyruğa eklenirken değil, işlem gerçekten çalışırken yapılır.
     // Böylece geç ulaşan eski bir finish olayı yeni playback'i başa sarmaz.
-    if (player.playing) return;
+    if (usedPlayers.has(player) || player.playing) return;
 
     // Android'de dosya bittiğinde `playing` false olsa da native
     // `playWhenReady` açık kalabilir. Pause etmeden seek yapmak sesi yeniden

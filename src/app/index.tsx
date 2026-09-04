@@ -1576,7 +1576,7 @@ export default function HomeScreen() {
 
   const triggerEffect = useCallback(
     (kind: GameSound, force = false) => {
-      playSound(kind, force);
+      const playback = playSound(kind, force);
       if (!effectsEnabled) return;
       if (kind.startsWith('select')) {
         // Birleştirme sırasında ses olabilir, ancak düğüm düğüme
@@ -1584,17 +1584,28 @@ export default function HomeScreen() {
         return;
       }
       if (kind === 'points') return;
-      const effect =
-        kind === 'levelComplete'
-          ? Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-          : kind === 'bonus'
-            ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-            : kind === 'diamond'
+      const playHaptic = () => {
+        const effect =
+          kind === 'levelComplete'
+            ? Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+            : kind === 'bonus'
               ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-              : kind === 'shuffle' || kind === 'success'
-                ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                : Haptics.selectionAsync();
-      void effect.catch(() => undefined);
+              : kind === 'diamond'
+                ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+                : kind === 'shuffle' || kind === 'success'
+                  ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                  : Haptics.selectionAsync();
+        void effect.catch(() => undefined);
+      };
+
+      // Haptic'i sabit bir süre geciktirmek yerine player gerçekten play
+      // komutunu aldığı anda başlat. Böylece cold load ve seek süreleri
+      // cihazdan cihaza değişse de shuffle sesiyle titreşim ayrışmaz.
+      if (playback) {
+        void playback.then(playHaptic);
+      } else {
+        playHaptic();
+      }
     },
     [effectsEnabled, playSound],
   );
@@ -1728,7 +1739,9 @@ export default function HomeScreen() {
       }
       if (flight.kind === 'points') {
         setScore((currentScore) => currentScore + flight.value);
-        triggerEffect('points');
+        // Bir bölümün puan uçuşları için treasure efektini yalnızca
+        // ilk puan ulaştığında çal; üst üste binen tekrarlar oluşmasın.
+        if (flight.delay === 0) triggerEffect('points');
         return;
       }
       revealTarget(flight.targetIndex);
@@ -1978,7 +1991,6 @@ export default function HomeScreen() {
             levelScorePending.current = 0;
             targetScoreAwardsRef.current.clear();
             setCelebrating(true);
-            triggerEffect('levelComplete');
 
             void launchScoreFlights(scoreAwards.filter((award) => award.value > 0)).then(
               (scoreFlightDuration) => {

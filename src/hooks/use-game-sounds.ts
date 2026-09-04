@@ -1,6 +1,5 @@
 import { preload, useAudioPlayer } from 'expo-audio';
 import { useCallback, useEffect, useRef } from 'react';
-import { AppState } from 'react-native';
 
 import { prepareAudioPlayer, replayAudioPlayer } from '@/hooks/audio-session';
 
@@ -37,9 +36,8 @@ const SELECT_SOURCES = [
 const HINT_SOURCE = require('../../assets/sounds/hint.mp3');
 const SUCCESS_SOURCE = require('../../assets/sounds/success.wav');
 const BONUS_SOURCE = require('../../assets/sounds/bonus.wav');
-const DIAMOND_SOURCE = require('../../assets/sounds/diamond.wav');
-const LEVEL_COMPLETE_SOURCE = require('../../assets/sounds/level-complete.wav');
-const POINTS_SOURCE = require('../../assets/sounds/points.wav');
+const DIAMOND_SOURCE = require('../../assets/sounds/dimaond.mp3');
+const GAME_TREASURE_SOURCE = require('../../assets/sounds/game-treasure.wav');
 const SHUFFLE_SOURCE = require('../../assets/sounds/bubble_x.mp3');
 const HINT_START_TIME = 0.056;
 const SHUFFLE_START_TIME = 0.049;
@@ -48,7 +46,7 @@ const SHUFFLE_START_TIME = 0.049;
 // component render edilmeden önce native decoder'a hazırlar.
 void Promise.all(
   [...SELECT_SOURCES, HINT_SOURCE, SUCCESS_SOURCE, BONUS_SOURCE, DIAMOND_SOURCE,
-    LEVEL_COMPLETE_SOURCE, POINTS_SOURCE, SHUFFLE_SOURCE].map((source) => preload(source)),
+    GAME_TREASURE_SOURCE, SHUFFLE_SOURCE].map((source) => preload(source)),
 ).catch(() => undefined);
 
 const SOUND_VOLUMES: Partial<Record<GameSound, number>> = {
@@ -142,11 +140,11 @@ export function useGameSounds(enabled: boolean) {
     PLAYER_OPTIONS,
   );
   const levelCompletePlayer = useAudioPlayer(
-    LEVEL_COMPLETE_SOURCE,
+    GAME_TREASURE_SOURCE,
     PLAYER_OPTIONS,
   );
   const pointsPlayer = useAudioPlayer(
-    POINTS_SOURCE,
+    GAME_TREASURE_SOURCE,
     PLAYER_OPTIONS,
   );
   const shufflePlayer = useAudioPlayer(
@@ -192,38 +190,20 @@ export function useGameSounds(enabled: boolean) {
       { player: shuffleThirdPlayer, startTime: SHUFFLE_START_TIME },
     ] as const;
 
-    const prepareLoadedChannels = () => {
-      channels.forEach(({ player, startTime }) => {
-        if (player.isLoaded) void prepareAudioPlayer(player, startTime);
-      });
-    };
-
+    // Yalnızca henüz kullanılmamış kanalları source yüklenir yüklenmez
+    // hazırla. replay isteği senkron işaretlendiği için geç gelen load
+    // olayı artık ilk sesi durduramaz.
     const subscriptions = channels.map(({ player, startTime }) => {
       let loaded = player.isLoaded;
-      let finishHandled = false;
-
-      // Yerel dosya native tarafta hazır olur olmaz ilk dokunuş için
-      // konumlandır. Oynatma bitince de kanalı arka planda yeniden kur.
-      if (loaded) void prepareAudioPlayer(player, startTime);
+      if (player.isLoaded) void prepareAudioPlayer(player, startTime);
       return player.addListener('playbackStatusUpdate', (status) => {
         const justLoaded = status.isLoaded && !loaded;
-        const justFinished = status.didJustFinish && !finishHandled;
         loaded = status.isLoaded;
-        finishHandled = status.didJustFinish;
-
-        if (justLoaded || justFinished) {
-          void prepareAudioPlayer(player, startTime);
-        }
+        if (justLoaded) void prepareAudioPlayer(player, startTime);
       });
     });
-    const appStateSubscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') prepareLoadedChannels();
-    });
 
-    return () => {
-      appStateSubscription.remove();
-      subscriptions.forEach((subscription) => subscription.remove());
-    };
+    return () => subscriptions.forEach((subscription) => subscription.remove());
   }, [
     bonusPlayer,
     diamondPlayer,
@@ -309,7 +289,7 @@ export function useGameSounds(enabled: boolean) {
 
       if (!player) return;
 
-      replayAudioPlayer(
+      return replayAudioPlayer(
         player,
         SOUND_VOLUMES[sound] ?? 1,
         sound === 'shuffle' ? SHUFFLE_START_TIME : sound === 'hint' ? HINT_START_TIME : 0,
