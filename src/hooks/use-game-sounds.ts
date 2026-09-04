@@ -24,6 +24,13 @@ const PLAYER_OPTIONS = {
   updateInterval: 1000,
 } as const;
 
+const SOUND_VOLUMES: Partial<Record<GameSound, number>> = {
+  bonus: 0.55,
+  diamond: 0.48,
+  levelComplete: 0.35,
+  points: 0.42,
+};
+
 export function useGameSounds(enabled: boolean) {
   const selectOnePlayer = useAudioPlayer(
     require('../../assets/sounds/select.wav'),
@@ -104,7 +111,7 @@ export function useGameSounds(enabled: boolean) {
   );
   const bonusPlayer = useAudioPlayer(require('../../assets/sounds/bonus.wav'), PLAYER_OPTIONS);
   const diamondPlayer = useAudioPlayer(
-    require('../../assets/sounds/dimaond.mp3'),
+    require('../../assets/sounds/diamond.wav'),
     PLAYER_OPTIONS,
   );
   const levelCompletePlayer = useAudioPlayer(
@@ -112,7 +119,7 @@ export function useGameSounds(enabled: boolean) {
     PLAYER_OPTIONS,
   );
   const pointsPlayer = useAudioPlayer(
-    require('../../assets/sounds/point.mp3'),
+    require('../../assets/sounds/points.wav'),
     PLAYER_OPTIONS,
   );
   const shufflePlayer = useAudioPlayer(
@@ -186,11 +193,7 @@ export function useGameSounds(enabled: boolean) {
 
       if (!player) return;
 
-      // Bölüm sonu konfetiyle birlikte kısa ve hafif bir kutlama sesi çal.
-      replayAudioPlayer(
-        player,
-        sound === 'levelComplete' ? 0.35 : sound === 'points' ? 0.65 : 1,
-      );
+      replayAudioPlayer(player, SOUND_VOLUMES[sound] ?? 1);
     },
     [
       bonusPlayer,

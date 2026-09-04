@@ -216,11 +216,24 @@ export function CountryCompletionModal({
           accessibilityRole="button"
           onPress={onContinue}
           style={({ pressed }) => [styles.countryContinueButton, pressed && styles.pressed]}>
-          <Text style={styles.countryContinueText}>
-            {worldTourCompleted
-              ? t('modal.masterTourButton')
-              : t('modal.countryButton', { flag: nextCountry.flag, country: nextCountryName })}
-          </Text>
+          <LinearGradient
+            colors={['#FFD469', '#F3A43B']}
+            end={{ x: 1, y: 1 }}
+            start={{ x: 0, y: 0 }}
+            style={styles.countryContinueSurface}>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.76}
+              numberOfLines={1}
+              style={styles.countryContinueText}>
+              {worldTourCompleted
+                ? t('modal.masterTourButton')
+                : t('modal.countryButton', { flag: nextCountry.flag, country: nextCountryName })}
+            </Text>
+            <View pointerEvents="none" style={styles.countryContinueArrowCircle}>
+              <Text style={styles.countryContinueArrow}>→</Text>
+            </View>
+          </LinearGradient>
         </Pressable>
       }
       icon={worldTourCompleted ? '🌍' : country.flag}
@@ -456,7 +469,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(2,6,23,0.7)',
   },
   journeyModalFooter: {
-    padding: 14,
+    padding: 16,
     borderTopColor: '#D5E8E7',
     backgroundColor: 'rgba(247,252,250,0.96)',
   },
@@ -518,26 +531,57 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   countryContinueButton: {
-    minHeight: 48,
+    minHeight: 58,
+    alignSelf: 'stretch',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#FFF5CC',
+    backgroundColor: '#F3A43B',
+    shadowColor: '#8A5A20',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.34,
+    shadowRadius: 9,
+    elevation: 8,
+  },
+  countryContinueSurface: {
+    minHeight: 56,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#D2F1F2',
-    backgroundColor: '#2F849B',
-    shadowColor: '#376B79',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.18,
-    shadowRadius: 5,
-    elevation: 3,
+    paddingHorizontal: 50,
+    borderRadius: 18,
   },
   countryContinueText: {
+    width: '100%',
+    color: '#294B58',
+    fontFamily: FONTS.black,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '900',
+    letterSpacing: 0.25,
+    textAlign: 'center',
+    textShadowColor: 'rgba(255,248,219,0.46)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  countryContinueArrowCircle: {
+    position: 'absolute',
+    right: 10,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: '#24788A',
+  },
+  countryContinueArrow: {
     color: '#FFFFFF',
     fontFamily: FONTS.black,
-    fontSize: 12,
+    fontSize: 21,
+    lineHeight: 24,
     fontWeight: '900',
-    textAlign: 'center',
   },
   stampGrid: {
     flexDirection: 'row',

@@ -124,10 +124,15 @@ function isPackagerRunning() {
   });
 }
 
+function isChildProcessRunning(child) {
+  return child.exitCode === null && child.signalCode === null;
+}
+
 async function waitForPackager(child) {
   for (let attempt = 0; attempt < 90; attempt += 1) {
-    if (child.exitCode !== null) {
-      throw new Error(`Metro beklenmedik şekilde kapandı (kod: ${child.exitCode}).`);
+    if (!isChildProcessRunning(child)) {
+      const reason = child.exitCode ?? child.signalCode ?? 'bilinmiyor';
+      throw new Error(`Metro beklenmedik şekilde kapandı (${reason}).`);
     }
     if (await isPackagerRunning()) return;
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -150,8 +155,11 @@ function runInteractive(command, args) {
   });
 }
 
-async function getNativeBuildSpace() {
-  const minimumGiB = Number(process.env.DEVICE_MIN_FREE_GB ?? '4');
+async function getNativeBuildSpace(targets) {
+  const iosOnly = targets.every((target) => target.platform === 'ios');
+  const defaultMinimumGiB = iosOnly ? 3 : 4;
+  const recommendedGiB = 4;
+  const minimumGiB = Number(process.env.DEVICE_MIN_FREE_GB ?? defaultMinimumGiB);
   const stats = await statfs(projectRoot);
   const freeBytes = Number(stats.bavail) * Number(stats.bsize);
   const freeGiB = freeBytes / 1024 ** 3;
@@ -160,7 +168,12 @@ async function getNativeBuildSpace() {
     console.error('DEVICE_MIN_FREE_GB pozitif bir sayı olmalıdır.');
     process.exit(2);
   }
-  return { freeGiB, minimumGiB, sufficient: freeGiB >= minimumGiB };
+  return {
+    freeGiB,
+    minimumGiB,
+    recommendedGiB,
+    sufficient: freeGiB >= minimumGiB,
+  };
 }
 
 async function openAndroidWithExpoGo(target) {
@@ -229,7 +242,7 @@ for (const target of targets) {
   console.log(`✓ ${target.platform.toUpperCase()}: ${target.name} (${target.id})`);
 }
 
-const buildSpace = await getNativeBuildSpace();
+const buildSpace = await getNativeBuildSpace(targets);
 const expoGoFallback =
   !buildSpace.sufficient && targets.every((target) => target.platform === 'android');
 
@@ -247,6 +260,10 @@ if (expoGoFallback) {
   );
   console.warn(
     `Native development build için en az ${buildSpace.minimumGiB.toFixed(1)} GB alan açıldığında aynı komut otomatik olarak Gradle build çalıştırır.`,
+  );
+} else if (buildSpace.freeGiB < buildSpace.recommendedGiB) {
+  console.warn(
+    `⚠ Disk alanı düşük: ${buildSpace.freeGiB.toFixed(1)} GB kullanılabilir. Native derleme devam edecek; mümkünse en az ${buildSpace.recommendedGiB.toFixed(1)} GB boş alan bırakın.`,
   );
 } else {
   console.log(`✓ Disk alanı: ${buildSpace.freeGiB.toFixed(1)} GB kullanılabilir.`);
@@ -320,7 +337,9 @@ console.log(
     ? '\n✓ Bağlı fiziksel Android cihaz Expo Go ile hazır.'
     : '\n✓ Bağlı fiziksel cihazlar native development build ile hazır.',
 );
-if (ownsMetro && metroProcess) {
+if (ownsMetro && metroProcess && isChildProcessRunning(metroProcess)) {
   console.log('Metro çalışıyor; kapatmak için Ctrl+C kullanın.');
   await new Promise((resolve) => metroProcess.once('exit', resolve));
+} else if (ownsMetro && (await isPackagerRunning())) {
+  console.log(`✓ Metro ${metroPort} portunda arka planda çalışmaya devam ediyor.`);
 }

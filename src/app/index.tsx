@@ -2639,6 +2639,7 @@ const styles = StyleSheet.create({
   scoreCopy: {
     minWidth: 0,
     flexShrink: 1,
+    alignItems: 'center',
   },
   scoreLabel: {
     color: '#FFE9A9',
@@ -2647,6 +2648,7 @@ const styles = StyleSheet.create({
     lineHeight: 7,
     letterSpacing: 0.7,
     fontWeight: '700',
+    textAlign: 'center',
   },
   scoreText: {
     color: '#FFFFFF',
@@ -2654,6 +2656,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 17,
     fontWeight: '900',
+    textAlign: 'center',
   },
   scoreTextCompact: {
     fontSize: 13,
@@ -2661,12 +2664,14 @@ const styles = StyleSheet.create({
   counterGain: {
     position: 'absolute',
     top: -14,
-    right: 4,
+    right: 0,
+    left: 0,
     color: '#FFF1A8',
     fontFamily: FONTS.extraBold,
     fontSize: 11,
     lineHeight: 14,
     fontWeight: '800',
+    textAlign: 'center',
     textShadowColor: 'rgba(52,30,10,0.7)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
@@ -2702,6 +2707,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.black,
     fontSize: 16,
     fontWeight: '900',
+    textAlign: 'center',
   },
   journeyStrip: {
     width: '94%',
@@ -3371,6 +3377,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     fontWeight: '900',
+    textAlign: 'center',
   },
   resultFlightValue: {
     color: '#FFFFFF',

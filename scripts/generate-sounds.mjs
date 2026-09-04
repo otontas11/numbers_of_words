@@ -65,6 +65,71 @@ function renderSelectionTone(frequency) {
   return samples;
 }
 
+function renderScoreTick() {
+  const duration = 0.24;
+  const attackDuration = 0.012;
+  const releaseDuration = 0.055;
+  const startFrequency = 430;
+  const endFrequency = 570;
+  const sampleCount = Math.ceil(duration * SAMPLE_RATE);
+  const samples = new Float64Array(sampleCount);
+  const frequencyGrowth = Math.log(endFrequency / startFrequency) / duration;
+
+  for (let index = 0; index < sampleCount; index += 1) {
+    const time = index / SAMPLE_RATE;
+    const attack = Math.sin(
+      (Math.PI / 2) * Math.min(1, time / attackDuration),
+    );
+    const decay = Math.exp(-11 * Math.max(0, time - attackDuration));
+    const release = Math.min(1, Math.max(0, (duration - time) / releaseDuration));
+    const phase =
+      (2 * Math.PI * startFrequency * (Math.exp(frequencyGrowth * time) - 1)) /
+      frequencyGrowth;
+    const roundedTone = Math.sin(phase) * 0.24 + Math.sin(phase * 1.5) * 0.035;
+    samples[index] = roundedTone * attack * decay * release;
+  }
+
+  return samples;
+}
+
+function renderBonusReward() {
+  const noteDuration = 0.72;
+  const attackDuration = 0.025;
+  const releaseDuration = 0.18;
+  const notes = [
+    { start: 0, frequency: 392, gain: 0.18 },
+    { start: 0.16, frequency: 493.88, gain: 0.15 },
+    { start: 0.34, frequency: 587.33, gain: 0.12 },
+  ];
+  const totalDuration = notes.at(-1).start + noteDuration;
+  const samples = new Float64Array(Math.ceil(totalDuration * SAMPLE_RATE));
+
+  notes.forEach(({ start, frequency, gain }) => {
+    const startSample = Math.floor(start * SAMPLE_RATE);
+    const endSample = Math.min(
+      samples.length,
+      Math.ceil((start + noteDuration) * SAMPLE_RATE),
+    );
+
+    for (let index = startSample; index < endSample; index += 1) {
+      const localTime = index / SAMPLE_RATE - start;
+      const attack = Math.sin(
+        (Math.PI / 2) * Math.min(1, localTime / attackDuration),
+      );
+      const decay = Math.exp(-4.8 * Math.max(0, localTime - attackDuration));
+      const release = Math.min(
+        1,
+        Math.max(0, (noteDuration - localTime) / releaseDuration),
+      );
+      const phase = 2 * Math.PI * frequency * localTime;
+      const softBell = Math.sin(phase) + Math.sin(phase * 2) * 0.06;
+      samples[index] += softBell * gain * attack * decay * release;
+    }
+  });
+
+  return samples;
+}
+
 function triangle(phase) {
   return (2 / Math.PI) * Math.asin(Math.sin(phase));
 }
@@ -152,14 +217,16 @@ const success = renderSuccess();
 writePcmWave('hint.wav', renderPop(620));
 writePcmWave('shuffle.wav', renderPop(360));
 writePcmWave('success.wav', success);
+writePcmWave('points.wav', renderScoreTick());
+writePcmWave('diamond.wav', renderBonusReward());
 writePcmWave(
   'bonus.wav',
   renderExponentialChirp({
-    startFrequency: 880,
-    endFrequency: 1320,
-    duration: 0.15,
-    startGain: 0.2,
-    endGain: 0.01,
+    startFrequency: 640,
+    endFrequency: 920,
+    duration: 0.24,
+    startGain: 0.15,
+    endGain: 0.006,
   }),
 );
 
