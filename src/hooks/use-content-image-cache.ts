@@ -14,9 +14,39 @@ import {
 const DOWNLOAD_CONCURRENCY = 3;
 const MANIFEST_STORAGE_KEY = 'numbers-of-wonders:content-manifest:v2';
 const MANIFEST_REFRESH_INTERVAL_MS = 30_000;
+const BOOTSTRAP_NETWORK_TIMEOUT_MS = 6_000;
+const BOOTSTRAP_MINIMUM_VISIBLE_MS = 800;
+const BOOTSTRAP_COMPLETE_HOLD_MS = 220;
 
 let manifestEtag: string | null = null;
 let refreshPromise: Promise<void> | null = null;
+let bootstrapPromise: Promise<void> | null = null;
+
+type ContentImageBootstrapState = {
+  progress: number;
+  ready: boolean;
+};
+
+let bootstrapState: ContentImageBootstrapState = { progress: 0.06, ready: false };
+const bootstrapListeners = new Set<() => void>();
+
+function updateBootstrapState(next: ContentImageBootstrapState) {
+  bootstrapState = next;
+  bootstrapListeners.forEach((listener) => listener());
+}
+
+function subscribeBootstrap(listener: () => void) {
+  bootstrapListeners.add(listener);
+  return () => bootstrapListeners.delete(listener);
+}
+
+function getBootstrapState() {
+  return bootstrapState;
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
 
 async function cacheMissingImages(urls: readonly string[]) {
   if (Platform.OS === 'web') return;
@@ -73,11 +103,42 @@ async function refreshRemoteManifest() {
   return refreshPromise;
 }
 
+async function bootstrapContentImages() {
+  if (bootstrapPromise) return bootstrapPromise;
+
+  bootstrapPromise = (async () => {
+    const startedAt = Date.now();
+    updateBootstrapState({ progress: 0.14, ready: false });
+
+    await hydrateStoredManifest().catch(async () => {
+      await AsyncStorage.removeItem(MANIFEST_STORAGE_KEY).catch(() => undefined);
+    });
+    updateBootstrapState({ progress: 0.38, ready: false });
+
+    await Promise.race([
+      refreshRemoteManifest().catch(() => undefined),
+      wait(BOOTSTRAP_NETWORK_TIMEOUT_MS),
+    ]);
+    updateBootstrapState({ progress: 0.88, ready: false });
+
+    const remainingMinimumTime = BOOTSTRAP_MINIMUM_VISIBLE_MS - (Date.now() - startedAt);
+    if (remainingMinimumTime > 0) await wait(remainingMinimumTime);
+
+    updateBootstrapState({ progress: 1, ready: false });
+    await wait(BOOTSTRAP_COMPLETE_HOLD_MS);
+    updateBootstrapState({ progress: 1, ready: true });
+  })();
+
+  return bootstrapPromise;
+}
+
 /**
- * Uygulama açılır açılmaz içerik görsellerini arka planda kalıcı disk önbelleğine alır.
- * Arayüzü bekletmez; başarısız veya silinmiş dosyalar sonraki açılışta yeniden denenir.
+ * Açılışta kayıtlı manifesti yükler ve Cloudflare manifestini yeniler.
+ * Görsel indirmeleri disk önbelleğine arka planda devam eder.
  */
 export function useContentImageCache() {
+  const bootstrap = useContentImageBootstrap();
+
   useEffect(() => {
     let active = true;
     const refresh = () => {
@@ -87,9 +148,7 @@ export function useContentImageCache() {
       });
     };
 
-    void hydrateStoredManifest()
-      .catch(() => AsyncStorage.removeItem(MANIFEST_STORAGE_KEY))
-      .finally(refresh);
+    void bootstrapContentImages();
 
     const appStateSubscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') refresh();
@@ -102,6 +161,13 @@ export function useContentImageCache() {
       appStateSubscription.remove();
     };
   }, []);
+
+  return bootstrap;
+}
+
+/** İlk Cloudflare manifest hazırlığının splash ekranında gösterilen durumu. */
+export function useContentImageBootstrap() {
+  return useSyncExternalStore(subscribeBootstrap, getBootstrapState, getBootstrapState);
 }
 
 /** Cloudflare manifesti değiştiğinde içerik kullanan ekranları yeniden render eder. */

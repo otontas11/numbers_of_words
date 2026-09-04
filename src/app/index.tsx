@@ -29,6 +29,7 @@ import { SoundPressable as Pressable } from '@/components/common/sound-pressable
 import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
 import { MainMenu, ProfileScreen } from '@/components/home/main-menu';
 import { SettingsModal } from '@/components/home/settings-modal';
+import { StartupSplash } from '@/components/startup-splash';
 import { JourneyMap } from '@/components/journey/journey-map';
 import { countryContentImageUrl } from '@/constants/content-images';
 import { FONTS } from '@/constants/fonts';
@@ -70,7 +71,10 @@ import {
   resolveTravelLevel,
 } from '@/game/travel';
 import { useBackgroundMusic } from '@/hooks/use-background-music';
-import { useContentImageVersion } from '@/hooks/use-content-image-cache';
+import {
+  useContentImageBootstrap,
+  useContentImageVersion,
+} from '@/hooks/use-content-image-cache';
 import { useGameSounds, type GameSound } from '@/hooks/use-game-sounds';
 import { localizeCountry, localizeOperation, useI18n } from '@/i18n';
 
@@ -1093,6 +1097,7 @@ function JourneyStrip({
 export default function HomeScreen() {
   const { language, t } = useI18n();
   const { width, height } = useWindowDimensions();
+  const contentBootstrap = useContentImageBootstrap();
   const contentImageVersion = useContentImageVersion();
   const [level, setLevel] = useState(1);
   const [levelData, setLevelData] = useState<LevelData>(() => generateLevelData(1));
@@ -1968,7 +1973,9 @@ export default function HomeScreen() {
     t,
   ]);
 
-  if (!hydrated) return <View style={styles.screen} />;
+  if (!hydrated || !contentBootstrap.ready) {
+    return <StartupSplash progress={contentBootstrap.progress} />;
+  }
 
   const overlays = (
     <>
