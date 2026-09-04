@@ -10,10 +10,12 @@
     "ios": {
       "bundleIdentifier": "platform.tnts.numberofwonders",
       "icon": "./assets/expo.icon",
-      "appleTeamId": "PSH5U378D5"
+      "appleTeamId": "PSH5U378D5",
+      "googleServicesFile": "./firebase/ios/GoogleService-Info.plist"
     },
     "android": {
       "package": "platform.tnts.numberofwonders",
+      "googleServicesFile": "./firebase/android/google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -31,6 +33,7 @@
     },
     "plugins": [
       "expo-router",
+      "@react-native-firebase/app",
       [
         "expo-splash-screen",
         {
