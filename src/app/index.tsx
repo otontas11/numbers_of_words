@@ -973,7 +973,7 @@ function JourneyStrip({
   const [operationHint] = useState(() => new Animated.Value(0));
   // Kullanıcının kayıtlı yolculuğu ilk seviyeden başlamayabilir; eğitim
   // bilgisi bu yüzden mutlak seviye numarasına bağlı olmadan gösterilir.
-  const showOperationHint = active;
+  const showOperationHint = active && !levelData.countryChallenge;
 
   useEffect(() => {
     challengePulse.stopAnimation();
@@ -1029,40 +1029,53 @@ function JourneyStrip({
     <LinearGradient
       colors={
         levelData.countryChallenge
-          ? ['rgba(116,78,24,0.97)', 'rgba(47,57,69,0.97)']
+          ? ['rgba(36,139,151,0.98)', 'rgba(35,83,111,0.98)']
           : ['rgba(62,100,114,0.94)', 'rgba(38,63,77,0.93)']
       }
       end={{ x: 0, y: 1 }}
       start={{ x: 0, y: 0 }}
       style={[styles.journeyStrip, levelData.countryChallenge && styles.journeyStripChallenge]}>
-      <View style={styles.journeyTopRow}>
+      <View
+        style={[
+          styles.journeyTopRow,
+          levelData.countryChallenge && styles.journeyTopRowChallenge,
+        ]}>
         <View style={styles.journeyCountryGroup}>
-          <Text numberOfLines={1} style={styles.journeyCountry}>
-            ✦ {levelData.flag} {countryName}
-          </Text>
           {levelData.countryChallenge ? (
-            <Animated.Text
-              numberOfLines={1}
+            <Animated.View
+              accessibilityLabel={`${t('modal.countryChallenge')}, ${countryName}`}
               style={[
-                styles.journeyChallengeLabel,
+                styles.journeyChallengeBadge,
                 {
                   opacity: challengePulse.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0.7, 1],
+                    outputRange: [0.94, 1],
                   }),
                   transform: [
                     {
                       scale: challengePulse.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [1, 1.06],
+                        outputRange: [1, 1.035],
                       }),
                     },
                   ],
                 },
               ]}>
-              {t('common.challenge')}
-            </Animated.Text>
-          ) : null}
+              <Text style={styles.journeyChallengeTrophy}>🏆</Text>
+              <View style={styles.journeyChallengeCopy}>
+                <Text numberOfLines={1} style={styles.journeyChallengeTitle}>
+                  {t('modal.countryChallenge')}
+                </Text>
+                <Text numberOfLines={1} style={styles.journeyChallengeCountry}>
+                  {levelData.flag} {countryName}
+                </Text>
+              </View>
+            </Animated.View>
+          ) : (
+            <Text numberOfLines={1} style={styles.journeyCountry}>
+              ✦ {levelData.flag} {countryName}
+            </Text>
+          )}
         </View>
         {showOperationHint ? (
           <Animated.View
@@ -2359,10 +2372,17 @@ export default function HomeScreen() {
             style={styles.scrollView}>
             <View style={styles.gameContent}>
               <LinearGradient
-                colors={['rgba(250,253,252,0.97)', 'rgba(225,238,238,0.96)']}
+                colors={
+                  levelData.countryChallenge
+                    ? ['rgba(255,252,235,0.98)', 'rgba(229,242,235,0.97)']
+                    : ['rgba(250,253,252,0.97)', 'rgba(225,238,238,0.96)']
+                }
                 end={{ x: 0, y: 1 }}
                 start={{ x: 0, y: 0 }}
-                style={styles.topSection}>
+                style={[
+                  styles.topSection,
+                  levelData.countryChallenge && styles.topSectionChallenge,
+                ]}>
                 <View style={styles.operationRow}>
                   <View style={styles.operationSide}>
                     <Text style={styles.operationLabel}>{t('game.operationType')}</Text>
@@ -2704,15 +2724,18 @@ const styles = StyleSheet.create({
   },
   journeyStripChallenge: {
     borderWidth: 2,
-    borderColor: '#FFE196',
+    borderColor: '#FFE7A3',
     shadowColor: '#D9A62E',
-    shadowOpacity: 0.38,
+    shadowOpacity: 0.34,
   },
   journeyTopRow: {
     minHeight: 25,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+  },
+  journeyTopRowChallenge: {
+    minHeight: 34,
   },
   journeyCountryGroup: {
     flex: 1,
@@ -2729,21 +2752,47 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontWeight: '900',
   },
-  journeyChallengeLabel: {
-    flexShrink: 0,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  journeyChallengeBadge: {
+    minWidth: 0,
+    flexShrink: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     overflow: 'hidden',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FFE196',
-    color: '#FFE196',
-    backgroundColor: 'rgba(35,45,57,0.78)',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FFE7A3',
+    backgroundColor: 'rgba(255,247,214,0.97)',
+    shadowColor: '#704A08',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  journeyChallengeTrophy: {
+    fontSize: 17,
+    lineHeight: 21,
+  },
+  journeyChallengeCopy: {
+    minWidth: 0,
+    flexShrink: 1,
+  },
+  journeyChallengeTitle: {
+    color: '#76500C',
     fontFamily: FONTS.black,
-    fontSize: 7,
-    lineHeight: 10,
-    letterSpacing: 0.5,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.65,
     fontWeight: '900',
+  },
+  journeyChallengeCountry: {
+    color: '#315464',
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    lineHeight: 11,
+    fontWeight: '800',
   },
   journeyOperationChip: {
     maxWidth: 116,
@@ -2901,6 +2950,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.14,
     shadowRadius: 5,
     elevation: 5,
+  },
+  topSectionChallenge: {
+    borderColor: '#E2BA5C',
+    shadowColor: '#9B741D',
+    shadowOpacity: 0.22,
   },
   operationRow: {
     width: '100%',
@@ -3201,9 +3255,10 @@ const styles = StyleSheet.create({
   bonusTargetSteps: {
     color: 'rgba(255,255,255,0.9)',
     fontFamily: FONTS.bold,
-    fontSize: 7,
-    lineHeight: 9,
+    fontSize: 9,
+    lineHeight: 11,
     fontWeight: '900',
+    letterSpacing: 0.25,
   },
   feedbackSlot: {
     width: '100%',
