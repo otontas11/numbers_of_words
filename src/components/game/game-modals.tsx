@@ -23,6 +23,7 @@ type BaseModalProps = {
   icon: string;
   children: ReactNode;
   footer?: ReactNode;
+  appearance?: 'dark' | 'journey';
   blurTarget: RefObject<View | null>;
   onClose: () => void;
 };
@@ -34,6 +35,7 @@ function GameModal({
   icon,
   children,
   footer,
+  appearance = 'dark',
   blurTarget,
   onClose,
 }: BaseModalProps) {
@@ -57,33 +59,54 @@ function GameModal({
       blurTarget={blurTarget}
       intensity={72}
       style={styles.overlay}
-      tint="dark">
-      <View pointerEvents="none" style={styles.overlayTint} />
-      <View style={styles.modalCard}>
-        <View style={styles.modalHeader}>
+      tint={appearance === 'journey' ? 'light' : 'dark'}>
+      <View
+        pointerEvents="none"
+        style={[styles.overlayTint, appearance === 'journey' && styles.journeyOverlayTint]}
+      />
+      <View style={[styles.modalCard, appearance === 'journey' && styles.journeyModalCard]}>
+        <View style={[styles.modalHeader, appearance === 'journey' && styles.journeyModalHeader]}>
           <Text style={styles.modalIcon}>{icon}</Text>
           <View style={styles.modalHeading}>
-            <Text style={styles.modalTitle}>{title}</Text>
-            <Text style={styles.modalSubtitle}>{subtitle}</Text>
+            <Text style={[styles.modalTitle, appearance === 'journey' && styles.journeyModalTitle]}>
+              {title}
+            </Text>
+            <Text
+              style={[styles.modalSubtitle, appearance === 'journey' && styles.journeyModalSubtitle]}>
+              {subtitle}
+            </Text>
           </View>
           <Pressable
             accessibilityLabel={t('common.closeWindow')}
             accessibilityRole="button"
             hitSlop={8}
             onPress={onClose}
-            style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}>
-            <Text style={styles.closeText}>✕</Text>
+            style={({ pressed }) => [
+              styles.closeButton,
+              appearance === 'journey' && styles.journeyCloseButton,
+              pressed && styles.pressed,
+            ]}>
+            <Text style={[styles.closeText, appearance === 'journey' && styles.journeyCloseText]}>
+              ✕
+            </Text>
           </Pressable>
         </View>
 
         <ScrollView
           bounces={false}
-          contentContainerStyle={styles.modalContent}
+          contentContainerStyle={[
+            styles.modalContent,
+            appearance === 'journey' && styles.journeyModalContent,
+          ]}
           showsVerticalScrollIndicator={false}>
           {children}
         </ScrollView>
 
-        {footer ? <View style={styles.modalFooter}>{footer}</View> : null}
+        {footer ? (
+          <View style={[styles.modalFooter, appearance === 'journey' && styles.journeyModalFooter]}>
+            {footer}
+          </View>
+        ) : null}
       </View>
     </BlurView>
   );
@@ -107,6 +130,7 @@ export function PassportModal({
 
   return (
     <GameModal
+      appearance="journey"
       blurTarget={blurTarget}
       footer={
         <Text style={styles.footerText}>
@@ -143,49 +167,6 @@ export function PassportModal({
             <Text style={styles.stampStatus}>{t('modal.passportWon')}</Text>
           </View>
         ))}
-      </View>
-    </GameModal>
-  );
-}
-
-export function ChallengeIntroModal({
-  visible,
-  country,
-  flag,
-  worldTourFinal,
-  blurTarget,
-  onClose,
-}: {
-  visible: boolean;
-  country: string;
-  flag: string;
-  worldTourFinal: boolean;
-  blurTarget: RefObject<View | null>;
-  onClose: () => void;
-}) {
-  const { language, t } = useI18n();
-  const countryName = localizeCountry({ country, flag }, language);
-  const title = worldTourFinal ? t('modal.worldFinal') : t('modal.countryChallenge');
-
-  return (
-    <GameModal
-      blurTarget={blurTarget}
-      footer={
-        <Pressable
-          accessibilityLabel={t('modal.startGame')}
-          accessibilityRole="button"
-          onPress={onClose}
-          style={({ pressed }) => [styles.challengeStartButton, pressed && styles.pressed]}>
-          <Text style={styles.challengeStartText}>{t('modal.start')}</Text>
-        </Pressable>
-      }
-      icon="🏆"
-      onClose={onClose}
-      subtitle={`${flag} ${countryName} • ${t('modal.finalGame')}`}
-      title={title}
-      visible={visible}>
-      <View style={styles.challengeIntroHero}>
-        <Text style={styles.challengeIntroTrophy}>🏆</Text>
       </View>
     </GameModal>
   );
@@ -237,48 +218,16 @@ export function CountryCompletionModal({
       subtitle={
         worldTourCompleted
           ? t('modal.worldDiscovered', { count: TOTAL_COUNTRIES })
-          : t('modal.countryReward', { count: COUNTRY_LEVEL_COUNT })
+          : passportWasAlreadyEarned
+            ? t('modal.newRouteStamp')
+            : t('modal.passportStamp')
       }
       title={worldTourCompleted ? 'WORLD TOUR COMPLETED' : t('modal.countryComplete', { country: countryName })}
       visible>
       <View style={styles.countryCompleteHero}>
         <Text style={styles.countryCompleteFlag}>{country.flag}</Text>
         <Text style={styles.countryCompleteName}>{countryName}</Text>
-        <View style={styles.countryCompleteProgress}>
-          <Text style={styles.countryCompleteProgressText}>
-            {COUNTRY_LEVEL_COUNT} / {COUNTRY_LEVEL_COUNT} ✓
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.completedLocations}>
-        {country.locations.map((location) => (
-          <View key={location.id} style={styles.completedLocationRow}>
-            <Text style={styles.completedLocationIcon}>✓</Text>
-            <Text style={styles.completedLocationName}>
-              {location.emoji} {location.name}
-            </Text>
-          </View>
-        ))}
-        <View style={styles.completedLocationRow}>
-          <Text style={styles.completedLocationIcon}>✓</Text>
-          <Text style={styles.completedLocationName}>🏆 {countryName} {t('common.challenge')}</Text>
-        </View>
-      </View>
-
-      <View style={styles.countryRewards}>
-        <View style={styles.countryRewardCard}>
-          <Text style={styles.countryRewardIcon}>📘</Text>
-          <Text style={styles.countryRewardTitle}>
-            {passportWasAlreadyEarned ? t('modal.newRouteStamp') : t('modal.passportStamp')}
-          </Text>
-        </View>
-        <View style={styles.countryRewardCard}>
-          <Text style={styles.countryRewardIcon}>🗺️</Text>
-          <Text numberOfLines={2} style={styles.countryRewardTitle}>
-            {country.rewardLandmark}
-          </Text>
-        </View>
+        <Text style={styles.countryCompleteCheck}>✓</Text>
       </View>
 
       {!worldTourCompleted ? (
@@ -287,15 +236,11 @@ export function CountryCompletionModal({
           <Text style={styles.nextCountryName}>
             {country.flag} {countryName}　→　{nextCountry.flag} {nextCountryName}
           </Text>
-          <Text style={styles.nextCountryDestination}>
-            {t('modal.firstStop', { destination: `${completion.nextDestination.location.emoji} ${completion.nextDestination.location.name}` })}
-          </Text>
         </View>
       ) : (
         <View style={styles.nextCountryCard}>
           <Text style={styles.nextCountryLabel}>{t('modal.specialRewards')}</Text>
           <Text style={styles.nextCountryName}>Golden Compass • World Explorer</Text>
-          <Text style={styles.nextCountryDestination}>{t('modal.worldLit')}</Text>
         </View>
       )}
     </GameModal>
@@ -472,34 +417,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 17,
     fontWeight: '600',
-  },
-  challengeIntroHero: {
-    minHeight: 150,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: '#F4D37B',
-    backgroundColor: '#2D394B',
-  },
-  challengeIntroTrophy: {
-    fontSize: 58,
-  },
-  challengeStartButton: {
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#FFF1B9',
-    backgroundColor: '#D9A62E',
-  },
-  challengeStartText: {
-    color: '#2E261F',
-    fontFamily: FONTS.black,
-    fontSize: 12,
-    fontWeight: '900',
   },
   countryCompleteHero: {
     alignItems: 'center',

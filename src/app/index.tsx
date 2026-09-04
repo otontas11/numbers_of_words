@@ -20,10 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  ChallengeIntroModal,
-  CountryCompletionModal,
-} from '@/components/game/game-modals';
+import { CountryCompletionModal } from '@/components/game/game-modals';
 import { PassportCollection } from '@/components/collection/passport-collection';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
@@ -132,6 +129,7 @@ const TUTORIAL_LESSONS = [
 type DestinationTransitionState = {
   completedEmoji: string;
   completedName: string;
+  countryChallenge: boolean;
   nextEmoji: string;
   nextName: string;
 };
@@ -351,6 +349,7 @@ function DestinationTransition({
       <Animated.View
         style={[
           styles.destinationTransitionCard,
+          transition.countryChallenge && styles.destinationTransitionChallengeCard,
           {
             opacity: progress,
             transform: [
@@ -374,10 +373,24 @@ function DestinationTransition({
           ✓ {transition.completedEmoji} {transition.completedName}
         </Text>
         <View style={styles.destinationTransitionDivider} />
-        <Text style={styles.destinationTransitionNext}>{t('game.newDestination')}</Text>
-        <Text style={styles.destinationTransitionNextName}>
-          {transition.nextEmoji} {transition.nextName} →
-        </Text>
+        {transition.countryChallenge ? (
+          <View style={styles.destinationTransitionChallengeContent}>
+            <Text style={styles.destinationTransitionChallengeTrophy}>🏆</Text>
+            <Text style={styles.destinationTransitionChallengeLabel}>
+              {t('modal.countryChallenge')}
+            </Text>
+            <Text style={styles.destinationTransitionChallengeCountry}>
+              {transition.nextEmoji} {transition.nextName}
+            </Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.destinationTransitionNext}>{t('game.newDestination')}</Text>
+            <Text style={styles.destinationTransitionNextName}>
+              {transition.nextEmoji} {transition.nextName} →
+            </Text>
+          </>
+        )}
       </Animated.View>
     </View>
   );
@@ -1120,7 +1133,6 @@ export default function HomeScreen() {
   const [destinationTransition, setDestinationTransition] =
     useState<DestinationTransitionState | null>(null);
   const [countryCompletionLevel, setCountryCompletionLevel] = useState<number | null>(null);
-  const [challengeIntroVisible, setChallengeIntroVisible] = useState(false);
   const [resultFlights, setResultFlights] = useState<ResultFlight[]>([]);
   const [flyingTargets, setFlyingTargets] = useState<Set<number>>(() => new Set());
   const [bonusFlying, setBonusFlying] = useState(false);
@@ -1183,7 +1195,6 @@ export default function HomeScreen() {
   const gameplayVisible =
     activeScreen === 'game' &&
     !settingsVisible &&
-    !challengeIntroVisible &&
     countryCompletionLevel === null &&
     destinationTransition === null &&
     !celebrating;
@@ -1414,7 +1425,6 @@ export default function HomeScreen() {
       activeScreen === 'home' ||
       activeScreen === 'travel' ||
       settingsVisible ||
-      challengeIntroVisible ||
       countryCompletionLevel !== null
     ) {
       return;
@@ -1426,7 +1436,6 @@ export default function HomeScreen() {
     return () => subscription.remove();
   }, [
     activeScreen,
-    challengeIntroVisible,
     countryCompletionLevel,
     navigateToScreen,
     settingsVisible,
@@ -1636,7 +1645,6 @@ export default function HomeScreen() {
     );
     setLevel(nextLevel);
     setLevelData(nextLevelData);
-    setChallengeIntroVisible(nextLevelData.countryChallenge);
     levelScorePending.current = 0;
     setSolvedTargets(new Set());
     setBonusSolved(false);
@@ -1766,9 +1774,12 @@ export default function HomeScreen() {
               setDestinationTransition({
                 completedEmoji: levelData.emoji,
                 completedName: levelData.city,
-                nextEmoji: nextDestination.location.emoji,
+                countryChallenge: nextDestination.countryChallenge,
+                nextEmoji: nextDestination.countryChallenge
+                  ? levelData.flag
+                  : nextDestination.location.emoji,
                 nextName: nextDestination.countryChallenge
-                  ? `${levelData.country} Challenge`
+                  ? completedCountryName
                   : nextDestination.location.name,
               });
             }
@@ -1783,7 +1794,7 @@ export default function HomeScreen() {
                 completedPuzzleLevel + 1,
                 levelData.targets.map((target) => target.value),
               );
-            }, completedLocation ? 1600 : 1000);
+            }, nextDestination.countryChallenge ? 2300 : completedLocation ? 1600 : 1000);
           }, LEVEL_CELEBRATION_DELAY);
         } else {
           showTimedFeedback(
@@ -1991,14 +2002,6 @@ export default function HomeScreen() {
         blurTarget={blurTarget}
         completedLevel={countryCompletionLevel}
         onContinue={continueAfterCountryCompletion}
-      />
-      <ChallengeIntroModal
-        blurTarget={blurTarget}
-        country={levelData.country}
-        flag={levelData.flag}
-        onClose={() => setChallengeIntroVisible(false)}
-        visible={challengeIntroVisible}
-        worldTourFinal={levelData.worldTourFinal}
       />
       {tutorialVisible && activeScreen === 'game' ? <FirstPlayTutorial onSound={playSound} onDone={() => {
         setTutorialVisible(false);
@@ -3099,6 +3102,13 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 18,
   },
+  destinationTransitionChallengeCard: {
+    paddingVertical: 20,
+    borderColor: '#F4C653',
+    backgroundColor: 'rgba(43,69,76,0.98)',
+    shadowColor: '#B7791F',
+    shadowOpacity: 0.48,
+  },
   destinationTransitionEyebrow: {
     color: '#9FE2EA',
     fontFamily: FONTS.black,
@@ -3135,6 +3145,32 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.extraBold,
     fontSize: 14,
     lineHeight: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  destinationTransitionChallengeContent: {
+    alignItems: 'center',
+  },
+  destinationTransitionChallengeTrophy: {
+    fontSize: 34,
+    lineHeight: 41,
+  },
+  destinationTransitionChallengeLabel: {
+    marginTop: 3,
+    color: '#FFE49A',
+    fontFamily: FONTS.black,
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '900',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  destinationTransitionChallengeCountry: {
+    marginTop: 5,
+    color: '#FFFFFF',
+    fontFamily: FONTS.extraBold,
+    fontSize: 15,
+    lineHeight: 19,
     fontWeight: '800',
     textAlign: 'center',
   },
