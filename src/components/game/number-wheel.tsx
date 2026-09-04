@@ -323,6 +323,7 @@ export const NumberWheel = memo(function NumberWheel({
   const originRef = useRef<Point>({ x: 0, y: 0 });
   const slotOrderRef = useRef(slotOrder);
   const shuffleAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
+  const shuffleRunRef = useRef(0);
   const hintAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
   const selectionReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rotationTurnsRef = useRef(0);
@@ -408,7 +409,10 @@ export const NumberWheel = memo(function NumberWheel({
 
   useEffect(
     () => () => {
-      shuffleAnimationRef.current?.stop();
+      shuffleRunRef.current += 1;
+      const shuffleAnimation = shuffleAnimationRef.current;
+      shuffleAnimationRef.current = null;
+      shuffleAnimation?.stop();
       hintAnimationRef.current?.stop();
       if (selectionReleaseTimerRef.current) {
         clearTimeout(selectionReleaseTimerRef.current);
@@ -656,6 +660,7 @@ export const NumberWheel = memo(function NumberWheel({
           lastPointerX.value = point.x;
           lastPointerY.value = point.y;
           activePointer.value = true;
+          stateManager.begin();
           stateManager.activate();
           runOnJS(beginSelection)(nodeIndex);
         })
@@ -765,8 +770,16 @@ export const NumberWheel = memo(function NumberWheel({
       next = shuffledIndices(numbers.length);
       attempts += 1;
     }
+    if (next.every((value, index) => value === slotOrderRef.current[index])) {
+      next = [...slotOrderRef.current];
+      [next[0], next[1]] = [next[1], next[0]];
+    }
 
-    shuffleAnimationRef.current?.stop();
+    const shuffleRun = shuffleRunRef.current + 1;
+    shuffleRunRef.current = shuffleRun;
+    const previousAnimation = shuffleAnimationRef.current;
+    shuffleAnimationRef.current = null;
+    previousAnimation?.stop();
     slotOrderRef.current = next;
     setSlotOrder(next);
     rotationTurnsRef.current += 1;
@@ -792,7 +805,10 @@ export const NumberWheel = memo(function NumberWheel({
     ]);
     shuffleAnimationRef.current = animation;
     animation.start(() => {
-      if (shuffleAnimationRef.current === animation) {
+      if (
+        shuffleRunRef.current === shuffleRun &&
+        shuffleAnimationRef.current === animation
+      ) {
         shuffleAnimationRef.current = null;
         shufflingOnUI.value = false;
       }

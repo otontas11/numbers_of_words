@@ -1,5 +1,5 @@
 import { useAudioPlayer } from 'expo-audio';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 import { replayAudioPlayer } from '@/hooks/audio-session';
 
@@ -53,6 +53,38 @@ export function useGameSounds(enabled: boolean) {
     require('../../assets/sounds/select-7.wav'),
     PLAYER_OPTIONS,
   );
+  // iOS aynı kısa sesi hızlıca seek edip yeniden başlatırken aradaki çağrıyı
+  // yutabiliyor. İkinci ses bankası ardışık dokunuşları ayrı native
+  // oynatıcılara dağıtarak her düğüm notasının gecikmeden duyulmasını sağlar.
+  const selectOneAlternatePlayer = useAudioPlayer(
+    require('../../assets/sounds/select.wav'),
+    PLAYER_OPTIONS,
+  );
+  const selectTwoAlternatePlayer = useAudioPlayer(
+    require('../../assets/sounds/select-2.wav'),
+    PLAYER_OPTIONS,
+  );
+  const selectThreeAlternatePlayer = useAudioPlayer(
+    require('../../assets/sounds/select-3.wav'),
+    PLAYER_OPTIONS,
+  );
+  const selectFourAlternatePlayer = useAudioPlayer(
+    require('../../assets/sounds/select-4.wav'),
+    PLAYER_OPTIONS,
+  );
+  const selectFiveAlternatePlayer = useAudioPlayer(
+    require('../../assets/sounds/select-5.wav'),
+    PLAYER_OPTIONS,
+  );
+  const selectSixAlternatePlayer = useAudioPlayer(
+    require('../../assets/sounds/select-6.wav'),
+    PLAYER_OPTIONS,
+  );
+  const selectSevenAlternatePlayer = useAudioPlayer(
+    require('../../assets/sounds/select-7.wav'),
+    PLAYER_OPTIONS,
+  );
+  const selectionVoiceRef = useRef(0);
   const hintPlayer = useAudioPlayer(
     require('../../assets/sounds/pop_hint.wav'),
     PLAYER_OPTIONS,
@@ -92,12 +124,25 @@ export function useGameSounds(enabled: boolean) {
         selectSixPlayer,
         selectSevenPlayer,
       ] as const;
+      const alternateSelectionPlayers = [
+        selectOneAlternatePlayer,
+        selectTwoAlternatePlayer,
+        selectThreeAlternatePlayer,
+        selectFourAlternatePlayer,
+        selectFiveAlternatePlayer,
+        selectSixAlternatePlayer,
+        selectSevenAlternatePlayer,
+      ] as const;
       const selectionIndex = sound.startsWith('select')
         ? Number.parseInt(sound.slice('select'.length), 10) - 1
         : -1;
+      const useAlternateSelectionVoice = selectionVoiceRef.current % 2 === 1;
+      if (selectionIndex >= 0) selectionVoiceRef.current += 1;
       const player =
         selectionIndex >= 0
-          ? selectionPlayers[selectionIndex]
+          ? (useAlternateSelectionVoice ? alternateSelectionPlayers : selectionPlayers)[
+              selectionIndex
+            ]
           : sound === 'hint'
             ? hintPlayer
             : sound === 'success'
@@ -128,12 +173,19 @@ export function useGameSounds(enabled: boolean) {
       levelCompletePlayer,
       pointsPlayer,
       selectFivePlayer,
+      selectFiveAlternatePlayer,
       selectFourPlayer,
+      selectFourAlternatePlayer,
       selectOnePlayer,
+      selectOneAlternatePlayer,
       selectSevenPlayer,
+      selectSevenAlternatePlayer,
       selectSixPlayer,
+      selectSixAlternatePlayer,
       selectThreePlayer,
+      selectThreeAlternatePlayer,
       selectTwoPlayer,
+      selectTwoAlternatePlayer,
       shufflePlayer,
       successPlayer,
     ],
