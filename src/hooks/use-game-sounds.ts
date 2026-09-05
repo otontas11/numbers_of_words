@@ -1,7 +1,11 @@
 import { preload, useAudioPlayer } from 'expo-audio';
 import { useCallback, useEffect, useRef } from 'react';
 
-import { prepareAudioPlayer, replayAudioPlayer } from '@/hooks/audio-session';
+import {
+  prepareAudioPlayer,
+  rearmAudioPlayer,
+  replayAudioPlayer,
+} from '@/hooks/audio-session';
 
 export type GameSound =
   | 'select1'
@@ -195,11 +199,22 @@ export function useGameSounds(enabled: boolean) {
     // olayı artık ilk sesi durduramaz.
     const subscriptions = channels.map(({ player, startTime }) => {
       let loaded = player.isLoaded;
+      let finishHandled = false;
       if (player.isLoaded) void prepareAudioPlayer(player, startTime);
       return player.addListener('playbackStatusUpdate', (status) => {
         const justLoaded = status.isLoaded && !loaded;
         loaded = status.isLoaded;
         if (justLoaded) void prepareAudioPlayer(player, startTime);
+
+        // Aynı kısa efekt yeniden istendiğinde pause/seek beklenmesin. Finish
+        // olayını yalnız yükselen kenarda ele alarak Android status tekrarının
+        // yeniden-hazırlama döngüsü oluşturmasını engelle.
+        if (status.didJustFinish && !finishHandled) {
+          finishHandled = true;
+          void rearmAudioPlayer(player, startTime);
+        } else if (!status.didJustFinish) {
+          finishHandled = false;
+        }
       });
     });
 

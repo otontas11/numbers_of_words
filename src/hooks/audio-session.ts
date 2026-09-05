@@ -202,6 +202,24 @@ export function prepareAudioPlayer(player: AudioPlayer, startTime = 0) {
   });
 }
 
+/**
+ * Oynatımı biten kısa efekt kanalını bir sonraki dokunma için yeniden kurar.
+ * Finish sonrasında Android'in playWhenReady durumunu temizlemek için seek'ten
+ * önce pause gönderilir; bir sonraki replay böylece senkron hızlı yolu kullanır.
+ */
+export function rearmAudioPlayer(player: AudioPlayer, startTime = 0) {
+  return enqueuePlayerOperation(player, async () => {
+    await ensureAudioSessionActive();
+    if (!player.isLoaded || player.playing) return;
+
+    player.pause();
+    if (Math.abs(player.currentTime - startTime) > POSITION_TOLERANCE) {
+      await player.seekTo(startTime, 0, 0).catch(() => undefined);
+    }
+    preparedPlayerStarts.set(player, startTime);
+  });
+}
+
 export function useAudioSessionLifecycle() {
   useEffect(() => {
     void ensureAudioSessionActive().catch(() => undefined);
