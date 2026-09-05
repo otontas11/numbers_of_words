@@ -39,11 +39,11 @@ Tek komut bağlı fiziksel Android ve iOS cihazlarının tamamını algılar. İ
 npm run devices
 ```
 
-Yalnızca bir platformu çalıştırmak için:
+Yalnızca bir platformu çalıştırmak için `android` veya `ios` komutlarını kullanın:
 
 ```bash
-npm run devices:android
-npm run devices:ios
+npm run android
+npm run ios
 ```
 
 - Android'de USB hata ayıklamayı açıp bilgisayara bağlantı izni ver.
