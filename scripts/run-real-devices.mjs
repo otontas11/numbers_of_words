@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { statfs } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
@@ -346,6 +346,19 @@ async function hasInstalledNativeClient(target) {
   return packageResult.status === 0 && packageResult.stdout.includes('package:');
 }
 
+function installExistingAndroidBuild(target) {
+  const apkPath = `${projectRoot}/android/app/build/outputs/apk/debug/app-debug.apk`;
+  if (!existsSync(apkPath)) return false;
+
+  const installResult = runForOutput('adb', ['-s', target.id, 'install', '-r', apkPath]);
+  if (installResult.status !== 0) {
+    console.warn(`⚠ ${target.name}: mevcut APK kurulamadı: ${installResult.stderr.trim()}`);
+    return false;
+  }
+  console.log(`✓ ${target.name}: mevcut native APK kuruldu.`);
+  return true;
+}
+
 const androidDetection =
   requestedPlatform === 'ios' ? { devices: [], unavailableReason: null } : detectAndroidDevices();
 const iosDetection =
@@ -373,6 +386,11 @@ for (const target of targets) {
 const buildSpace = await getNativeBuildSpace(targets);
 const expoGoFallback =
   !buildSpace.sufficient && targets.every((target) => target.platform === 'android');
+if (expoGoFallback) {
+  for (const target of targets) {
+    if (!(await hasInstalledNativeClient(target))) installExistingAndroidBuild(target);
+  }
+}
 // Native development client cihazda zaten kuruluysa, düşük disk alanında
 // Expo Go'ya düşme. Expo Go native ses modülünü içermediği için buton-ses
 // senkronu bozulur; mevcut development client güncel JS bundle'ı Metro'dan

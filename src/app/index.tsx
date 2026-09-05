@@ -1167,6 +1167,7 @@ export default function HomeScreen() {
   const [resultFlights, setResultFlights] = useState<ResultFlight[]>([]);
   const [flyingTargets, setFlyingTargets] = useState<Set<number>>(() => new Set());
   const [bonusFlying, setBonusFlying] = useState(false);
+  const [selectionCount, setSelectionCount] = useState(0);
   const [landedTarget, setLandedTarget] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [tutorialVisible, setTutorialVisible] = useState(false);
@@ -1791,6 +1792,7 @@ export default function HomeScreen() {
     setLevelData(nextLevelData);
     levelScorePending.current = 0;
     targetScoreAwardsRef.current.clear();
+    setSelectionCount(0);
     setSolvedTargets(new Set());
     setBonusSolved(false);
     setBonusFlying(false);
@@ -2119,6 +2121,7 @@ export default function HomeScreen() {
   const handleWheelNodeAdded = useCallback(
     (selectionCount: number) => {
       dismissOperationGuide();
+      setSelectionCount(selectionCount);
       markPuzzleActivity();
       triggerEffect(getNodeSelectionSound(selectionCount));
     },
@@ -2127,14 +2130,20 @@ export default function HomeScreen() {
 
   const handleWheelNodeRemoved = useCallback(
     (selectionCount: number) => {
+      setSelectionCount(selectionCount);
       markPuzzleActivity();
       triggerEffect(getNodeSelectionSound(selectionCount));
     },
     [markPuzzleActivity, triggerEffect],
   );
 
+  const handleWheelDraggingChange = useCallback((dragging: boolean) => {
+    if (!dragging) setSelectionCount(0);
+  }, []);
+
   const handleWheelShuffle = useCallback(() => {
     markPuzzleActivity();
+    setSelectionCount(0);
     setHintIndices([]);
     setHintedTarget(null);
     triggerEffect('shuffle');
@@ -2439,7 +2448,6 @@ export default function HomeScreen() {
                 ]}>
                 <View style={styles.operationRow}>
                   <View style={styles.operationSide}>
-                    <Text style={styles.operationLabel}>{t('game.operationType')}</Text>
                     <LinearGradient
                       colors={['rgba(66,107,120,0.96)', 'rgba(52,87,100,0.96)']}
                       end={{ x: 0, y: 1 }}
@@ -2452,9 +2460,17 @@ export default function HomeScreen() {
                   </View>
                   <View style={styles.requiredBadge}>
                     <Text style={styles.requiredLabel}>{t('game.stepCount')}</Text>
-                    <Text style={styles.requiredDots}>
-                      {Array.from({ length: levelData.steps }, () => '●').join(' ')}
-                    </Text>
+                    <View style={styles.requiredDots}>
+                      {Array.from({ length: levelData.steps }, (_, index) => (
+                        <View
+                          key={`required-step-${index}`}
+                          style={[
+                            styles.requiredDot,
+                            index < selectionCount && styles.requiredDotFilled,
+                          ]}
+                        />
+                      ))}
+                    </View>
                   </View>
                 </View>
 
@@ -2517,7 +2533,7 @@ export default function HomeScreen() {
                   numbers={levelData.numbers}
                   operationGuideSymbol={operationGuideVisible ? operationGuideSymbol : undefined}
                   onComplete={handleComplete}
-                  onDraggingChange={() => undefined}
+                  onDraggingChange={handleWheelDraggingChange}
                   onHint={handleHint}
                   onNodeAdded={handleWheelNodeAdded}
                   onNodeRemoved={handleWheelNodeRemoved}
@@ -3063,11 +3079,22 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   requiredDots: {
-    color: '#B98834',
-    fontFamily: FONTS.black,
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 1,
+  },
+  requiredDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.2,
+    borderColor: '#B98834',
+    backgroundColor: 'rgba(255,255,255,0.54)',
+  },
+  requiredDotFilled: {
+    backgroundColor: '#D9A83E',
+    borderColor: '#A87521',
   },
   targets: {
     width: '100%',
@@ -3172,13 +3199,13 @@ const styles = StyleSheet.create({
   targetMetaText: {
     color: '#557782',
     fontFamily: FONTS.bold,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
   },
   targetDots: {
     color: '#557782',
     fontFamily: FONTS.bold,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '900',
   },
   targetSolvedText: {
@@ -3293,15 +3320,15 @@ const styles = StyleSheet.create({
   bonusTargetOperation: {
     color: 'rgba(255,255,255,0.9)',
     fontFamily: FONTS.black,
-    fontSize: 11,
-    lineHeight: 12,
+    fontSize: 12,
+    lineHeight: 13,
     fontWeight: '900',
   },
   bonusTargetSteps: {
     color: 'rgba(255,255,255,0.9)',
     fontFamily: FONTS.bold,
-    fontSize: 9,
-    lineHeight: 11,
+    fontSize: 10,
+    lineHeight: 12,
     fontWeight: '900',
     letterSpacing: 0.25,
   },
