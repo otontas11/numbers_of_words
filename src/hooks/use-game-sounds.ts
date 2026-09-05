@@ -70,7 +70,7 @@ if (!hasAndroidGameSoundPool) {
 
 const SOUND_VOLUMES: Partial<Record<GameSound, number>> = {
   bonus: 0.55,
-  diamond: 0.48,
+  diamond: 0.30,
   levelComplete: 0.35,
   points: 0.42,
 };
