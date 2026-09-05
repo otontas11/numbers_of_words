@@ -128,6 +128,31 @@ type PuzzleActivity = PuzzlePerformance & {
   lastInteractionAt: number | null;
 };
 const TUTORIAL_STORAGE_KEY = '@numbers-of-wonders/tutorial-completed';
+const OPERATION_GUIDE_STORAGE_KEY = '@numbers-of-wonders/operation-guide-v1';
+
+type OperationGuideState = {
+  firstCountryLocations: string[];
+  operationCounts: Partial<Record<keyof typeof OPERATION_DETAILS, number>>;
+};
+
+const EMPTY_OPERATION_GUIDE_STATE: OperationGuideState = {
+  firstCountryLocations: [],
+  operationCounts: {},
+};
+
+function shouldShowOperationGuide(levelData: LevelData, state: OperationGuideState) {
+  if (levelData.countryChallenge || levelData.locationLevel !== 1) return false;
+
+  // The first country introduces the mechanic once per city for its first
+  // three cities (Istanbul, then the next two destinations).
+  if (levelData.countryIndex === 0 && levelData.locationIndex < 3) {
+    return !state.firstCountryLocations.includes(levelData.locationId);
+  }
+
+  // Later countries get two introductions per operation globally. This keeps
+  // the cue useful when a new operation appears without repeating forever.
+  return (state.operationCounts[levelData.op] ?? 0) < 2;
+}
 
 type DestinationTransitionState = {
   completedEmoji: string;
@@ -1135,7 +1160,6 @@ export default function HomeScreen() {
   const [effectsEnabled, setEffectsEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(false);
   const [musicVolume, setMusicVolume] = useState(0.5);
-  const [dragging, setDragging] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
   const [destinationTransition, setDestinationTransition] =
     useState<DestinationTransitionState | null>(null);
@@ -1146,6 +1170,8 @@ export default function HomeScreen() {
   const [landedTarget, setLandedTarget] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [tutorialVisible, setTutorialVisible] = useState(false);
+  const [operationGuideVisible, setOperationGuideVisible] = useState(false);
+  const [operationGuideSymbol, setOperationGuideSymbol] = useState<string | undefined>();
   const [splashDismissed, setSplashDismissed] = useState(false);
   const blurTarget = useRef<View>(null);
   const navigateToScreen = useCallback((screen: AppScreen) => {
@@ -1190,6 +1216,8 @@ export default function HomeScreen() {
   const feedbackTimer = useRef<Timer | null>(null);
   const hintTimer = useRef<Timer | null>(null);
   const hintActiveRef = useRef(false);
+  const operationGuideStateRef = useRef<OperationGuideState>(EMPTY_OPERATION_GUIDE_STATE);
+  const operationGuideLevelKeyRef = useRef<string | null>(null);
   const bonusGemTimer = useRef<Timer | null>(null);
   const landingTimer = useRef<Timer | null>(null);
   const levelTimer = useRef<Timer | null>(null);
@@ -1297,7 +1325,7 @@ export default function HomeScreen() {
   useEffect(() => {
     let active = true;
 
-    void loadGameProgress().then((saved) => {
+    void loadGameProgress().then(async (saved) => {
       if (!active) return;
 
       if (saved) {
@@ -1351,10 +1379,29 @@ export default function HomeScreen() {
         discoveredBonuses.current = new Set(saved.discoveredBonuses);
       }
 
+      const [tutorialValue, operationGuideValue] = await Promise.all([
+        AsyncStorage.getItem(TUTORIAL_STORAGE_KEY),
+        AsyncStorage.getItem(OPERATION_GUIDE_STORAGE_KEY),
+      ]);
+      if (!active) return;
       setHydrated(true);
-      void AsyncStorage.getItem(TUTORIAL_STORAGE_KEY).then((value) => {
-        if (active && value !== 'done') setTutorialVisible(true);
-      });
+      if (tutorialValue !== 'done') setTutorialVisible(true);
+      if (operationGuideValue) {
+        try {
+          const parsed = JSON.parse(operationGuideValue) as Partial<OperationGuideState>;
+          operationGuideStateRef.current = {
+            firstCountryLocations: Array.isArray(parsed.firstCountryLocations)
+              ? parsed.firstCountryLocations.filter((value): value is string => typeof value === 'string')
+              : [],
+            operationCounts:
+              parsed.operationCounts && typeof parsed.operationCounts === 'object'
+                ? parsed.operationCounts
+                : {},
+          };
+        } catch {
+          operationGuideStateRef.current = { ...EMPTY_OPERATION_GUIDE_STATE };
+        }
+      }
     });
 
     return () => {
@@ -1403,6 +1450,25 @@ export default function HomeScreen() {
     cityDifficultyLocationId,
     consecutiveStruggles,
   ]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (activeScreen !== 'game') {
+      operationGuideLevelKeyRef.current = null;
+      return;
+    }
+    const levelKey = `${levelData.locationId}:${levelData.locationLevel}:${levelData.op}`;
+    if (operationGuideLevelKeyRef.current === levelKey) return;
+    operationGuideLevelKeyRef.current = levelKey;
+
+    if (shouldShowOperationGuide(levelData, operationGuideStateRef.current)) {
+      setOperationGuideSymbol(OPERATION_DETAILS[levelData.op].symbol);
+      setOperationGuideVisible(true);
+    } else {
+      setOperationGuideVisible(false);
+      setOperationGuideSymbol(undefined);
+    }
+  }, [activeScreen, hydrated, levelData]);
 
   useEffect(
     () => () => {
@@ -2027,12 +2093,36 @@ export default function HomeScreen() {
     }, 1800);
   }, [gemCount, levelData, markPuzzleActivity, showTimedFeedback, solvedTargets, t, triggerEffect]);
 
+  const dismissOperationGuide = useCallback(() => {
+    if (!operationGuideVisible) return;
+    const current = operationGuideStateRef.current;
+    const next: OperationGuideState = {
+      firstCountryLocations: [...current.firstCountryLocations],
+      operationCounts: { ...current.operationCounts },
+    };
+
+    if (levelData.countryIndex === 0 && levelData.locationIndex < 3) {
+      if (!next.firstCountryLocations.includes(levelData.locationId)) {
+        next.firstCountryLocations.push(levelData.locationId);
+      }
+    } else if (levelData.countryIndex > 0) {
+      next.operationCounts[levelData.op] = (next.operationCounts[levelData.op] ?? 0) + 1;
+    }
+
+    operationGuideStateRef.current = next;
+    setOperationGuideVisible(false);
+    void AsyncStorage.setItem(OPERATION_GUIDE_STORAGE_KEY, JSON.stringify(next)).catch(
+      () => undefined,
+    );
+  }, [levelData, operationGuideVisible]);
+
   const handleWheelNodeAdded = useCallback(
     (selectionCount: number) => {
+      dismissOperationGuide();
       markPuzzleActivity();
       triggerEffect(getNodeSelectionSound(selectionCount));
     },
-    [markPuzzleActivity, triggerEffect],
+    [dismissOperationGuide, markPuzzleActivity, triggerEffect],
   );
 
   const handleWheelNodeRemoved = useCallback(
@@ -2328,7 +2418,10 @@ export default function HomeScreen() {
               { paddingHorizontal: layout.contentHorizontalPadding },
             ]}
             contentInsetAdjustmentBehavior="never"
-            scrollEnabled={!dragging}
+            // Oyun tahtası, kontroller ve reklam aynı sabit ekran kompozisyonu
+            // olarak kalmalı; reklam slotu açıldığında orta alan kaymamalı.
+            nestedScrollEnabled={false}
+            scrollEnabled={false}
             showsVerticalScrollIndicator={false}
             style={styles.scrollView}>
             <View style={styles.gameContent}>
@@ -2422,8 +2515,9 @@ export default function HomeScreen() {
                   hintCost={HINT_GEM_COST}
                   hintIndices={hintIndices}
                   numbers={levelData.numbers}
+                  operationGuideSymbol={operationGuideVisible ? operationGuideSymbol : undefined}
                   onComplete={handleComplete}
-                  onDraggingChange={setDragging}
+                  onDraggingChange={() => undefined}
                   onHint={handleHint}
                   onNodeAdded={handleWheelNodeAdded}
                   onNodeRemoved={handleWheelNodeRemoved}
@@ -2438,6 +2532,9 @@ export default function HomeScreen() {
               </Text>
             </View>
           </ScrollView>
+          <View style={styles.gameAdSlot}>
+            <AdMobBanner />
+          </View>
         </SafeAreaView>
 
         <View
@@ -2459,7 +2556,6 @@ export default function HomeScreen() {
         </BlurTargetView>
         ) : null}
       </View>
-      {activeScreen === 'game' ? <AdMobBanner /> : null}
       {overlays}
     </View>
   );
@@ -2493,6 +2589,14 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
+  },
+  gameAdSlot: {
+    // Reserve the banner height even when no ad is returned. This keeps the
+    // wheel controls in a stable position when an ad appears later.
+    height: 58,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   header: {
     width: '100%',

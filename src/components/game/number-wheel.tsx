@@ -48,6 +48,7 @@ type NumberWheelProps = {
   canUseHint: boolean;
   hintCost: number;
   hintIndices: number[];
+  operationGuideSymbol?: string;
   onPreview: (indices: number[]) => void;
   onComplete: (indices: number[], resultOrigin?: Point) => WheelSelectionOutcome;
   onHint: () => void;
@@ -292,6 +293,7 @@ export const NumberWheel = memo(function NumberWheel({
   canUseHint,
   hintCost,
   hintIndices,
+  operationGuideSymbol,
   onPreview,
   onComplete,
   onHint,
@@ -857,6 +859,12 @@ export const NumberWheel = memo(function NumberWheel({
             />
           </View>
 
+          {operationGuideSymbol ? (
+            <View pointerEvents="none" style={styles.operationGuide}>
+              <Text style={styles.operationGuideText}>{operationGuideSymbol}</Text>
+            </View>
+          ) : null}
+
           {numbers.map((number, index) => {
             const selected = selectedIndices.includes(index);
             const hinted = hintIndices.includes(index);
@@ -1018,6 +1026,33 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'visible',
   },
+  operationGuide: {
+    position: 'absolute',
+    zIndex: 6,
+    top: '50%',
+    left: '50%',
+    width: 70,
+    height: 70,
+    marginTop: -35,
+    marginLeft: -35,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 35,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.88)',
+    backgroundColor: 'rgba(35,68,78,0.86)',
+    shadowColor: '#12343D',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  operationGuideText: {
+    color: '#FFF3A8',
+    fontFamily: FONTS.black,
+    fontSize: 34,
+    lineHeight: 40,
+  },
   webWheel: {
     touchAction: 'none',
     userSelect: 'none',
@@ -1085,6 +1120,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    position: 'relative',
+    top: -58,
   },
   controlButton: {
     width: 57,
