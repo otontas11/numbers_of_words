@@ -2447,17 +2447,6 @@ export default function HomeScreen() {
                   levelData.countryChallenge && styles.topSectionChallenge,
                 ]}>
                 <View style={styles.operationRow}>
-                  <View style={styles.operationSide}>
-                    <LinearGradient
-                      colors={['rgba(66,107,120,0.96)', 'rgba(52,87,100,0.96)']}
-                      end={{ x: 0, y: 1 }}
-                      start={{ x: 0, y: 0 }}
-                      style={styles.operationBadge}>
-                      <Text style={styles.operationSymbol}>
-                        {operation.symbol} {localizeOperation(operation.symbol).toLocaleUpperCase()}
-                      </Text>
-                    </LinearGradient>
-                  </View>
                   <View style={styles.requiredBadge}>
                     <Text style={styles.requiredLabel}>{t('game.stepCount')}</Text>
                     <View style={styles.requiredDots}>
@@ -2471,6 +2460,17 @@ export default function HomeScreen() {
                         />
                       ))}
                     </View>
+                  </View>
+                  <View style={styles.operationSide}>
+                    <LinearGradient
+                      colors={['rgba(66,107,120,0.96)', 'rgba(52,87,100,0.96)']}
+                      end={{ x: 0, y: 1 }}
+                      start={{ x: 0, y: 0 }}
+                      style={styles.operationBadge}>
+                      <Text style={styles.operationSymbol}>
+                        {operation.symbol} {localizeOperation(operation.symbol).toLocaleUpperCase()}
+                      </Text>
+                    </LinearGradient>
                   </View>
                 </View>
 

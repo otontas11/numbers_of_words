@@ -222,6 +222,7 @@ async function openNativeDevelopmentClient(target) {
       'shell',
       'am',
       'start',
+      '-S',
       '-a',
       'android.intent.action.VIEW',
       '-d',
@@ -326,12 +327,45 @@ async function openAndroidWithExpoGo(target) {
     'shell',
     'am',
     'start',
+    '-S',
     '-a',
     'android.intent.action.VIEW',
     '-d',
     `exp://127.0.0.1:${metroPort}`,
     'host.exp.exponent',
   ]);
+}
+
+async function openIosWithExpoGo(target) {
+  const projectUrl = getMetroProjectUrl('ios');
+  if (!projectUrl) {
+    console.error(`✗ ${target.name}: iOS için erişilebilir Metro adresi bulunamadı.`);
+    return 1;
+  }
+
+  const expoGoBundleIds = [
+    'host.exp.Exponent',
+    'dev.expo.go',
+    'host.exp.Exponent.Next',
+  ];
+  const payloadUrl = `exp://${projectUrl.replace(/^https?:\/\//, '')}`;
+  for (const bundleId of expoGoBundleIds) {
+    const exitCode = await runInteractive('xcrun', [
+      'devicectl',
+      'device',
+      'process',
+      'launch',
+      '--device',
+      target.id,
+      '--terminate-existing',
+      '--payload-url',
+      payloadUrl,
+      bundleId,
+    ]);
+    if (exitCode === 0) return 0;
+  }
+  console.error(`✗ ${target.name}: Expo Go bundle identifier ile açılamadı.`);
+  return 1;
 }
 
 async function hasInstalledNativeClient(target) {
@@ -385,7 +419,7 @@ for (const target of targets) {
 
 const buildSpace = await getNativeBuildSpace(targets);
 const expoGoFallback =
-  !buildSpace.sufficient && targets.every((target) => target.platform === 'android');
+  !buildSpace.sufficient;
 if (expoGoFallback) {
   for (const target of targets) {
     if (!(await hasInstalledNativeClient(target))) installExistingAndroidBuild(target);
@@ -397,6 +431,7 @@ if (expoGoFallback) {
 // alarak aynı davranışı korur.
 const installedNativeClientFallback =
   expoGoFallback &&
+  targets.every((target) => target.platform === 'android') &&
   (await Promise.all(targets.map((target) => hasInstalledNativeClient(target)))).every(Boolean);
 
 if (!buildSpace.sufficient && !expoGoFallback) {
@@ -416,7 +451,7 @@ if (expoGoFallback) {
       '✓ Kurulu native development client bulundu; Expo Go yerine bu uygulama Metro\'ya bağlanacak.',
     );
   } else {
-    console.warn('Fiziksel Android Expo Go ile açılacak.');
+  console.warn('Fiziksel cihaz Expo Go ile açılacak.');
   }
   console.warn(
     `Native development build için en az ${buildSpace.minimumGiB.toFixed(1)} GB alan açıldığında aynı komut otomatik olarak Gradle build çalıştırır.`,
@@ -477,7 +512,10 @@ for (const target of targets) {
   }
   if (expoGoFallback) {
     console.log(`\n${target.name} Expo Go ile açılıyor...`);
-    const exitCode = await openAndroidWithExpoGo(target);
+    const exitCode =
+      target.platform === 'ios'
+        ? await openIosWithExpoGo(target)
+        : await openAndroidWithExpoGo(target);
     if (exitCode !== 0) {
       failed = true;
       console.error(`✗ ${target.name} üzerinde Expo Go açılamadı (kod: ${exitCode}).`);
@@ -521,7 +559,7 @@ console.log(
   installedNativeClientFallback
     ? '\n✓ Kurulu native development client güncel Metro bundle ile hazır.'
     : expoGoFallback
-    ? '\n✓ Bağlı fiziksel Android cihaz Expo Go ile hazır.'
+    ? '\n✓ Bağlı fiziksel cihaz Expo Go ile hazır.'
     : '\n✓ Bağlı fiziksel cihazlar native development build ile hazır.',
 );
 if (ownsMetro && metroProcess && isChildProcessRunning(metroProcess)) {
