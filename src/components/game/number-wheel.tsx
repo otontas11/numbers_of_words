@@ -76,25 +76,25 @@ const CONNECTION_COLORS: Record<
     start: '#78E1EA',
     end: '#347C91',
     core: 'rgba(235,255,255,0.92)',
-    glow: 'rgba(79,195,211,0.28)',
+    glow: 'rgba(67,196,211,0.38)',
   },
   success: {
     start: '#8CF0C3',
     end: '#15966D',
     core: 'rgba(238,255,247,0.96)',
-    glow: 'rgba(34,197,135,0.34)',
+    glow: 'rgba(50,205,143,0.48)',
   },
   bonus: {
     start: '#FFE58A',
     end: '#C58A24',
     core: 'rgba(255,251,224,0.97)',
-    glow: 'rgba(245,190,62,0.36)',
+    glow: 'rgba(245,188,58,0.52)',
   },
   invalid: {
     start: '#FFA09A',
     end: '#CC4F57',
     core: 'rgba(255,240,240,0.94)',
-    glow: 'rgba(232,91,100,0.3)',
+    glow: 'rgba(231,92,88,0.42)',
   },
 };
 const ReanimatedPath = Reanimated.createAnimatedComponent(Path);
@@ -273,7 +273,7 @@ function ActiveSelectionPath({
         stroke={colors.glow}
         strokeLinejoin="round"
         strokeLinecap="round"
-        strokeWidth={14}
+        strokeWidth={16}
       />
       <ReanimatedPath
         animatedProps={animatedProps}
