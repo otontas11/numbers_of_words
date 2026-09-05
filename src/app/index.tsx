@@ -586,6 +586,9 @@ function TargetCard({
               />
             </Animated.View>
           ) : null}
+          <View style={[styles.targetOperationCorner, solved && styles.targetOperationCornerSolved]}>
+            <Text style={styles.targetOperationCornerText}>{operation.symbol}</Text>
+          </View>
           <Text
             style={[
               styles.targetValue,
@@ -595,9 +598,6 @@ function TargetCard({
             {target.value}
           </Text>
           <View style={styles.targetMeta}>
-            <Text style={[styles.targetMetaText, solved && styles.targetSolvedText]}>
-              [{operation.symbol}]
-            </Text>
             <Text style={[styles.targetDots, solved && styles.targetSolvedText]}>
               {Array.from({ length: target.steps }, () => '●').join(' ')}
             </Text>
@@ -697,9 +697,11 @@ function BonusTargetCard({
                 />
               </Animated.View>
             ) : null}
+            <View style={styles.bonusOperationCorner}>
+              <Text style={styles.bonusOperationCornerText}>{operation.symbol}</Text>
+            </View>
             <Text style={styles.bonusTargetValue}>{target.value}</Text>
             <View style={styles.bonusTargetMeta}>
-              <Text style={styles.bonusTargetOperation}>[{operation.symbol}]</Text>
               <Text style={styles.bonusTargetSteps}>
                 {Array.from({ length: target.steps }, () => '●').join(' ')}
               </Text>
@@ -3177,6 +3179,31 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: '#FBBF24',
   },
+  targetOperationCorner: {
+    position: 'absolute',
+    zIndex: 3,
+    top: 5,
+    right: 6,
+    width: 21,
+    height: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(85,119,130,0.38)',
+    backgroundColor: 'rgba(222,239,240,0.94)',
+  },
+  targetOperationCornerSolved: {
+    borderColor: 'rgba(35,120,91,0.42)',
+    backgroundColor: 'rgba(232,250,239,0.94)',
+  },
+  targetOperationCornerText: {
+    color: '#416B78',
+    fontFamily: FONTS.black,
+    fontSize: 13,
+    lineHeight: 15,
+    fontWeight: '900',
+  },
   targetValue: {
     zIndex: 1,
     color: '#233540',
@@ -3289,6 +3316,7 @@ const styles = StyleSheet.create({
   bonusTargetCard: {
     width: 94,
     height: 42,
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -3300,6 +3328,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 4,
+  },
+  bonusOperationCorner: {
+    position: 'absolute',
+    zIndex: 3,
+    top: 4,
+    right: 5,
+    width: 19,
+    height: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: 'rgba(80,49,108,0.62)',
+  },
+  bonusOperationCornerText: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: '900',
   },
   bonusTargetValue: {
     zIndex: 1,
