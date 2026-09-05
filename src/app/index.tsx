@@ -23,7 +23,7 @@ import { FreshGameTutorialModal } from '@/components/game/fresh-game-tutorial-mo
 import { CountryCompletionModal } from '@/components/game/game-modals';
 import { PassportCollection } from '@/components/collection/passport-collection';
 import { AdMobBanner } from '@/components/ads/admob-banner';
-import { BackIcon, GemIcon, SettingsIcon } from '@/components/common/game-icons';
+import { BackIcon, FootprintIcon, GemIcon, SettingsIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
 import { MainMenu, ProfileScreen } from '@/components/home/main-menu';
@@ -614,12 +614,14 @@ function BonusTargetCard({
   countryChallenge,
   landed,
   measureRef,
+  selectionCount,
   solved,
   target,
 }: {
   countryChallenge: boolean;
   landed: boolean;
   measureRef: (view: View | null) => void;
+  selectionCount: number;
   solved: boolean;
   target: Target;
 }) {
@@ -661,10 +663,22 @@ function BonusTargetCard({
           />
         </Animated.View>
       ) : null}
+      <View style={styles.bonusStepBadge}>
+        <FootprintIcon color="#A87521" filled size={16} />
+        <Text style={styles.bonusStepLabel}>{t('game.stepCount')}</Text>
+        <View style={styles.bonusStepDots}>
+          {Array.from({ length: target.steps }, (_, index) => (
+            <View
+              key={`bonus-step-${index}`}
+              style={[
+                styles.bonusStepDot,
+                index < selectionCount && styles.bonusStepDotFilled,
+              ]}
+            />
+          ))}
+        </View>
+      </View>
       <View style={styles.bonusTargetCopy}>
-        <Text style={[styles.bonusTargetTitle, solved && styles.bonusTargetSolvedText]}>
-          {t('game.combine')}
-        </Text>
         <View style={[styles.bonusRewardPill, solved && styles.bonusRewardPillSolved]}>
           <GemIcon
             color={solved ? '#66D7FF' : '#BDEFFF'}
@@ -1230,7 +1244,6 @@ export default function HomeScreen() {
   const playSound = useGameSounds(effectsEnabled);
   useBackgroundMusic(hydrated && musicEnabled, musicVolume);
   const targetWidth = (levelData.targets.length === 3 ? '31.6%' : '23.5%') as `${number}%`;
-  const operation = OPERATION_DETAILS[levelData.op];
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
   const levelJustCompleted = hasCompletedRequiredTargets(solvedTargets.size, levelData);
   const displayedProgressLevel = levelData.level + (levelJustCompleted ? 1 : 0);
@@ -2447,34 +2460,6 @@ export default function HomeScreen() {
                   styles.topSection,
                   levelData.countryChallenge && styles.topSectionChallenge,
                 ]}>
-                <View style={styles.operationRow}>
-                  <View style={styles.requiredBadge}>
-                    <Text style={styles.requiredLabel}>{t('game.stepCount')}</Text>
-                    <View style={styles.requiredDots}>
-                      {Array.from({ length: levelData.steps }, (_, index) => (
-                        <View
-                          key={`required-step-${index}`}
-                          style={[
-                            styles.requiredDot,
-                            index < selectionCount && styles.requiredDotFilled,
-                          ]}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                  <View style={styles.operationSide}>
-                    <LinearGradient
-                      colors={['rgba(66,107,120,0.96)', 'rgba(52,87,100,0.96)']}
-                      end={{ x: 0, y: 1 }}
-                      start={{ x: 0, y: 0 }}
-                      style={styles.operationBadge}>
-                      <Text style={styles.operationSymbol}>
-                        {operation.symbol} {localizeOperation(operation.symbol).toLocaleUpperCase()}
-                      </Text>
-                    </LinearGradient>
-                  </View>
-                </View>
-
                 <View style={styles.targets}>
                   {levelData.targets.map((target, index) => (
                     <TargetCard
@@ -2498,6 +2483,7 @@ export default function HomeScreen() {
                   measureRef={(view) => {
                     bonusCardRef.current = view;
                   }}
+                  selectionCount={selectionCount}
                   solved={bonusSolved && !bonusFlying}
                   target={levelData.bonusTarget}
                 />
@@ -2544,9 +2530,6 @@ export default function HomeScreen() {
                 />
               </View>
 
-              <Text style={styles.instruction}>
-                {t('game.instruction')}
-              </Text>
             </View>
           </ScrollView>
           <View style={styles.gameAdSlot}>
@@ -3262,6 +3245,41 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     width: '200%',
+  },
+  bonusStepBadge: {
+    zIndex: 1,
+    minHeight: 34,
+    paddingHorizontal: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(201,145,43,0.55)',
+    backgroundColor: 'rgba(255,249,219,0.68)',
+  },
+  bonusStepLabel: {
+    color: '#876D3E',
+    fontFamily: FONTS.bold,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  bonusStepDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  bonusStepDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#B98834',
+    backgroundColor: 'rgba(255,255,255,0.54)',
+  },
+  bonusStepDotFilled: {
+    borderColor: '#A87521',
+    backgroundColor: '#D9A83E',
   },
   bonusTargetCopy: {
     zIndex: 1,
