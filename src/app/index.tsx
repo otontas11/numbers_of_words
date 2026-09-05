@@ -2300,7 +2300,6 @@ export default function HomeScreen() {
                 onHome={navigateHome}
                 onMap={navigateTravel}
                 onOpenPassport={navigateCollection}
-                onPlay={openGame}
                 performanceHistory={performanceHistory}
                 learningScore={learningScore}
                 cityDifficultyModifier={cityDifficultyModifier}

@@ -507,7 +507,6 @@ export function ProfileScreen({
   onHome,
   onMap,
   onOpenPassport,
-  onPlay,
   performanceHistory,
   learningScore,
   cityDifficultyModifier,
@@ -520,7 +519,6 @@ export function ProfileScreen({
   onHome: () => void;
   onMap: () => void;
   onOpenPassport: () => void;
-  onPlay: () => void;
   performanceHistory: PuzzlePerformance[];
   learningScore: number;
   cityDifficultyModifier: DifficultyModifier;
@@ -656,28 +654,6 @@ export function ProfileScreen({
             <Text style={styles.worldProgress}>{t('profile.bonuses', { count: bonusCount })}</Text>
           </View>
 
-          <Pressable
-            accessibilityLabel={t('profile.openPassport')}
-            accessibilityRole="button"
-            onPress={onOpenPassport}
-            style={({ pressed }) => [styles.profileAction, pressed && styles.pressed]}>
-            <Text style={styles.profileActionIcon}>📘</Text>
-            <View style={styles.profileActionCopy}>
-              <Text style={styles.profileActionTitle}>{t('profile.passport')}</Text>
-              <Text style={styles.profileActionSubtitle}>
-                {t('profile.passportStamps', { done: completedCountries, total: TOTAL_COUNTRIES })}
-              </Text>
-            </View>
-            <Text style={styles.profileActionArrow}>›</Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityLabel={t('profile.resumeA11y')}
-            accessibilityRole="button"
-            onPress={onPlay}
-            style={({ pressed }) => [styles.profilePlayButton, pressed && styles.pressed]}>
-            <Text style={styles.profilePlayText}>{t('profile.resume')}</Text>
-          </Pressable>
         </ScrollView>
       </SafeAreaView>
       <AppFooter
