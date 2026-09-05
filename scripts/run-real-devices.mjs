@@ -6,6 +6,7 @@ import { statfs } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import { networkInterfaces } from 'node:os';
+import net from 'node:net';
 import process from 'node:process';
 
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -16,7 +17,7 @@ const iosBundleIdentifier = expoConfig.ios?.bundleIdentifier;
 const developmentClientScheme = `exp+${String(expoConfig.slug ?? '').replace(/[^a-zA-Z0-9+.-]/g, '')}`;
 const requestedPlatform = process.argv[2] ?? 'all';
 const supportedPlatforms = new Set(['all', 'android', 'ios']);
-const metroPort = process.env.DEVICE_METRO_PORT ?? '8083';
+let metroPort = process.env.DEVICE_METRO_PORT ?? '8083';
 const metroMode = process.env.DEVICE_METRO_MODE ?? 'lan';
 const explicitMetroUrl = process.env.DEVICE_METRO_URL?.replace(/\/$/, '');
 const supportedMetroModes = new Set(['lan', 'localhost', 'tunnel']);
@@ -135,6 +136,23 @@ function isPackagerRunning() {
       resolve(false);
     });
   });
+}
+
+function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once('error', () => resolve(false));
+    server.once('listening', () => server.close(() => resolve(true)));
+    server.listen(port, '127.0.0.1');
+  });
+}
+
+async function findFreshMetroPort(startPort) {
+  for (let offset = 1; offset <= 20; offset += 1) {
+    const candidate = startPort + offset;
+    if (candidate <= 65535 && (await isPortAvailable(candidate))) return String(candidate);
+  }
+  throw new Error('Yeni bir Metro portu bulunamadı. DEVICE_METRO_PORT ile boş bir port belirtin.');
 }
 
 function isChildProcessRunning(child) {
@@ -316,6 +334,18 @@ async function openAndroidWithExpoGo(target) {
   ]);
 }
 
+async function hasInstalledNativeClient(target) {
+  const packageResult = runForOutput('adb', [
+    '-s',
+    target.id,
+    'shell',
+    'pm',
+    'path',
+    androidApplicationId,
+  ]);
+  return packageResult.status === 0 && packageResult.stdout.includes('package:');
+}
+
 const androidDetection =
   requestedPlatform === 'ios' ? { devices: [], unavailableReason: null } : detectAndroidDevices();
 const iosDetection =
@@ -343,6 +373,13 @@ for (const target of targets) {
 const buildSpace = await getNativeBuildSpace(targets);
 const expoGoFallback =
   !buildSpace.sufficient && targets.every((target) => target.platform === 'android');
+// Native development client cihazda zaten kuruluysa, düşük disk alanında
+// Expo Go'ya düşme. Expo Go native ses modülünü içermediği için buton-ses
+// senkronu bozulur; mevcut development client güncel JS bundle'ı Metro'dan
+// alarak aynı davranışı korur.
+const installedNativeClientFallback =
+  expoGoFallback &&
+  (await Promise.all(targets.map((target) => hasInstalledNativeClient(target)))).every(Boolean);
 
 if (!buildSpace.sufficient && !expoGoFallback) {
   console.error(
@@ -354,8 +391,15 @@ if (!buildSpace.sufficient && !expoGoFallback) {
 
 if (expoGoFallback) {
   console.warn(
-    `\n⚠ Native build için alan yetersiz (${buildSpace.freeGiB.toFixed(1)} GB). Fiziksel Android Expo Go ile açılacak.`,
+    `\n⚠ Native build için alan yetersiz (${buildSpace.freeGiB.toFixed(1)} GB).`,
   );
+  if (installedNativeClientFallback) {
+    console.warn(
+      '✓ Kurulu native development client bulundu; Expo Go yerine bu uygulama Metro\'ya bağlanacak.',
+    );
+  } else {
+    console.warn('Fiziksel Android Expo Go ile açılacak.');
+  }
   console.warn(
     `Native development build için en az ${buildSpace.minimumGiB.toFixed(1)} GB alan açıldığında aynı komut otomatik olarak Gradle build çalıştırır.`,
   );
@@ -370,6 +414,13 @@ if (expoGoFallback) {
 let metroProcess = null;
 let ownsMetro = false;
 
+const existingPackager = await isPackagerRunning();
+if (existingPackager && !explicitMetroUrl) {
+  const previousMetroPort = metroPort;
+  metroPort = await findFreshMetroPort(Number(metroPort));
+  console.log(`✓ ${previousMetroPort} portunda eski Metro bulundu; taze Metro ${metroPort} portunda başlatılacak.`);
+}
+
 if (await isPackagerRunning()) {
   console.log(`✓ ${metroPort} portundaki mevcut Metro kullanılıyor.`);
 } else {
@@ -379,7 +430,7 @@ if (await isPackagerRunning()) {
     [
       'expo',
       'start',
-      expoGoFallback ? '--go' : '--dev-client',
+      expoGoFallback && !installedNativeClientFallback ? '--go' : '--dev-client',
       `--${metroMode}`,
       '--port',
       metroPort,
@@ -397,6 +448,15 @@ if (await isPackagerRunning()) {
 
 let failed = false;
 for (const target of targets) {
+  if (installedNativeClientFallback) {
+    console.log(`\n${target.name} için kurulu native development client açılıyor...`);
+    const exitCode = await openNativeDevelopmentClient(target);
+    if (exitCode !== 0) {
+      failed = true;
+      console.error(`✗ ${target.name} üzerinde native development client açılamadı (kod: ${exitCode}).`);
+    }
+    continue;
+  }
   if (expoGoFallback) {
     console.log(`\n${target.name} Expo Go ile açılıyor...`);
     const exitCode = await openAndroidWithExpoGo(target);
@@ -440,7 +500,9 @@ if (failed) {
 }
 
 console.log(
-  expoGoFallback
+  installedNativeClientFallback
+    ? '\n✓ Kurulu native development client güncel Metro bundle ile hazır.'
+    : expoGoFallback
     ? '\n✓ Bağlı fiziksel Android cihaz Expo Go ile hazır.'
     : '\n✓ Bağlı fiziksel cihazlar native development build ile hazır.',
 );

@@ -18,7 +18,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture } from 'react-native-gesture-handler';
 import Reanimated, {
   runOnJS,
   type SharedValue,
@@ -197,11 +197,11 @@ function WheelGestureSurface({
   children: ReactElement;
   gesture: ReturnType<typeof Gesture.Manual>;
 }) {
-  // iOS'ta ScrollView içine yerleşen Manual RNGH recognizer bazı cihazlarda
-  // touchesDown olayını hiç teslim etmiyor. O platformda native recognizer'ı
-  // ağaca eklemeyip doğrudan RN responder kullanmak bu çakışmayı ortadan kaldırır.
-  if (Platform.OS !== 'android') return children;
-  return <GestureDetector gesture={gesture}>{children}</GestureDetector>;
+  // Eğitim modalındaki kararlı RN responder akışını oyun tahtasında da
+  // kullanıyoruz. ScrollView artık kaydırılmadığı için Android'de gesture
+  // handler'ın responder'ı yarışla devralmasına gerek kalmıyor.
+  void gesture;
+  return children;
 }
 
 function shuffledIndices(count: number): number[] {
@@ -485,14 +485,34 @@ export const NumberWheel = memo(function NumberWheel({
    */
   /* eslint-disable react-hooks/immutability, react-hooks/refs */
   const getResponderTouchPoint = useCallback((event: GestureResponderEvent): Point => {
-    const { locationX, locationY } = event.nativeEvent;
-    return { x: locationX, y: locationY };
-  }, []);
+    const { pageX, pageY } = event.nativeEvent;
+    // locationX/locationY may be relative to the changing child under a fast
+    // finger move. page coordinates remain stable; translate them back to the
+    // measured wheel origin just like the rendered node positions.
+    const point = {
+      x: pageX - originRef.current.x,
+      y: pageY - originRef.current.y,
+    };
+    // Once the finger leaves the circular board, keep the visual endpoint on
+    // its rim. This prevents an out-of-bounds pointer from making the SVG path
+    // appear to bounce or reflect back into the wheel on Android.
+    const deltaX = point.x - center;
+    const deltaY = point.y - center;
+    const distance = Math.hypot(deltaX, deltaY);
+    const maxDistance = center - 2;
+    if (distance > maxDistance && distance > 0) {
+      const scale = maxDistance / distance;
+      return {
+        x: center + deltaX * scale,
+        y: center + deltaY * scale,
+      };
+    }
+    return point;
+  }, [center]);
 
   const canStartResponderSelection = useCallback(
     (event: GestureResponderEvent) => {
       if (
-        Platform.OS === 'android' ||
         shufflingOnUI.value ||
         holdingOnUI.value ||
         responderGestureAcceptedRef.current

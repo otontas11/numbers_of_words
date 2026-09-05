@@ -74,6 +74,8 @@ Mevcut sayı matrisi, çözülmüş hedefler, toplam puan, mücevher bakiyesi, s
 
 `FreshGameTutorialModal` ilk oyunda açılan öğretici akıştır. Modal, `OYUN EĞİTİMİ` rozetiyle gösterilir; karıştırma ve ipucu adımlarını sesleriyle birlikte öğretir, ipucunda doğru A→B bağlantısını iki kez çizer, ardından `Sıra Sende!` durumuna geçer. Eğitim tamamlandığında konfeti ve `game-treasure.wav` ile gerçek oyuna bırakır.
 
+Oyun tahtası da eğitim modalındaki RN responder çizim akışını kullanır: dokunma düğüm üzerinde başlar, her hareket segmenti düğümler boyunca taranır, geri yönde geçiş son düğümü çıkarır ve release anındaki son segment de doğrulanır. Android’de bu akışın önüne RNGH manual handler geçirilmez; böylece çizgi ve düğüm sesi aynı dokunma olayında kararlı kalır.
+
 Gerçek oyun tahtasının merkezindeki işlem düğmesi (`+`, `−`, `×`, `÷`) yalnızca yönlendirme amacı taşır. İlk ülkede ilk üç şehir girişinde birer kez gösterilir ve oyuncu ilk sayı düğmesine dokunduğunda kapanır. Sonraki ülkelerde her işlem türü için en fazla iki gösterim yapılır. Gösterim sayaçları `@numbers-of-wonders/operation-guide-v1` anahtarıyla cihazda saklanır; reklam, ekran geçişi veya yeniden açılış bu sayaçları sıfırlamaz.
 
 ## Android ses ve dokunma çözümü
