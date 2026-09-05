@@ -10,11 +10,9 @@ import {
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useState } from 'react';
+import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { AdMobBanner } from '@/components/ads/admob-banner';
-import { StartupSplash } from '@/components/startup-splash';
 import { useAudioSessionLifecycle } from '@/hooks/audio-session';
 import { useContentImageCache } from '@/hooks/use-content-image-cache';
 
@@ -23,7 +21,6 @@ void SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   useAudioSessionLifecycle();
   const contentBootstrap = useContentImageCache();
-  const [showStartupSplash, setShowStartupSplash] = useState(true);
 
   const [fontsLoaded, fontError] = useFonts({
     Nunito_400Regular,
@@ -34,10 +31,11 @@ export default function RootLayout() {
     Nunito_900Black,
   });
 
-  const hideNativeSplash = useCallback(() => {
-    void SplashScreen.hideAsync();
-  }, []);
   const appShellReady = (fontsLoaded || Boolean(fontError)) && contentBootstrap.ready;
+
+  useEffect(() => {
+    if (appShellReady) void SplashScreen.hideAsync();
+  }, [appShellReady]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -51,16 +49,7 @@ export default function RootLayout() {
           }}>
           <Stack.Screen name="index" />
         </Stack>
-        <AdMobBanner />
       </ThemeProvider>
-      {showStartupSplash ? (
-        <StartupSplash
-          onReadyToDisplay={hideNativeSplash}
-          onExitComplete={() => setShowStartupSplash(false)}
-          progress={contentBootstrap.progress}
-          exiting={appShellReady}
-        />
-      ) : null}
     </GestureHandlerRootView>
   );
 }

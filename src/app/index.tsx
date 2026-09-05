@@ -22,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FreshGameTutorialModal } from '@/components/game/fresh-game-tutorial-modal';
 import { CountryCompletionModal } from '@/components/game/game-modals';
 import { PassportCollection } from '@/components/collection/passport-collection';
+import { AdMobBanner } from '@/components/ads/admob-banner';
 import { BackIcon, GemIcon, SettingsIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
@@ -2195,6 +2196,8 @@ export default function HomeScreen() {
                 currentLevel={displayedProgressLevel}
                 gemCount={gemCount}
                 levelData={contentLevelData}
+                onHome={navigateHome}
+                onMap={navigateTravel}
                 onOpenPassport={navigateCollection}
                 onPlay={openGame}
                 performanceHistory={performanceHistory}
@@ -2243,15 +2246,16 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      {persistentScreens}
-      {activeScreen === 'game' || mountedShellScreens.has('game') ? (
-      <BlurTargetView
-        key={`game-screen-${language}`}
-        accessibilityElementsHidden={activeScreen !== 'game'}
-        importantForAccessibility={activeScreen === 'game' ? 'auto' : 'no-hide-descendants'}
-        pointerEvents={activeScreen === 'game' ? 'auto' : 'none'}
-        ref={activeScreen === 'game' ? blurTarget : undefined}
-        style={[styles.gameScreenLayer, activeScreen !== 'game' && styles.gameScreenHidden]}>
+      <View style={styles.screen}>
+        {persistentScreens}
+        {activeScreen === 'game' || mountedShellScreens.has('game') ? (
+        <BlurTargetView
+          key={`game-screen-${language}`}
+          accessibilityElementsHidden={activeScreen !== 'game'}
+          importantForAccessibility={activeScreen === 'game' ? 'auto' : 'no-hide-descendants'}
+          pointerEvents={activeScreen === 'game' ? 'auto' : 'none'}
+          ref={activeScreen === 'game' ? blurTarget : undefined}
+          style={[styles.gameScreenLayer, activeScreen !== 'game' && styles.gameScreenHidden]}>
         <Image
           contentFit="cover"
           source={GAME_SKY_BACKGROUND}
@@ -2452,8 +2456,10 @@ export default function HomeScreen() {
         </View>
         <Celebration visible={celebrating} />
         <DestinationTransition transition={destinationTransition} />
-      </BlurTargetView>
-      ) : null}
+        </BlurTargetView>
+        ) : null}
+      </View>
+      {activeScreen === 'game' ? <AdMobBanner /> : null}
       {overlays}
     </View>
   );

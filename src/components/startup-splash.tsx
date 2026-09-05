@@ -42,19 +42,21 @@ export function StartupSplash({
   progress: number;
   exiting?: boolean;
 }) {
-  const [animatedProgress] = useState(() => new Animated.Value(progress));
+  const [animatedProgress] = useState(() => new Animated.Value(Math.max(progress, 0.06)));
   const [exitOpacity] = useState(() => new Animated.Value(1));
   const [backgroundLoaded, setBackgroundLoaded] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
-  const [birdFrame, setBirdFrame] = useState(0);
   const { height } = useWindowDimensions();
   const compact = height < 760;
 
   useEffect(() => {
+    // The network/bootstrap steps can pause for an unpredictable amount of
+    // time. Let the bar advance continuously to a near-complete state while
+    // those tasks run, then finish quickly when the app is actually ready.
     const animation = Animated.timing(animatedProgress, {
-      toValue: progress,
-      duration: 520,
-      easing: Easing.inOut(Easing.cubic),
+      toValue: progress >= 1 ? 1 : 0.9,
+      duration: progress >= 1 ? 320 : 8500,
+      easing: progress >= 1 ? Easing.out(Easing.cubic) : Easing.linear,
       useNativeDriver: false,
     });
     animation.start();
@@ -78,11 +80,6 @@ export function StartupSplash({
     });
     return () => animation.stop();
   }, [exitOpacity, exiting, onExitComplete]);
-
-  useEffect(() => {
-    const timer = setInterval(() => setBirdFrame((frame) => (frame + 1) % BIRD_FRAMES.length), 110);
-    return () => clearInterval(timer);
-  }, []);
 
   const progressWidth = animatedProgress.interpolate({
     inputRange: [0, 1],
@@ -114,9 +111,9 @@ export function StartupSplash({
               source={HOME_LOGO}
               style={[styles.logo, compact && styles.logoCompact]}
             />
-            <Image contentFit="contain" source={BIRD_FRAMES[birdFrame]} style={[styles.bird, styles.birdOne]} />
-            <Image contentFit="contain" source={BIRD_FRAMES[(birdFrame + 4) % BIRD_FRAMES.length]} style={[styles.bird, styles.birdTwo]} />
-            <Image contentFit="contain" source={BIRD_FRAMES[(birdFrame + 8) % BIRD_FRAMES.length]} style={[styles.bird, styles.birdThree]} />
+            <Image contentFit="contain" source={BIRD_FRAMES[0]} style={[styles.bird, styles.birdOne]} />
+            <Image contentFit="contain" source={BIRD_FRAMES[4]} style={[styles.bird, styles.birdTwo]} />
+            <Image contentFit="contain" source={BIRD_FRAMES[8]} style={[styles.bird, styles.birdThree]} />
           </View>
         </View>
 

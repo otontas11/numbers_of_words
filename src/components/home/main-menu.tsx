@@ -504,6 +504,8 @@ export function ProfileScreen({
   currentLevel,
   gemCount,
   levelData,
+  onHome,
+  onMap,
   onOpenPassport,
   onPlay,
   performanceHistory,
@@ -515,6 +517,8 @@ export function ProfileScreen({
   currentLevel: number;
   gemCount: number;
   levelData: LevelData;
+  onHome: () => void;
+  onMap: () => void;
   onOpenPassport: () => void;
   onPlay: () => void;
   performanceHistory: PuzzlePerformance[];
@@ -552,7 +556,7 @@ export function ProfileScreen({
 
         <ScrollView
           bounces={false}
-          contentContainerStyle={styles.profileScroll}
+          contentContainerStyle={[styles.profileScroll, styles.profileScrollWithFooter]}
           showsVerticalScrollIndicator={false}>
           <View style={styles.profileHero}>
             <Image
@@ -676,6 +680,13 @@ export function ProfileScreen({
           </Pressable>
         </ScrollView>
       </SafeAreaView>
+      <AppFooter
+        activeItem="tasks"
+        onCollection={onOpenPassport}
+        onHome={onHome}
+        onMap={onMap}
+        onTasks={() => {}}
+      />
     </LinearGradient>
   );
 }
@@ -809,6 +820,7 @@ const styles = StyleSheet.create({
   profileHeader: { height: 58, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center' },
   profileHeaderTitle: { color: '#253947', fontFamily: FONTS.extraBold, fontSize: 16, letterSpacing: 1.7, fontWeight: '800' },
   profileScroll: { width: '100%', maxWidth: 512, alignSelf: 'center', paddingHorizontal: 16, paddingBottom: 26 },
+  profileScrollWithFooter: { paddingBottom: 122 },
   profileHero: { height: 226, marginTop: 8, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', borderRadius: 26, paddingBottom: 22, shadowColor: '#2D2219', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.24, shadowRadius: 10, elevation: 7 },
   profileLanguageCard: { marginTop: 10, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: '#D6E5E4', backgroundColor: '#FFFFFF' },
   profileLanguageTitle: { color: '#233540', fontFamily: FONTS.extraBold, fontSize: 13, fontWeight: '800' },
