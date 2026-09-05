@@ -1,24 +1,42 @@
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import {
-  BannerAd,
-  BannerAdSize,
-  MobileAds,
-  TestIds,
-} from 'react-native-google-mobile-ads';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+type GoogleMobileAds = typeof import('react-native-google-mobile-ads');
+
+/**
+ * Expo Go does not contain RNGoogleMobileAdsModule. Keep this require behind
+ * a guard so importing the root layout never crashes Expo Go before the app
+ * can render. A development/native build with the config plugin still loads
+ * the module normally.
+ */
+function resolveGoogleMobileAds(): GoogleMobileAds | null {
+  if (Platform.OS === 'web') return null;
+
+  try {
+    // Expo Go does not ship this native module; load it only when available.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('react-native-google-mobile-ads') as GoogleMobileAds;
+  } catch {
+    return null;
+  }
+}
+
+const googleMobileAds = resolveGoogleMobileAds();
 
 const PRODUCTION_BANNER_UNIT_ID = Platform.select({
   android: 'ca-app-pub-5659145727748457/7023807959',
   ios: 'ca-app-pub-5659145727748457/9099306955',
-  default: TestIds.BANNER,
+  default: '',
 });
 
-let initializationPromise: ReturnType<ReturnType<typeof MobileAds>['initialize']> | null = null;
+let initializationPromise: ReturnType<ReturnType<GoogleMobileAds['MobileAds']>['initialize']> | null = null;
 
 function initializeMobileAds() {
+  if (!googleMobileAds) return Promise.resolve(null);
+
   if (!initializationPromise) {
-    initializationPromise = MobileAds().initialize().catch((error: unknown) => {
+    initializationPromise = googleMobileAds.MobileAds().initialize().catch((error: unknown) => {
       initializationPromise = null;
       throw error;
     });
@@ -31,6 +49,8 @@ export function AdMobBanner() {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
+    if (!googleMobileAds) return undefined;
+
     let mounted = true;
 
     void initializeMobileAds()
@@ -46,13 +66,17 @@ export function AdMobBanner() {
     };
   }, []);
 
+  if (!googleMobileAds) return null;
+
+  const { BannerAd, BannerAdSize, TestIds } = googleMobileAds;
+
   return (
     <SafeAreaView edges={['bottom']} style={styles.safeArea}>
       <View style={styles.slot}>
         {initialized ? (
           <BannerAd
             size={BannerAdSize.BANNER}
-            unitId={__DEV__ ? TestIds.BANNER : PRODUCTION_BANNER_UNIT_ID}
+            unitId={__DEV__ ? TestIds.BANNER : PRODUCTION_BANNER_UNIT_ID ?? TestIds.BANNER}
           />
         ) : null}
       </View>

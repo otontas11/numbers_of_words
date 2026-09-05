@@ -49,6 +49,7 @@
         }
       ],
       "./plugins/with-google-utilities-modular-headers",
+      "./plugins/with-android-game-sound-pool",
       [
         "expo-splash-screen",
         {
@@ -72,9 +73,5 @@
       "typedRoutes": true,
       "reactCompiler": true
     }
-  },
-  "react-native-google-mobile-ads": {
-    "android_app_id": "ca-app-pub-5659145727748457~8041376159",
-    "ios_app_id": "ca-app-pub-5659145727748457~7740274625"
   }
 }

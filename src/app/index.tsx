@@ -10,7 +10,6 @@ import {
   AppState,
   BackHandler,
   Easing,
-  InteractionManager,
   Platform,
   ScrollView,
   StyleSheet,
@@ -1417,15 +1416,18 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!hydrated || mountedShellScreens.has('game')) return;
-    const task = InteractionManager.runAfterInteractions(() => {
+    // InteractionManager is deprecated in newer React Native releases. A
+    // deferred macrotask keeps the shell mount off the current render without
+    // relying on the deprecated interaction queue.
+    const task = setTimeout(() => {
       setMountedShellScreens((current) => {
         if (current.has('game')) return current;
         const next = new Set(current);
         next.add('game');
         return next;
       });
-    });
-    return () => task.cancel();
+    }, 0);
+    return () => clearTimeout(task);
   }, [hydrated, mountedShellScreens]);
 
   useEffect(() => {

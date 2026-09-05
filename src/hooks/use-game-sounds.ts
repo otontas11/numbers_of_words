@@ -1,7 +1,15 @@
-import { preload, useAudioPlayer } from 'expo-audio';
+import { preload, useAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { useCallback, useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 
 import {
+  hasAndroidGameSoundPool,
+  playAndroidGameSound,
+} from '@/hooks/android-game-sound-pool';
+import {
+  getAudioPlayerPlaybackRun,
+  isAudioPlayerIdle,
+  isAudioPlayerReady,
   prepareAudioPlayer,
   rearmAudioPlayer,
   replayAudioPlayer,
@@ -28,6 +36,11 @@ const PLAYER_OPTIONS = {
   updateInterval: 100,
 } as const;
 
+const ANDROID_PLAYER_OPTIONS = {
+  keepAudioSessionActive: true,
+  updateInterval: 25,
+} as const;
+
 const SELECT_SOURCES = [
   require('../../assets/sounds/select.wav'),
   require('../../assets/sounds/select-2.wav'),
@@ -48,10 +61,12 @@ const SHUFFLE_START_TIME = 0.049;
 
 // Expo Audio'nun kendi preload önbelleği, tüm oyun ve eğitim efektlerini
 // component render edilmeden önce native decoder'a hazırlar.
-void Promise.all(
-  [...SELECT_SOURCES, HINT_SOURCE, SUCCESS_SOURCE, BONUS_SOURCE, DIAMOND_SOURCE,
-    GAME_TREASURE_SOURCE, SHUFFLE_SOURCE].map((source) => preload(source)),
-).catch(() => undefined);
+if (!hasAndroidGameSoundPool) {
+  void Promise.all(
+    [...SELECT_SOURCES, HINT_SOURCE, SUCCESS_SOURCE, BONUS_SOURCE, DIAMOND_SOURCE,
+      GAME_TREASURE_SOURCE, SHUFFLE_SOURCE].map((source) => preload(source)),
+  ).catch(() => undefined);
+}
 
 const SOUND_VOLUMES: Partial<Record<GameSound, number>> = {
   bonus: 0.55,
@@ -60,7 +75,67 @@ const SOUND_VOLUMES: Partial<Record<GameSound, number>> = {
   points: 0.42,
 };
 
-export function useGameSounds(enabled: boolean) {
+function chooseVoice(
+  players: readonly AudioPlayer[],
+  preferredIndex: number,
+  startTime = 0,
+) {
+  const ordered = players.map(
+    (_, offset) => players[(preferredIndex + offset) % players.length],
+  );
+  if (Platform.OS !== 'android') return ordered[0];
+  return (
+    ordered.find((player) => isAudioPlayerReady(player, startTime)) ??
+    ordered.find(isAudioPlayerIdle) ??
+    ordered[0]
+  );
+}
+
+function subscribeAndroidPlayerBank(
+  channels: readonly { player: AudioPlayer; startTime: number }[],
+) {
+  const subscriptions = channels.map(({ player, startTime }) => {
+    let loaded = player.isLoaded;
+    let observedPlaybackRun = 0;
+    let lastRearmedPlaybackRun = 0;
+    if (player.isLoaded) void prepareAudioPlayer(player, startTime);
+
+    return player.addListener('playbackStatusUpdate', (status) => {
+      const justLoaded = status.isLoaded && !loaded;
+      loaded = status.isLoaded;
+      if (justLoaded) void prepareAudioPlayer(player, startTime);
+
+      if (status.playing) {
+        observedPlaybackRun = getAudioPlayerPlaybackRun(player);
+      }
+      if (!status.didJustFinish) return;
+
+      const finishedPlaybackRun = Math.max(
+        observedPlaybackRun,
+        getAudioPlayerPlaybackRun(player),
+      );
+      if (
+        finishedPlaybackRun <= 0 ||
+        finishedPlaybackRun <= lastRearmedPlaybackRun
+      ) {
+        return;
+      }
+
+      void rearmAudioPlayer(player, startTime, finishedPlaybackRun).then((rearmed) => {
+        if (rearmed) {
+          lastRearmedPlaybackRun = Math.max(
+            lastRearmedPlaybackRun,
+            finishedPlaybackRun,
+          );
+        }
+      });
+    });
+  });
+
+  return () => subscriptions.forEach((subscription) => subscription.remove());
+}
+
+function useIosGameSounds(enabled: boolean) {
   const selectOnePlayer = useAudioPlayer(
     SELECT_SOURCES[0],
     PLAYER_OPTIONS,
@@ -138,6 +213,11 @@ export function useGameSounds(enabled: boolean) {
     SUCCESS_SOURCE,
     PLAYER_OPTIONS,
   );
+  const successAlternatePlayer = useAudioPlayer(
+    SUCCESS_SOURCE,
+    PLAYER_OPTIONS,
+  );
+  const successVoiceRef = useRef(0);
   const bonusPlayer = useAudioPlayer(BONUS_SOURCE, PLAYER_OPTIONS);
   const diamondPlayer = useAudioPlayer(
     DIAMOND_SOURCE,
@@ -185,6 +265,7 @@ export function useGameSounds(enabled: boolean) {
       { player: hintAlternatePlayer, startTime: HINT_START_TIME },
       { player: hintThirdPlayer, startTime: HINT_START_TIME },
       { player: successPlayer, startTime: 0 },
+      { player: successAlternatePlayer, startTime: 0 },
       { player: bonusPlayer, startTime: 0 },
       { player: diamondPlayer, startTime: 0 },
       { player: levelCompletePlayer, startTime: 0 },
@@ -200,21 +281,50 @@ export function useGameSounds(enabled: boolean) {
     const subscriptions = channels.map(({ player, startTime }) => {
       let loaded = player.isLoaded;
       let finishHandled = false;
+      let observedPlaybackRun = 0;
+      let lastRearmedPlaybackRun = 0;
       if (player.isLoaded) void prepareAudioPlayer(player, startTime);
       return player.addListener('playbackStatusUpdate', (status) => {
         const justLoaded = status.isLoaded && !loaded;
         loaded = status.isLoaded;
         if (justLoaded) void prepareAudioPlayer(player, startTime);
 
-        // Aynı kısa efekt yeniden istendiğinde pause/seek beklenmesin. Finish
-        // olayını yalnız yükselen kenarda ele alarak Android status tekrarının
-        // yeniden-hazırlama döngüsü oluşturmasını engelle.
-        if (status.didJustFinish && !finishHandled) {
-          finishHandled = true;
-          void rearmAudioPlayer(player, startTime);
-        } else if (!status.didJustFinish) {
-          finishHandled = false;
+        if (Platform.OS !== 'android') {
+          if (status.didJustFinish && !finishHandled) {
+            finishHandled = true;
+            void rearmAudioPlayer(player, startTime);
+          } else if (!status.didJustFinish) {
+            finishHandled = false;
+          }
+          return;
         }
+
+        if (status.playing) {
+          observedPlaybackRun = getAudioPlayerPlaybackRun(player);
+        }
+        if (!status.didJustFinish) return;
+
+        // didJustFinish bazı cihazlarda aynı run için tekrarlanır. Run kimliği
+        // hem tekrarları idempotent yapar hem geç gelen eski finish'in yeni
+        // playback'i başa sarmasını engeller.
+        const finishedPlaybackRun = Math.max(
+          observedPlaybackRun,
+          getAudioPlayerPlaybackRun(player),
+        );
+        if (
+          finishedPlaybackRun <= 0 ||
+          finishedPlaybackRun <= lastRearmedPlaybackRun
+        ) {
+          return;
+        }
+        void rearmAudioPlayer(player, startTime, finishedPlaybackRun).then((rearmed) => {
+          if (rearmed) {
+            lastRearmedPlaybackRun = Math.max(
+              lastRearmedPlaybackRun,
+              finishedPlaybackRun,
+            );
+          }
+        });
       });
     });
 
@@ -244,6 +354,7 @@ export function useGameSounds(enabled: boolean) {
     shuffleAlternatePlayer,
     shufflePlayer,
     shuffleThirdPlayer,
+    successAlternatePlayer,
     successPlayer,
   ]);
 
@@ -272,9 +383,10 @@ export function useGameSounds(enabled: boolean) {
       const selectionIndex = sound.startsWith('select')
         ? Number.parseInt(sound.slice('select'.length), 10) - 1
         : -1;
-      const useAlternateSelectionVoice =
-        selectionIndex >= 0 &&
-        (selectionVoiceRef.current[selectionIndex] ?? 0) % 2 === 1;
+      const selectionVoice =
+        selectionIndex >= 0
+          ? (selectionVoiceRef.current[selectionIndex] ?? 0) % 2
+          : 0;
       if (selectionIndex >= 0) {
         selectionVoiceRef.current[selectionIndex] =
           (selectionVoiceRef.current[selectionIndex] ?? 0) + 1;
@@ -283,15 +395,28 @@ export function useGameSounds(enabled: boolean) {
       if (sound === 'shuffle') shuffleVoiceRef.current += 1;
       const hintVoice = hintVoiceRef.current % 3;
       if (sound === 'hint') hintVoiceRef.current += 1;
+      const successVoice =
+        Platform.OS === 'android' ? successVoiceRef.current % 2 : 0;
+      if (sound === 'success' && Platform.OS === 'android') {
+        successVoiceRef.current += 1;
+      }
       const player =
         selectionIndex >= 0
-          ? (useAlternateSelectionVoice ? alternateSelectionPlayers : selectionPlayers)[
-              selectionIndex
-            ]
+          ? chooseVoice(
+              [selectionPlayers[selectionIndex], alternateSelectionPlayers[selectionIndex]],
+              selectionVoice,
+            )
           : sound === 'hint'
-            ? [hintPlayer, hintAlternatePlayer, hintThirdPlayer][hintVoice]
+            ? chooseVoice(
+                [hintPlayer, hintAlternatePlayer, hintThirdPlayer],
+                hintVoice,
+                HINT_START_TIME,
+              )
             : sound === 'success'
-              ? successPlayer
+              ? chooseVoice(
+                  [successPlayer, successAlternatePlayer],
+                  successVoice,
+                )
               : sound === 'bonus'
                 ? bonusPlayer
                 : sound === 'diamond'
@@ -300,7 +425,11 @@ export function useGameSounds(enabled: boolean) {
                     ? pointsPlayer
                     : sound === 'levelComplete'
                       ? levelCompletePlayer
-                      : [shufflePlayer, shuffleAlternatePlayer, shuffleThirdPlayer][shuffleVoice];
+                      : chooseVoice(
+                          [shufflePlayer, shuffleAlternatePlayer, shuffleThirdPlayer],
+                          shuffleVoice,
+                          SHUFFLE_START_TIME,
+                        );
 
       if (!player) return;
 
@@ -336,7 +465,154 @@ export function useGameSounds(enabled: boolean) {
       shuffleAlternatePlayer,
       shufflePlayer,
       shuffleThirdPlayer,
+      successAlternatePlayer,
       successPlayer,
     ],
   );
 }
+
+/**
+ * Android ExoPlayer her AudioPlayer için ayrı ve pahalı bir native graph
+ * kuruyor. Bu banka, sık kullanılan notaları ayrı tutarken duplicate voice
+ * sayısını sınırlı bırakır: 7 select + hint + success + bonus + diamond +
+ * ortak treasure/points + 2 shuffle = 14 native player.
+ */
+function useAndroidGameSounds(enabled: boolean) {
+  const selectOnePlayer = useAudioPlayer(SELECT_SOURCES[0], ANDROID_PLAYER_OPTIONS);
+  const selectTwoPlayer = useAudioPlayer(SELECT_SOURCES[1], ANDROID_PLAYER_OPTIONS);
+  const selectThreePlayer = useAudioPlayer(SELECT_SOURCES[2], ANDROID_PLAYER_OPTIONS);
+  const selectFourPlayer = useAudioPlayer(SELECT_SOURCES[3], ANDROID_PLAYER_OPTIONS);
+  const selectFivePlayer = useAudioPlayer(SELECT_SOURCES[4], ANDROID_PLAYER_OPTIONS);
+  const selectSixPlayer = useAudioPlayer(SELECT_SOURCES[5], ANDROID_PLAYER_OPTIONS);
+  const selectSevenPlayer = useAudioPlayer(SELECT_SOURCES[6], ANDROID_PLAYER_OPTIONS);
+  const hintPlayer = useAudioPlayer(HINT_SOURCE, ANDROID_PLAYER_OPTIONS);
+  const successPlayer = useAudioPlayer(SUCCESS_SOURCE, ANDROID_PLAYER_OPTIONS);
+  const bonusPlayer = useAudioPlayer(BONUS_SOURCE, ANDROID_PLAYER_OPTIONS);
+  const diamondPlayer = useAudioPlayer(DIAMOND_SOURCE, ANDROID_PLAYER_OPTIONS);
+  const treasurePlayer = useAudioPlayer(GAME_TREASURE_SOURCE, ANDROID_PLAYER_OPTIONS);
+  const shufflePlayer = useAudioPlayer(SHUFFLE_SOURCE, ANDROID_PLAYER_OPTIONS);
+  const shuffleAlternatePlayer = useAudioPlayer(
+    SHUFFLE_SOURCE,
+    ANDROID_PLAYER_OPTIONS,
+  );
+  const shuffleVoiceRef = useRef(0);
+
+  useEffect(
+    () =>
+      subscribeAndroidPlayerBank([
+        { player: selectOnePlayer, startTime: 0 },
+        { player: selectTwoPlayer, startTime: 0 },
+        { player: selectThreePlayer, startTime: 0 },
+        { player: selectFourPlayer, startTime: 0 },
+        { player: selectFivePlayer, startTime: 0 },
+        { player: selectSixPlayer, startTime: 0 },
+        { player: selectSevenPlayer, startTime: 0 },
+        { player: hintPlayer, startTime: HINT_START_TIME },
+        { player: successPlayer, startTime: 0 },
+        { player: bonusPlayer, startTime: 0 },
+        { player: diamondPlayer, startTime: 0 },
+        { player: treasurePlayer, startTime: 0 },
+        { player: shufflePlayer, startTime: SHUFFLE_START_TIME },
+        { player: shuffleAlternatePlayer, startTime: SHUFFLE_START_TIME },
+      ]),
+    [
+      bonusPlayer,
+      diamondPlayer,
+      hintPlayer,
+      selectFivePlayer,
+      selectFourPlayer,
+      selectOnePlayer,
+      selectSevenPlayer,
+      selectSixPlayer,
+      selectThreePlayer,
+      selectTwoPlayer,
+      shuffleAlternatePlayer,
+      shufflePlayer,
+      successPlayer,
+      treasurePlayer,
+    ],
+  );
+
+  return useCallback(
+    (sound: GameSound, force = false) => {
+      if (!enabled && !force) return;
+
+      const selectionPlayers = [
+        selectOnePlayer,
+        selectTwoPlayer,
+        selectThreePlayer,
+        selectFourPlayer,
+        selectFivePlayer,
+        selectSixPlayer,
+        selectSevenPlayer,
+      ] as const;
+      const selectionIndex = sound.startsWith('select')
+        ? Number.parseInt(sound.slice('select'.length), 10) - 1
+        : -1;
+      const shuffleVoice = shuffleVoiceRef.current % 2;
+      if (sound === 'shuffle') shuffleVoiceRef.current += 1;
+
+      const player =
+        selectionIndex >= 0
+          ? selectionPlayers[selectionIndex]
+          : sound === 'hint'
+            ? hintPlayer
+            : sound === 'success'
+              ? successPlayer
+              : sound === 'bonus'
+                ? bonusPlayer
+                : sound === 'diamond'
+                  ? diamondPlayer
+                  : sound === 'points' || sound === 'levelComplete'
+                    ? treasurePlayer
+                    : chooseVoice(
+                        [shufflePlayer, shuffleAlternatePlayer],
+                        shuffleVoice,
+                        SHUFFLE_START_TIME,
+                      );
+
+      if (!player) return;
+      return replayAudioPlayer(
+        player,
+        SOUND_VOLUMES[sound] ?? 1,
+        sound === 'shuffle' ? SHUFFLE_START_TIME : sound === 'hint' ? HINT_START_TIME : 0,
+      );
+    },
+    [
+      bonusPlayer,
+      diamondPlayer,
+      enabled,
+      hintPlayer,
+      selectFivePlayer,
+      selectFourPlayer,
+      selectOnePlayer,
+      selectSevenPlayer,
+      selectSixPlayer,
+      selectThreePlayer,
+      selectTwoPlayer,
+      shuffleAlternatePlayer,
+      shufflePlayer,
+      successPlayer,
+      treasurePlayer,
+    ],
+  );
+}
+
+function useNativeAndroidGameSounds(enabled: boolean) {
+  return useCallback(
+    (sound: GameSound, force = false) => {
+      if (!enabled && !force) return;
+      return playAndroidGameSound(sound, SOUND_VOLUMES[sound] ?? 1);
+    },
+    [enabled],
+  );
+}
+
+// Platform seçimi module yüklenirken sabitlenir; böylece iki hook bankası aynı
+// render içinde koşullu çağrılmaz ve React hook sırası her zaman deterministiktir.
+export const useGameSounds =
+  Platform.OS !== 'android'
+    ? useIosGameSounds
+    : hasAndroidGameSoundPool
+      ? useNativeAndroidGameSounds
+      : useAndroidGameSounds;
