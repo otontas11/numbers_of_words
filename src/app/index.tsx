@@ -678,7 +678,10 @@ function BonusTargetCard({
           ))}
         </View>
       </View>
-      <View style={styles.bonusTargetCopy}>
+      <View style={styles.bonusRewardAnchor}>
+        <Text style={[styles.bonusRewardLabel, solved && styles.bonusTargetSolvedText]}>
+          BONUS
+        </Text>
         <View style={[styles.bonusRewardPill, solved && styles.bonusRewardPillSolved]}>
           <GemIcon
             color={solved ? '#66D7FF' : '#BDEFFF'}
@@ -3182,8 +3185,8 @@ const styles = StyleSheet.create({
   targetOperationCornerText: {
     color: '#416B78',
     fontFamily: FONTS.black,
-    fontSize: 13,
-    lineHeight: 15,
+    fontSize: 15,
+    lineHeight: 17,
     fontWeight: '900',
   },
   targetValue: {
@@ -3270,9 +3273,9 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   bonusStepDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#B98834',
     backgroundColor: 'rgba(255,255,255,0.54)',
@@ -3280,6 +3283,19 @@ const styles = StyleSheet.create({
   bonusStepDotFilled: {
     borderColor: '#A87521',
     backgroundColor: '#D9A83E',
+  },
+  bonusRewardAnchor: {
+    zIndex: 1,
+    alignItems: 'center',
+    marginLeft: 'auto',
+  },
+  bonusRewardLabel: {
+    color: '#76518D',
+    fontFamily: FONTS.extraBold,
+    fontSize: 8,
+    letterSpacing: 0.8,
+    lineHeight: 10,
+    marginBottom: 1,
   },
   bonusTargetCopy: {
     zIndex: 1,
@@ -3295,17 +3311,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.45,
   },
   bonusRewardPill: {
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     height: 20,
-    marginTop: 1,
     paddingHorizontal: 6,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(47,145,177,0.38)',
-    backgroundColor: 'rgba(83,189,218,0.14)',
+    borderColor: 'rgba(117,80,151,0.44)',
+    backgroundColor: 'rgba(141,93,180,0.14)',
   },
   bonusRewardPillSolved: {
     borderColor: 'rgba(28,119,91,0.42)',
@@ -3363,8 +3378,8 @@ const styles = StyleSheet.create({
   bonusOperationCornerText: {
     color: '#FFFFFF',
     fontFamily: FONTS.black,
-    fontSize: 12,
-    lineHeight: 14,
+    fontSize: 14,
+    lineHeight: 16,
     fontWeight: '900',
   },
   bonusTargetValue: {
