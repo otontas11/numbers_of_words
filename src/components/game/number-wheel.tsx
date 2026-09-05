@@ -1,5 +1,4 @@
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
-import { Image } from 'expo-image';
 import {
   useCallback,
   useEffect,
@@ -21,19 +20,15 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, {
-  cancelAnimation,
   runOnJS,
   type SharedValue,
   useAnimatedProps,
-  useAnimatedStyle,
   useSharedValue,
-  withTiming,
 } from 'react-native-reanimated';
 import Svg, {
   Circle,
   Defs,
   LinearGradient as SvgLinearGradient,
-  Marker,
   Path,
   Stop,
 } from 'react-native-svg';
@@ -56,17 +51,10 @@ type NumberWheelProps = {
   onPreview: (indices: number[]) => void;
   onComplete: (indices: number[], resultOrigin?: Point) => WheelSelectionOutcome;
   onHint: () => void;
-  onShuffle: () => void | Promise<void>;
-  onShuffleComplete?: () => void;
+  onShuffle: () => void;
   onNodeAdded: (selectionCount: number) => void;
   onNodeRemoved: (selectionCount: number) => void;
   onDraggingChange: (dragging: boolean) => void;
-  tutorialFocus?: 'shuffle' | 'hint';
-  tutorialAutoConnect?: readonly [number, number];
-  onTutorialAutoConnectComplete?: () => void;
-  tutorialGuideIndex?: number;
-  tutorialStepIndices?: readonly number[];
-  tutorialOperator?: string;
 };
 
 export type WheelSelectionOutcome = 'success' | 'bonus' | 'invalid';
@@ -298,94 +286,6 @@ function ActiveSelectionPath({
   );
 }
 
-function TutorialAutoConnectPath({
-  from,
-  progress,
-  to,
-}: {
-  from: Point;
-  progress: SharedValue<number>;
-  to: Point;
-}) {
-  const colors = CONNECTION_COLORS.active;
-  const animatedProps = useAnimatedProps(() => {
-    const currentProgress = Math.max(0, Math.min(1, progress.value));
-    const currentX = from.x + (to.x - from.x) * currentProgress;
-    const currentY = from.y + (to.y - from.y) * currentProgress;
-    return {
-      d: `M ${from.x} ${from.y} L ${currentX} ${currentY}`,
-      opacity: currentProgress > 0.01 ? 1 : 0,
-    };
-  }, [from.x, from.y, to.x, to.y]);
-
-  return (
-    <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
-      <Defs>
-        <SvgLinearGradient id="tutorial-selection-flow" x1="0%" x2="100%" y1="0%" y2="100%">
-          <Stop offset="0%" stopColor={colors.start} />
-          <Stop offset="100%" stopColor={colors.end} />
-        </SvgLinearGradient>
-        <Marker
-          id="tutorial-selection-arrow"
-          markerHeight={10}
-          markerUnits="userSpaceOnUse"
-          markerWidth={10}
-          orient="auto"
-          refX={8}
-          refY={5}
-          viewBox="0 0 10 10">
-          <Path d="M 0 0 L 10 5 L 0 10 z" fill={colors.end} />
-        </Marker>
-      </Defs>
-      <ReanimatedPath
-        animatedProps={animatedProps}
-        fill="none"
-        stroke={colors.glow}
-        strokeLinecap="round"
-        strokeWidth={14}
-      />
-      <ReanimatedPath
-        animatedProps={animatedProps}
-        fill="none"
-        markerEnd="url(#tutorial-selection-arrow)"
-        stroke="url(#tutorial-selection-flow)"
-        strokeLinecap="round"
-        strokeWidth={6}
-      />
-    </Svg>
-  );
-}
-
-function TutorialAutoConnectHand({
-  from,
-  progress,
-  to,
-}: {
-  from: Point;
-  progress: SharedValue<number>;
-  to: Point;
-}) {
-  const animatedStyle = useAnimatedStyle(() => {
-    const currentProgress = Math.max(0, Math.min(1, progress.value));
-    return {
-      transform: [
-        { translateX: from.x + (to.x - from.x) * currentProgress - 9 },
-        { translateY: from.y + (to.y - from.y) * currentProgress - 6 },
-        { scale: 0.96 + Math.sin(currentProgress * Math.PI) * 0.06 },
-      ],
-    };
-  }, [from.x, from.y, to.x, to.y]);
-
-  return (
-    <Reanimated.View pointerEvents="none" style={[styles.tutorialAutoHand, animatedStyle]}>
-      <Image
-        source={require('../../../assets/images/img/hint_arrow.png')}
-        style={styles.tutorialAutoHandImage}
-      />
-    </Reanimated.View>
-  );
-}
-
 export const NumberWheel = memo(function NumberWheel({
   size,
   numbers,
@@ -396,16 +296,9 @@ export const NumberWheel = memo(function NumberWheel({
   onComplete,
   onHint,
   onShuffle,
-  onShuffleComplete,
   onNodeAdded,
   onNodeRemoved,
   onDraggingChange,
-  tutorialFocus,
-  tutorialAutoConnect,
-  onTutorialAutoConnectComplete,
-  tutorialGuideIndex,
-  tutorialStepIndices,
-  tutorialOperator,
 }: NumberWheelProps) {
   const { t } = useI18n();
   const [slotOrder, setSlotOrder] = useState(() =>
@@ -423,7 +316,6 @@ export const NumberWheel = memo(function NumberWheel({
   const rotationTurnsRef = useRef(0);
   const [rotation] = useState(() => new RNAnimated.Value(0));
   const [hintPulse] = useState(() => new RNAnimated.Value(0));
-  const [tutorialHandPulse] = useState(() => new RNAnimated.Value(0));
   const activePointer = useSharedValue(false);
   const pointerX = useSharedValue(0);
   const pointerY = useSharedValue(0);
@@ -435,19 +327,12 @@ export const NumberWheel = memo(function NumberWheel({
   const holdingOnUI = useSharedValue(false);
   const responderGestureAcceptedRef = useRef(false);
   const responderSelectionRef = useRef<number[]>([]);
-  const shuffleStartPendingRef = useRef(false);
-  const tutorialAutoRunRef = useRef(0);
-  const tutorialAutoStartFrameRef = useRef<number | null>(null);
-  const tutorialAutoHadSelectionRef = useRef(false);
-  const tutorialConnectionProgress = useSharedValue(0);
   const callbacksRef = useRef({
     onComplete,
     onDraggingChange,
     onNodeAdded,
     onNodeRemoved,
     onPreview,
-    onShuffleComplete,
-    onTutorialAutoConnectComplete,
   });
 
   const nodeSize = size < 330 ? 70 : 73;
@@ -476,18 +361,6 @@ export const NumberWheel = memo(function NumberWheel({
     [numbers, slotOrder, slots],
   );
   const positionsRef = useRef(positions);
-  const tutorialAutoFrom = tutorialAutoConnect?.[0];
-  const tutorialAutoTo = tutorialAutoConnect?.[1];
-  const tutorialAutoConnectEnabled =
-    tutorialAutoFrom !== undefined &&
-    tutorialAutoTo !== undefined &&
-    Number.isInteger(tutorialAutoFrom) &&
-    Number.isInteger(tutorialAutoTo) &&
-    tutorialAutoFrom >= 0 &&
-    tutorialAutoTo >= 0 &&
-    tutorialAutoFrom < numbers.length &&
-    tutorialAutoTo < numbers.length &&
-    tutorialAutoFrom !== tutorialAutoTo;
 
   const clearSelectionVisuals = useCallback(() => {
     if (selectionReleaseTimerRef.current) {
@@ -513,18 +386,8 @@ export const NumberWheel = memo(function NumberWheel({
       onNodeAdded,
       onNodeRemoved,
       onPreview,
-      onShuffleComplete,
-      onTutorialAutoConnectComplete,
     };
-  }, [
-    onComplete,
-    onDraggingChange,
-    onNodeAdded,
-    onNodeRemoved,
-    onPreview,
-    onShuffleComplete,
-    onTutorialAutoConnectComplete,
-  ]);
+  }, [onComplete, onDraggingChange, onNodeAdded, onNodeRemoved, onPreview]);
 
   useEffect(() => {
     positionsRef.current = positions;
@@ -533,7 +396,6 @@ export const NumberWheel = memo(function NumberWheel({
   useEffect(
     () => () => {
       shuffleRunRef.current += 1;
-      shuffleStartPendingRef.current = false;
       const shuffleAnimation = shuffleAnimationRef.current;
       shuffleAnimationRef.current = null;
       shuffleAnimation?.stop();
@@ -560,20 +422,6 @@ export const NumberWheel = memo(function NumberWheel({
     animation.start();
     return () => animation.stop();
   }, [hintIndices, hintPulse]);
-
-  useEffect(() => {
-    tutorialHandPulse.stopAnimation();
-    tutorialHandPulse.setValue(0);
-    if (!tutorialFocus) return;
-    const animation = RNAnimated.loop(
-      RNAnimated.sequence([
-        RNAnimated.timing(tutorialHandPulse, { toValue: 1, duration: 460, useNativeDriver: true }),
-        RNAnimated.timing(tutorialHandPulse, { toValue: 0, duration: 460, useNativeDriver: true }),
-      ]),
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [tutorialFocus, tutorialHandPulse]);
 
   const beginSelection = useCallback((nodeIndex: number) => {
     const next = [nodeIndex];
@@ -634,95 +482,6 @@ export const NumberWheel = memo(function NumberWheel({
    * SharedValues. React's generic ref/immutability rules cannot model them.
    */
   /* eslint-disable react-hooks/immutability, react-hooks/refs */
-  const finishTutorialAutoConnect = useCallback(
-    (runId: number, fromIndex: number, toIndex: number) => {
-      if (tutorialAutoRunRef.current !== runId) return;
-      syncSelection([fromIndex, toIndex], [2], []);
-      callbacksRef.current.onTutorialAutoConnectComplete?.();
-    },
-    [syncSelection],
-  );
-
-  useEffect(() => {
-    if (
-      !tutorialAutoConnectEnabled ||
-      tutorialAutoFrom === undefined ||
-      tutorialAutoTo === undefined
-    ) {
-      cancelAnimation(tutorialConnectionProgress);
-      tutorialConnectionProgress.value = 0;
-      if (!tutorialAutoHadSelectionRef.current) return;
-
-      tutorialAutoHadSelectionRef.current = false;
-      const resetRunId = tutorialAutoRunRef.current + 1;
-      tutorialAutoRunRef.current = resetRunId;
-      tutorialAutoStartFrameRef.current = requestAnimationFrame(() => {
-        tutorialAutoStartFrameRef.current = null;
-        if (tutorialAutoRunRef.current !== resetRunId) return;
-        clearSelectionVisuals();
-        callbacksRef.current.onPreview([]);
-      });
-      return () => {
-        if (tutorialAutoRunRef.current === resetRunId) {
-          tutorialAutoRunRef.current += 1;
-        }
-        if (tutorialAutoStartFrameRef.current !== null) {
-          cancelAnimationFrame(tutorialAutoStartFrameRef.current);
-          tutorialAutoStartFrameRef.current = null;
-        }
-      };
-    }
-
-    const runId = tutorialAutoRunRef.current + 1;
-    tutorialAutoRunRef.current = runId;
-    tutorialAutoHadSelectionRef.current = true;
-    cancelAnimation(tutorialConnectionProgress);
-    tutorialConnectionProgress.value = 0;
-
-    // State başlangıçları effect gövdesinde senkron çalıştırılmaz. Aynı frame
-    // callback'i A seçimini, ilk düğüm sesini ve çizgi hareketini birlikte başlatır.
-    tutorialAutoStartFrameRef.current = requestAnimationFrame(() => {
-      tutorialAutoStartFrameRef.current = null;
-      if (tutorialAutoRunRef.current !== runId) return;
-      clearSelectionVisuals();
-      responderGestureAcceptedRef.current = false;
-      responderSelectionRef.current = [];
-      beginSelection(tutorialAutoFrom);
-      tutorialConnectionProgress.value = withTiming(
-        1,
-        { duration: 760 },
-        (finished) => {
-          if (finished) {
-            runOnJS(finishTutorialAutoConnect)(runId, tutorialAutoFrom, tutorialAutoTo);
-          }
-        },
-      );
-    });
-
-    return () => {
-      if (tutorialAutoRunRef.current === runId) {
-        tutorialAutoRunRef.current += 1;
-      }
-      if (tutorialAutoStartFrameRef.current !== null) {
-        cancelAnimationFrame(tutorialAutoStartFrameRef.current);
-        tutorialAutoStartFrameRef.current = null;
-      }
-      cancelAnimation(tutorialConnectionProgress);
-      if (tutorialAutoHadSelectionRef.current) {
-        callbacksRef.current.onDraggingChange(false);
-        callbacksRef.current.onPreview([]);
-      }
-    };
-  }, [
-    beginSelection,
-    clearSelectionVisuals,
-    finishTutorialAutoConnect,
-    tutorialAutoConnectEnabled,
-    tutorialAutoFrom,
-    tutorialAutoTo,
-    tutorialConnectionProgress,
-  ]);
-
   const getResponderTouchPoint = useCallback((event: GestureResponderEvent): Point => {
     const { locationX, locationY } = event.nativeEvent;
     return { x: locationX, y: locationY };
@@ -732,8 +491,6 @@ export const NumberWheel = memo(function NumberWheel({
     (event: GestureResponderEvent) => {
       if (
         Platform.OS === 'android' ||
-        tutorialFocus ||
-        tutorialAutoConnectEnabled ||
         shufflingOnUI.value ||
         holdingOnUI.value ||
         responderGestureAcceptedRef.current
@@ -745,14 +502,7 @@ export const NumberWheel = memo(function NumberWheel({
         findNodeAtPoint(getResponderTouchPoint(event), positionsRef.current, hitRadius) >= 0
       );
     },
-    [
-      getResponderTouchPoint,
-      hitRadius,
-      holdingOnUI,
-      shufflingOnUI,
-      tutorialAutoConnectEnabled,
-      tutorialFocus,
-    ],
+    [getResponderTouchPoint, hitRadius, holdingOnUI, shufflingOnUI],
   );
 
   const startResponderSelection = useCallback(
@@ -852,9 +602,7 @@ export const NumberWheel = memo(function NumberWheel({
       // A manual gesture claims node touches immediately, before the parent
       // ScrollView can turn them into scrolling and cancel the wheel path.
       Gesture.Manual()
-        .enabled(
-          Platform.OS === 'android' && !tutorialFocus && !tutorialAutoConnectEnabled,
-        )
+        .enabled(Platform.OS === 'android')
         .shouldCancelWhenOutside(false)
         .onTouchesDown((event, stateManager) => {
           'worklet';
@@ -980,14 +728,14 @@ export const NumberWheel = memo(function NumberWheel({
       selectionOnUI,
       shufflingOnUI,
       syncSelection,
-      tutorialAutoConnectEnabled,
-      tutorialFocus,
     ],
   );
   /* eslint-enable react-hooks/immutability, react-hooks/refs */
 
-  const startShuffleAnimation = (shuffleRun: number) => {
-    if (shuffleRunRef.current !== shuffleRun) return;
+  const shuffleNodes = () => {
+    // Ses geri bildirimi animasyonun tamamlanmasını beklemez; kullanıcı
+    // dokunduğu anda karıştırma hareketiyle eşzamanlı başlar.
+    onShuffle();
     clearSelectionVisuals();
     let next = shuffledIndices(numbers.length);
     let attempts = 0;
@@ -1000,6 +748,8 @@ export const NumberWheel = memo(function NumberWheel({
       [next[0], next[1]] = [next[1], next[0]];
     }
 
+    const shuffleRun = shuffleRunRef.current + 1;
+    shuffleRunRef.current = shuffleRun;
     const previousAnimation = shuffleAnimationRef.current;
     shuffleAnimationRef.current = null;
     previousAnimation?.stop();
@@ -1027,53 +777,15 @@ export const NumberWheel = memo(function NumberWheel({
       }),
     ]);
     shuffleAnimationRef.current = animation;
-    animation.start(({ finished }) => {
+    animation.start(() => {
       if (
         shuffleRunRef.current === shuffleRun &&
         shuffleAnimationRef.current === animation
       ) {
         shuffleAnimationRef.current = null;
-        shuffleStartPendingRef.current = false;
         shufflingOnUI.value = false;
-        if (finished) callbacksRef.current.onShuffleComplete?.();
       }
     });
-  };
-
-  const shuffleNodes = () => {
-    if (shuffleStartPendingRef.current) return;
-
-    const shuffleRun = shuffleRunRef.current + 1;
-    shuffleRunRef.current = shuffleRun;
-    let shuffleStart: void | Promise<void>;
-    try {
-      // Senkron gerçek oyun callback'inde animasyon aynı basış karesinde başlar.
-      // Tutorial ses kanalı Promise döndürürse görsel hareket play komutunu bekler.
-      shuffleStart = onShuffle();
-    } catch {
-      // Ses/geri bildirim hatası oynanışı kilitlememeli.
-      shuffleStart = undefined;
-    }
-
-    if (!shuffleStart) {
-      startShuffleAnimation(shuffleRun);
-      return;
-    }
-
-    shuffleStartPendingRef.current = true;
-    // Ses hazırlanırken yeni gesture başlamasın; tekrar shuffle basışları da
-    // shuffleStartPendingRef tarafından yutulur.
-    // eslint-disable-next-line react-hooks/immutability
-    shufflingOnUI.value = true;
-    void shuffleStart
-      .catch(() => undefined)
-      .then(() => {
-        if (shuffleRunRef.current !== shuffleRun) {
-          shuffleStartPendingRef.current = false;
-          return;
-        }
-        startShuffleAnimation(shuffleRun);
-      });
   };
 
   // Düğümler seçilirken artık büyümez; çizgi sabit görsel çapa tam oturur.
@@ -1143,40 +855,7 @@ export const NumberWheel = memo(function NumberWheel({
               selection={selectionOnUI}
               tone={connectionTone}
             />
-            {tutorialAutoConnectEnabled &&
-            tutorialAutoFrom !== undefined &&
-            tutorialAutoTo !== undefined &&
-            positions[tutorialAutoFrom] &&
-            positions[tutorialAutoTo] ? (
-              <TutorialAutoConnectPath
-                from={positions[tutorialAutoFrom]}
-                progress={tutorialConnectionProgress}
-                to={positions[tutorialAutoTo]}
-              />
-            ) : null}
           </View>
-
-          {tutorialGuideIndex !== undefined && positions[tutorialGuideIndex] ? (
-            <RNAnimated.View
-              pointerEvents="none"
-              style={[
-                styles.tutorialNodeHand,
-                {
-                  left: positions[tutorialGuideIndex].x + nodeSize / 5,
-                  top: positions[tutorialGuideIndex].y + nodeSize / 5,
-                  transform: [{ scale: hintScale }],
-                },
-              ]}>
-              <Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialNodeHandImage} />
-            </RNAnimated.View>
-          ) : null}
-
-          {tutorialStepIndices?.map((nodeIndex, stepIndex) => {
-            const position = positions[nodeIndex];
-            if (!position) return null;
-            return <View key={`tutorial-step-${nodeIndex}`} pointerEvents="none" style={[styles.tutorialStepBadge, { left: position.x - 12, top: position.y - nodeSize / 2 - 12 }]}><Text style={styles.tutorialStepBadgeText}>{stepIndex + 1}</Text></View>;
-          })}
-          {tutorialOperator && tutorialStepIndices && tutorialStepIndices.length >= 2 && positions[tutorialStepIndices[0]] && positions[tutorialStepIndices[1]] ? <View pointerEvents="none" style={[styles.tutorialOperatorBadge, { left: (positions[tutorialStepIndices[0]].x + positions[tutorialStepIndices[1]].x) / 2 - 15, top: (positions[tutorialStepIndices[0]].y + positions[tutorialStepIndices[1]].y) / 2 - 15 }]}><Text style={styles.tutorialOperatorText}>{tutorialOperator}</Text></View> : null}
 
           {numbers.map((number, index) => {
             const selected = selectedIndices.includes(index);
@@ -1278,17 +957,6 @@ export const NumberWheel = memo(function NumberWheel({
               </RNAnimated.View>
             );
           })}
-          {tutorialAutoConnectEnabled &&
-          tutorialAutoFrom !== undefined &&
-          tutorialAutoTo !== undefined &&
-          positions[tutorialAutoFrom] &&
-          positions[tutorialAutoTo] ? (
-            <TutorialAutoConnectHand
-              from={positions[tutorialAutoFrom]}
-              progress={tutorialConnectionProgress}
-              to={positions[tutorialAutoTo]}
-            />
-          ) : null}
           </View>
         </WheelGestureSurface>
       </View>
@@ -1302,11 +970,10 @@ export const NumberWheel = memo(function NumberWheel({
           }
           accessibilityRole="button"
           hitSlop={8}
-          disabled={tutorialFocus === 'shuffle' || tutorialAutoConnectEnabled}
           // Basış anında tetiklemek, özellikle iOS'ta hızlı modal geçişlerinde
           // onPress'in kaybolmasını önler.
           onPressIn={onHint}
-          style={({ pressed }) => [styles.controlButton, tutorialFocus === 'hint' && styles.controlFocused, pressed && styles.controlPressed]}>
+          style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}>
           <ExpoLinearGradient
             colors={['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']}
             end={{ x: 0, y: 1 }}
@@ -1315,17 +982,15 @@ export const NumberWheel = memo(function NumberWheel({
             <HintIcon size={27} />
             <Text style={styles.controlLabel}>{t('wheel.hint', { cost: hintCost })}</Text>
           </ExpoLinearGradient>
-          {tutorialFocus === 'hint' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
         </Pressable>
 
         <Pressable
           accessibilityLabel={t('wheel.shuffleA11y')}
           accessibilityRole="button"
           hitSlop={8}
-          disabled={tutorialFocus === 'hint' || tutorialAutoConnectEnabled}
-          // Senkron callback'te anında, Promise döndüğünde ses hazır olur olmaz başlar.
+          // Karıştırma sesi ve aksiyonu parmağın ekrana değdiği anda çalışır.
           onPressIn={shuffleNodes}
-          style={({ pressed }) => [styles.controlButton, tutorialFocus === 'shuffle' && styles.controlFocused, pressed && styles.controlPressed]}>
+          style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}>
           <ExpoLinearGradient
             colors={['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']}
             end={{ x: 0, y: 1 }}
@@ -1335,7 +1000,6 @@ export const NumberWheel = memo(function NumberWheel({
               <ShuffleIcon size={32} />
             </RNAnimated.View>
           </ExpoLinearGradient>
-          {tutorialFocus === 'shuffle' ? <RNAnimated.View pointerEvents="none" style={[styles.tutorialHand, { transform: [{ translateY: tutorialHandPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}><Image source={require('../../../assets/images/img/hint_arrow.png')} style={styles.tutorialHandImage} /></RNAnimated.View> : null}
         </Pressable>
       </View>
     </View>
@@ -1439,32 +1103,6 @@ const styles = StyleSheet.create({
     opacity: 0.76,
     transform: [{ scale: 0.94 }],
   },
-  controlFocused: {
-    overflow: 'visible',
-    borderColor: '#FFF7BB',
-    borderWidth: 3,
-    shadowColor: '#FDE047',
-    shadowOpacity: 0.95,
-    shadowRadius: 16,
-    elevation: 14,
-  },
-  tutorialHand: {
-    position: 'absolute',
-    top: 39,
-    left: 28,
-    zIndex: 4,
-    width: 42,
-    height: 42,
-  },
-  tutorialHandImage: { width: 42, height: 42 },
-  tutorialAutoHand: { position: 'absolute', zIndex: 50, width: 42, height: 42 },
-  tutorialAutoHandImage: { width: 42, height: 42 },
-  tutorialNodeHand: { position: 'absolute', zIndex: 40, width: 34, height: 34 },
-  tutorialNodeHandImage: { width: 34, height: 34 },
-  tutorialStepBadge: { position: 'absolute', zIndex: 45, width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#F4C653', borderWidth: 2, borderColor: '#FFFFFF' },
-  tutorialStepBadgeText: { color: '#5A3B0B', fontFamily: FONTS.black, fontSize: 13, fontWeight: '900' },
-  tutorialOperatorBadge: { position: 'absolute', zIndex: 44, width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: '#176F7A', borderWidth: 2, borderColor: '#E8FFFF' },
-  tutorialOperatorText: { color: '#FFFFFF', fontFamily: FONTS.black, fontSize: 19, fontWeight: '900' },
   controlSurface: {
     flex: 1,
     alignItems: 'center',
