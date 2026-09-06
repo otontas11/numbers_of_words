@@ -4,12 +4,12 @@
     "slug": "numbers_of_wonders",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/app_icon1.png",
     "scheme": "numbersofwonders",
     "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "platform.tnts.numberofwonders",
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/app_icon1.png",
       "appleTeamId": "PSH5U378D5",
       "googleServicesFile": "./firebase/ios/GoogleService-Info.plist"
     },
@@ -17,10 +17,8 @@
       "package": "platform.tnts.numberofwonders",
       "googleServicesFile": "./firebase/android/google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#119AF4",
+        "foregroundImage": "./assets/images/app_icon1-android-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -72,6 +70,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a35fea1c-17c5-4f68-92b3-37486ce2ccb4"
+      }
+    },
+    "owner": "oktay1125"
   }
 }
