@@ -2,6 +2,7 @@ import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   memo,
   useMemo,
   useRef,
@@ -42,6 +43,12 @@ type Point = {
   y: number;
 };
 
+type DepartingWheelNode = {
+  number: number;
+  x: number;
+  y: number;
+};
+
 type NumberWheelProps = {
   size: number;
   numbers: number[];
@@ -56,6 +63,8 @@ type NumberWheelProps = {
   onNodeAdded: (selectionCount: number) => void;
   onNodeRemoved: (selectionCount: number) => void;
   onDraggingChange: (dragging: boolean) => void;
+  introToken?: string | number;
+  outroToken?: number;
 };
 
 export type WheelSelectionOutcome = 'success' | 'bonus' | 'invalid';
@@ -63,6 +72,16 @@ type ConnectionTone = WheelSelectionOutcome | 'active';
 
 const SHUFFLE_DURATION = 450;
 const SHUFFLE_EASING = Easing.bezier(0.34, 1.3, 0.64, 1);
+const MAX_WHEEL_NODES = 7;
+const NODE_INTRO_DURATION = 460;
+export const NODE_OUTRO_DURATION = 220;
+const NODE_INTRO_STAGGER_MAX = 40;
+const NODE_INTRO_SCALE = 0.22;
+const NODE_OUTRO_SCALE = 0.55;
+const NODE_OUTRO_OPACITY = 0.6;
+const NODE_OUTRO_RADIUS = 6;
+const NODE_CENTER_OVERLAP_MS = 90;
+const NODE_GHOST_FADE_MS = 80;
 const SELECTION_HOLD_DURATION: Record<WheelSelectionOutcome, number> = {
   success: 520,
   bonus: 440,
@@ -213,6 +232,16 @@ function shuffledIndices(count: number): number[] {
   return result;
 }
 
+function restPointTowardCenter(slot: Point, center: number, restRadius: number): Point {
+  const orbitX = slot.x - center;
+  const orbitY = slot.y - center;
+  const distance = Math.hypot(orbitX, orbitY) || 1;
+  return {
+    x: center + (orbitX / distance) * restRadius,
+    y: center + (orbitY / distance) * restRadius,
+  };
+}
+
 function ActiveSelectionPath({
   active,
   pointerX,
@@ -301,6 +330,8 @@ export const NumberWheel = memo(function NumberWheel({
   onNodeAdded,
   onNodeRemoved,
   onDraggingChange,
+  introToken,
+  outroToken,
 }: NumberWheelProps) {
   const { t } = useI18n();
   const [slotOrder, setSlotOrder] = useState(() =>
@@ -316,6 +347,13 @@ export const NumberWheel = memo(function NumberWheel({
   const hintAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
   const selectionReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rotationTurnsRef = useRef(0);
+  const orbitMotionLockRef = useRef(false);
+  const lastOutroTokenRef = useRef(outroToken);
+  const numbersRef = useRef(numbers);
+  const departingNodesRef = useRef<DepartingWheelNode[] | null>(null);
+  const ghostAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
+  const [departingNodes, setDepartingNodes] = useState<DepartingWheelNode[] | null>(null);
+  const [ghostOpacity] = useState(() => new RNAnimated.Value(NODE_OUTRO_OPACITY));
   const [rotation] = useState(() => new RNAnimated.Value(0));
   const [hintPulse] = useState(() => new RNAnimated.Value(0));
   const activePointer = useSharedValue(false);
@@ -344,25 +382,47 @@ export const NumberWheel = memo(function NumberWheel({
   const innerSize = size;
   const center = innerSize / 2;
   const radius = Math.max(72, center - nodeSize / 2 - 10);
+  const nodeCount = numbers.length;
   const slots = useMemo(
     () =>
-      numbers.map((_, index) => {
-        const angle = (index * Math.PI * 2) / numbers.length - Math.PI / 2;
+      Array.from({ length: nodeCount }, (_, index) => {
+        const angle = (index * Math.PI * 2) / nodeCount - Math.PI / 2;
         return {
           x: center + radius * Math.cos(angle),
           y: center + radius * Math.sin(angle),
         };
       }),
-    [center, numbers, radius],
+    [center, nodeCount, radius],
   );
+  const introFromCenter = introToken != null;
   const [animatedPositions] = useState(() =>
-    slots.map((slot) => new RNAnimated.ValueXY({ x: slot.x, y: slot.y })),
+    Array.from({ length: MAX_WHEEL_NODES }, (_, index) => {
+      const slot = slots[index];
+      const start =
+        introFromCenter || !slot ? { x: center, y: center } : slot;
+      return new RNAnimated.ValueXY(start);
+    }),
+  );
+  const [nodeScales] = useState(() =>
+    Array.from(
+      { length: MAX_WHEEL_NODES },
+      () => new RNAnimated.Value(introFromCenter ? NODE_INTRO_SCALE : 1),
+    ),
+  );
+  const [nodeOpacities] = useState(() =>
+    Array.from(
+      { length: MAX_WHEEL_NODES },
+      () => new RNAnimated.Value(introFromCenter ? NODE_OUTRO_OPACITY : 1),
+    ),
   );
   const positions = useMemo(
     () => numbers.map((_, numberIndex) => slots[slotOrder[numberIndex] ?? numberIndex]),
     [numbers, slotOrder, slots],
   );
   const positionsRef = useRef(positions);
+  const layoutRef = useRef({ center, nodeCount, slots });
+  layoutRef.current = { center, nodeCount, slots };
+  numbersRef.current = numbers;
 
   const clearSelectionVisuals = useCallback(() => {
     if (selectionReleaseTimerRef.current) {
@@ -395,12 +455,188 @@ export const NumberWheel = memo(function NumberWheel({
     positionsRef.current = positions;
   }, [positions]);
 
+  const stopOrbitMotion = useCallback(() => {
+    shuffleRunRef.current += 1;
+    const shuffleAnimation = shuffleAnimationRef.current;
+    shuffleAnimationRef.current = null;
+    shuffleAnimation?.stop();
+  }, []);
+
+  const clearDepartingGhosts = useCallback(() => {
+    const ghostAnimation = ghostAnimationRef.current;
+    ghostAnimationRef.current = null;
+    ghostAnimation?.stop();
+    departingNodesRef.current = null;
+    setDepartingNodes(null);
+  }, []);
+
+  const lockOrbitMotion = useCallback(
+    (locked: boolean) => {
+      orbitMotionLockRef.current = locked;
+      shufflingOnUI.value = locked;
+    },
+    [shufflingOnUI],
+  );
+
+  const playNodeIntro = useCallback(() => {
+    const { center: wheelCenter, nodeCount: count, slots: wheelSlots } = layoutRef.current;
+    if (count <= 0) return;
+
+    stopOrbitMotion();
+    clearSelectionVisuals();
+    const identity = Array.from({ length: count }, (_, index) => index);
+    slotOrderRef.current = identity;
+    setSlotOrder(identity);
+    lockOrbitMotion(true);
+
+    const staggerStep = count > 1 ? NODE_INTRO_STAGGER_MAX / (count - 1) : 0;
+    const run = shuffleRunRef.current;
+    const departing = departingNodesRef.current;
+    const startScale = departing && departing.length > 0 ? NODE_OUTRO_SCALE : NODE_INTRO_SCALE;
+    for (let index = 0; index < count; index += 1) {
+      animatedPositions[index].setValue({ x: wheelCenter, y: wheelCenter });
+      nodeScales[index].setValue(startScale);
+      nodeOpacities[index].setValue(NODE_OUTRO_OPACITY);
+    }
+
+    if (departing && departing.length > 0) {
+      ghostOpacity.setValue(NODE_OUTRO_OPACITY);
+      const fade = RNAnimated.sequence([
+        RNAnimated.delay(NODE_CENTER_OVERLAP_MS),
+        RNAnimated.timing(ghostOpacity, {
+          toValue: 0,
+          duration: NODE_GHOST_FADE_MS,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]);
+      ghostAnimationRef.current?.stop();
+      ghostAnimationRef.current = fade;
+      fade.start(({ finished }) => {
+        if (!finished || ghostAnimationRef.current !== fade) return;
+        ghostAnimationRef.current = null;
+        departingNodesRef.current = null;
+        setDepartingNodes(null);
+      });
+    }
+
+    const animation = RNAnimated.parallel(
+      Array.from({ length: count }, (_, index) =>
+        RNAnimated.sequence([
+          RNAnimated.delay(index * staggerStep),
+          RNAnimated.parallel([
+            RNAnimated.timing(animatedPositions[index], {
+              toValue: wheelSlots[index] ?? { x: wheelCenter, y: wheelCenter },
+              duration: NODE_INTRO_DURATION,
+              easing: SHUFFLE_EASING,
+              useNativeDriver: true,
+            }),
+            RNAnimated.timing(nodeScales[index], {
+              toValue: 1,
+              duration: NODE_INTRO_DURATION,
+              easing: SHUFFLE_EASING,
+              useNativeDriver: true,
+            }),
+            RNAnimated.timing(nodeOpacities[index], {
+              toValue: 1,
+              duration: Math.round(NODE_INTRO_DURATION * 0.62),
+              easing: Easing.out(Easing.quad),
+              useNativeDriver: true,
+            }),
+          ]),
+        ]),
+      ),
+    );
+    shuffleAnimationRef.current = animation;
+    animation.start(({ finished }) => {
+      if (!finished || shuffleRunRef.current !== run || shuffleAnimationRef.current !== animation) {
+        return;
+      }
+      shuffleAnimationRef.current = null;
+      lockOrbitMotion(false);
+    });
+  }, [
+    animatedPositions,
+    clearSelectionVisuals,
+    ghostOpacity,
+    lockOrbitMotion,
+    nodeOpacities,
+    nodeScales,
+    stopOrbitMotion,
+  ]);
+
+  const playNodeOutro = useCallback(() => {
+    const { center: wheelCenter, nodeCount: count, slots: wheelSlots } = layoutRef.current;
+    if (count <= 0) return;
+
+    stopOrbitMotion();
+    clearSelectionVisuals();
+    lockOrbitMotion(true);
+    clearDepartingGhosts();
+
+    const run = shuffleRunRef.current;
+    const order = slotOrderRef.current;
+    const currentNumbers = numbersRef.current;
+    const departing: DepartingWheelNode[] = Array.from({ length: count }, (_, index) => {
+      const slot = wheelSlots[order[index] ?? index] ?? { x: wheelCenter, y: wheelCenter };
+      const rest = restPointTowardCenter(slot, wheelCenter, NODE_OUTRO_RADIUS);
+      return { number: currentNumbers[index] ?? 0, x: rest.x, y: rest.y };
+    });
+    departingNodesRef.current = departing;
+    setDepartingNodes(departing);
+    ghostOpacity.setValue(NODE_OUTRO_OPACITY);
+
+    const animation = RNAnimated.parallel(
+      Array.from({ length: count }, (_, index) => {
+        const rest = departing[index];
+        return RNAnimated.parallel([
+          RNAnimated.timing(animatedPositions[index], {
+            toValue: { x: rest.x, y: rest.y },
+            duration: NODE_OUTRO_DURATION,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          RNAnimated.timing(nodeScales[index], {
+            toValue: NODE_OUTRO_SCALE,
+            duration: NODE_OUTRO_DURATION,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          RNAnimated.timing(nodeOpacities[index], {
+            toValue: NODE_OUTRO_OPACITY,
+            duration: NODE_OUTRO_DURATION,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]);
+      }),
+    );
+    shuffleAnimationRef.current = animation;
+    animation.start(({ finished }) => {
+      if (!finished || shuffleRunRef.current !== run || shuffleAnimationRef.current !== animation) {
+        return;
+      }
+      shuffleAnimationRef.current = null;
+      // Outro sonrası kilit açık kalır; sonraki intro veya unmount bırakır.
+    });
+  }, [
+    animatedPositions,
+    clearDepartingGhosts,
+    clearSelectionVisuals,
+    ghostOpacity,
+    lockOrbitMotion,
+    nodeOpacities,
+    nodeScales,
+    stopOrbitMotion,
+  ]);
+
   useEffect(
     () => () => {
       shuffleRunRef.current += 1;
       const shuffleAnimation = shuffleAnimationRef.current;
       shuffleAnimationRef.current = null;
       shuffleAnimation?.stop();
+      ghostAnimationRef.current?.stop();
       hintAnimationRef.current?.stop();
       if (selectionReleaseTimerRef.current) {
         clearTimeout(selectionReleaseTimerRef.current);
@@ -408,6 +644,20 @@ export const NumberWheel = memo(function NumberWheel({
     },
     [],
   );
+
+  useLayoutEffect(() => {
+    if (introToken == null) return;
+    playNodeIntro();
+    // introToken is the only retrigger; playNodeIntro reads layout via refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [introToken]);
+
+  useEffect(() => {
+    if (outroToken == null || lastOutroTokenRef.current === outroToken) return;
+    lastOutroTokenRef.current = outroToken;
+    playNodeOutro();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outroToken]);
 
   useEffect(() => {
     hintAnimationRef.current?.stop();
@@ -755,6 +1005,7 @@ export const NumberWheel = memo(function NumberWheel({
   /* eslint-enable react-hooks/immutability, react-hooks/refs */
 
   const shuffleNodes = () => {
+    if (orbitMotionLockRef.current) return;
     // Ses geri bildirimi animasyonun tamamlanmasını beklemez; kullanıcı
     // dokunduğu anda karıştırma hareketiyle eşzamanlı başlar.
     onShuffle();
@@ -783,7 +1034,7 @@ export const NumberWheel = memo(function NumberWheel({
     shufflingOnUI.value = true;
 
     const animation = RNAnimated.parallel([
-      ...animatedPositions.map((position, numberIndex) =>
+      ...animatedPositions.slice(0, numbers.length).map((position, numberIndex) =>
         RNAnimated.timing(position, {
           toValue: slots[next[numberIndex] ?? numberIndex],
           duration: SHUFFLE_DURATION,
@@ -820,6 +1071,12 @@ export const NumberWheel = memo(function NumberWheel({
     outputRange: ['0deg', '360deg'],
     extrapolate: 'extend',
   });
+  const nodeFontSize = size < 330 ? 24 : 28;
+  const nodeLineHeight = size < 330 ? 29 : 34;
+  const showDepartingGhosts =
+    departingNodes != null &&
+    (departingNodes.length !== numbers.length ||
+      departingNodes.some((node, index) => node.number !== numbers[index]));
 
   return (
     <View style={[styles.wheelArea, { width: size }]}> 
@@ -885,12 +1142,85 @@ export const NumberWheel = memo(function NumberWheel({
             </View>
           ) : null}
 
+          {departingNodes && showDepartingGhosts
+            ? departingNodes.map((node, index) => (
+                <RNAnimated.View
+                  key={`departing-${index}-${node.number}`}
+                  pointerEvents="none"
+                  style={[
+                    styles.nodePosition,
+                    styles.nodeDepartingLayer,
+                    {
+                      width: nodeSize,
+                      height: nodeSize,
+                      borderRadius: nodeSize / 2,
+                      left: 0,
+                      top: 0,
+                      opacity: ghostOpacity,
+                      transform: [
+                        { translateX: node.x - nodeSize / 2 },
+                        { translateY: node.y - nodeSize / 2 },
+                        { scale: NODE_OUTRO_SCALE },
+                      ],
+                    },
+                  ]}>
+                  <View
+                    style={[
+                      styles.nodeShadow,
+                      { width: nodeSize, height: nodeSize, borderRadius: nodeSize / 2 },
+                    ]}>
+                    <View
+                      style={[
+                        styles.node,
+                        { width: nodeSize, height: nodeSize, borderRadius: nodeSize / 2 },
+                      ]}>
+                      <Svg
+                        height="100%"
+                        pointerEvents="none"
+                        style={StyleSheet.absoluteFill}
+                        width="100%">
+                        <Defs>
+                          <SvgLinearGradient
+                            id={`departing-node-surface-${index}`}
+                            x1="0%"
+                            x2="100%"
+                            y1="0%"
+                            y2="100%">
+                            <Stop offset="0%" stopColor="#F8FCFB" />
+                            <Stop offset="100%" stopColor="#DAEBEB" />
+                          </SvgLinearGradient>
+                        </Defs>
+                        <Circle
+                          cx="50%"
+                          cy="50%"
+                          fill={`url(#departing-node-surface-${index})`}
+                          r="50%"
+                        />
+                        <Circle cx="34%" cy="31%" fill="rgba(255,255,255,0.34)" r="15%" />
+                      </Svg>
+                      <Text
+                        style={[
+                          styles.nodeText,
+                          { fontSize: nodeFontSize, lineHeight: nodeLineHeight },
+                        ]}>
+                        {node.number}
+                      </Text>
+                    </View>
+                  </View>
+                </RNAnimated.View>
+              ))
+            : null}
+
           {numbers.map((number, index) => {
             const selected = selectedIndices.includes(index);
             const hinted = hintIndices.includes(index);
+            const appearanceScale =
+              hinted && !selected
+                ? RNAnimated.multiply(nodeScales[index], hintScale)
+                : nodeScales[index];
             return (
               <RNAnimated.View
-                key={`${index}-${number}`}
+                key={`node-${index}`}
                 pointerEvents="none"
                 style={[
                   styles.nodePosition,
@@ -900,6 +1230,7 @@ export const NumberWheel = memo(function NumberWheel({
                     borderRadius: nodeSize / 2,
                     left: 0,
                     top: 0,
+                    opacity: nodeOpacities[index],
                     transform: [
                       {
                         translateX: RNAnimated.subtract(
@@ -913,7 +1244,7 @@ export const NumberWheel = memo(function NumberWheel({
                           nodeSize / 2,
                         ),
                       },
-                      { scale: !selected && hinted ? hintScale : 1 },
+                      { scale: appearanceScale },
                     ],
                   },
                   selected && styles.nodeSelectedLayer,
@@ -974,8 +1305,8 @@ export const NumberWheel = memo(function NumberWheel({
                         styles.nodeText,
                         selected && styles.nodeTextSelected,
                         {
-                          fontSize: size < 330 ? 24 : 28,
-                          lineHeight: size < 330 ? 29 : 34,
+                          fontSize: nodeFontSize,
+                          lineHeight: nodeLineHeight,
                         },
                       ]}>
                       {number}
@@ -1080,6 +1411,9 @@ const styles = StyleSheet.create({
   nodePosition: {
     position: 'absolute',
     zIndex: 3,
+  },
+  nodeDepartingLayer: {
+    zIndex: 2,
   },
   nodeShadow: {
     position: 'relative',

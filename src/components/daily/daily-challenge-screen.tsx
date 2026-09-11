@@ -26,6 +26,7 @@ import { AdMobBanner, AD_BANNER_SLOT_HEIGHT } from '@/components/ads/admob-banne
 import { FootprintIcon, GemIcon } from '@/components/common/game-icons';
 import {
   NumberWheel,
+  NODE_OUTRO_DURATION,
   type WheelSelectionOutcome,
 } from '@/components/game/number-wheel';
 import {
@@ -79,8 +80,7 @@ import { useI18n } from '@/i18n';
 const HINT_GEM_COST = 10;
 const DAILY_TARGET_INDEX = 0;
 const RAIL_HOP_DELAY_MS = 280;
-const PUZZLE_FADE_MS = 180;
-const PUZZLE_AFTER_RAIL_MS = 80;
+const RAIL_TICK_SETTLE_MS = 90;
 const TREASURE_HOLD_MS = 720;
 const CONTENT_MAX_WIDTH = 512;
 const GAME_SKY_BACKGROUND = require('../../../assets/images/game-sky-background.png');
@@ -546,7 +546,7 @@ export function DailyChallengeScreen({
   const [bonusFlying, setBonusFlying] = useState(false);
   const [landedTarget, setLandedTarget] = useState<number | null>(null);
   const [sunPulse] = useState(() => new Animated.Value(0));
-  const [boardFade] = useState(() => new Animated.Value(1));
+  const [wheelOutroToken, setWheelOutroToken] = useState(0);
   const hintActiveRef = useRef(false);
   const claimInFlightRef = useRef(false);
   const sequenceLockRef = useRef(false);
@@ -666,9 +666,7 @@ export function DailyChallengeScreen({
     setTargetFlying(false);
     setBonusFlying(false);
     setLandedTarget(null);
-    boardFade.stopAnimation();
-    boardFade.setValue(1);
-  }, [active, boardFade, clearLandingTimer, clearRailPulseTimer, clearSequenceTimer, phase]);
+  }, [active, clearLandingTimer, clearRailPulseTimer, clearSequenceTimer, phase]);
 
   useEffect(() => {
     sunPulse.stopAnimation();
@@ -715,7 +713,6 @@ export function DailyChallengeScreen({
     setTargetFlying(false);
     setBonusFlying(false);
     setLandedTarget(null);
-    boardFade.setValue(1);
 
     void loadDailyChallengeProgress(dateKey, liveSkill)
       .catch(() => createDailyChallengeProgress(dateKey, liveSkill))
@@ -809,15 +806,22 @@ export function DailyChallengeScreen({
 
   const fillRailSlot = useCallback(
     (puzzleId: string) => {
-      setRailFilledIds((current) => (current.includes(puzzleId) ? current : [...current, puzzleId]));
+      let added = false;
+      setRailFilledIds((current) => {
+        if (current.includes(puzzleId)) return current;
+        added = true;
+        return [...current, puzzleId];
+      });
       setPulsingRailId(puzzleId);
       clearRailPulseTimer();
       railPulseTimerRef.current = setTimeout(() => {
         railPulseTimerRef.current = null;
         setPulsingRailId(null);
       }, 420);
+      if (!added) return;
+      onEffect('select1');
     },
-    [clearRailPulseTimer],
+    [clearRailPulseTimer, onEffect],
   );
 
   const pushFlights = useCallback((nextFlights: ResultFlight[]) => {
@@ -896,49 +900,33 @@ export function DailyChallengeScreen({
           setCelebrating(false);
           setPhase(currentProgress.claimed ? 'completed' : 'treasure');
           sequenceLockRef.current = false;
-          boardFade.setValue(1);
           return;
         }
         setPuzzleIndex(nextPuzzleIndex);
         sequenceLockRef.current = false;
-        Animated.timing(boardFade, {
-          toValue: 1,
-          duration: PUZZLE_FADE_MS,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }).start();
-      };
-
-      const fadeOutAndSwap = () => {
-        Animated.timing(boardFade, {
-          toValue: 0,
-          duration: PUZZLE_FADE_MS,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }).start(({ finished }) => {
-          if (!finished) return;
-          swapBoard();
-        });
       };
 
       if (finale) {
         setCelebrating(true);
-        onEffect('levelComplete');
         clearSequenceTimer();
         sequenceTimerRef.current = setTimeout(() => {
-          sequenceTimerRef.current = null;
-          fadeOutAndSwap();
-        }, TREASURE_HOLD_MS);
+          onEffect('levelComplete');
+          sequenceTimerRef.current = setTimeout(() => {
+            sequenceTimerRef.current = null;
+            swapBoard();
+          }, TREASURE_HOLD_MS);
+        }, RAIL_TICK_SETTLE_MS);
         return;
       }
 
+      setWheelOutroToken((token) => token + 1);
       clearSequenceTimer();
       sequenceTimerRef.current = setTimeout(() => {
         sequenceTimerRef.current = null;
-        fadeOutAndSwap();
-      }, PUZZLE_AFTER_RAIL_MS);
+        swapBoard();
+      }, NODE_OUTRO_DURATION);
     },
-    [boardFade, clearPuzzleVisuals, clearSequenceTimer, onEffect],
+    [clearPuzzleVisuals, clearSequenceTimer, onEffect],
   );
 
   const launchRailHop = useCallback(
@@ -1232,10 +1220,8 @@ export function DailyChallengeScreen({
     setTargetFlying(false);
     setBonusFlying(false);
     setLandedTarget(null);
-    boardFade.stopAnimation();
-    boardFade.setValue(1);
     onBack();
-  }, [boardFade, clearSequenceTimer, onBack]);
+  }, [clearSequenceTimer, onBack]);
 
   const handleHint = useCallback(() => {
     const currentProgress = progressRef.current;
@@ -1293,9 +1279,8 @@ export function DailyChallengeScreen({
     sequenceLockRef.current = false;
     setCelebrating(false);
     setRailFilledIds([...(progressRef.current?.completedPuzzleIds ?? [])]);
-    boardFade.setValue(1);
     setPhase('play');
-  }, [boardFade, clearPuzzleVisuals]);
+  }, [clearPuzzleVisuals]);
 
   const handleReplay = useCallback(() => {
     const currentProgress = progressRef.current;
@@ -1308,9 +1293,8 @@ export function DailyChallengeScreen({
     setCelebrating(false);
     setRailFilledIds([]);
     setPulsingRailId(null);
-    boardFade.setValue(1);
     setPhase('play');
-  }, [boardFade, clearPuzzleVisuals, persistProgress]);
+  }, [clearPuzzleVisuals, persistProgress]);
 
   const handleClaim = useCallback(() => {
     if (!challenge || !progress || !allPuzzlesComplete || progress.claimed || claimInFlightRef.current) {
@@ -1527,11 +1511,7 @@ export function DailyChallengeScreen({
               </View>
             </LinearGradient>
 
-            <Animated.View
-              style={[
-                styles.playBoard,
-                { paddingHorizontal: contentHorizontalPadding, opacity: boardFade },
-              ]}>
+            <View style={[styles.playBoard, { paddingHorizontal: contentHorizontalPadding }]}>
               <LinearGradient
                 colors={
                   currentPuzzle.miniChallenge
@@ -1622,10 +1602,11 @@ export function DailyChallengeScreen({
 
               <View ref={wheelSourceRef} collapsable={false} style={styles.wheelContainer}>
                 <NumberWheel
-                  key={`${challenge?.dateKey ?? ''}-${currentPuzzle.id}-${wheelSize}`}
+                  key={`${challenge?.dateKey ?? 'daily'}-${wheelSize}`}
                   canUseHint={gemCount >= HINT_GEM_COST && !targetComplete}
                   hintCost={HINT_GEM_COST}
                   hintIndices={hintIndices}
+                  introToken={currentPuzzle.id}
                   numbers={currentPuzzle.numbers}
                   operationGuideSymbol={operationSymbol}
                   onComplete={handleComplete}
@@ -1646,10 +1627,11 @@ export function DailyChallengeScreen({
                   }}
                   onPreview={handlePreview}
                   onShuffle={handleShuffle}
+                  outroToken={wheelOutroToken}
                   size={wheelSize}
                 />
               </View>
-            </Animated.View>
+            </View>
 
             <CompactConfetti visible={celebrating} />
 
@@ -2691,12 +2673,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   resultFlightLayer: {
-    ...StyleSheet.absoluteFill,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     zIndex: 72,
     overflow: 'hidden',
   },
   confettiLayer: {
-    ...StyleSheet.absoluteFill,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     zIndex: 70,
   },
   treasureScroll: {
