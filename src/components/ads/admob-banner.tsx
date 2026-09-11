@@ -24,6 +24,9 @@ function resolveGoogleMobileAds(): GoogleMobileAds | null {
 
 const googleMobileAds = resolveGoogleMobileAds();
 
+/** Standard BANNER height plus a little slot padding. Keep this reserved even when no ad fills. */
+export const AD_BANNER_SLOT_HEIGHT = 58;
+
 const PRODUCTION_BANNER_UNIT_ID = Platform.select({
   android: 'ca-app-pub-5659145727748457/7023807959',
   ios: 'ca-app-pub-5659145727748457/9099306955',

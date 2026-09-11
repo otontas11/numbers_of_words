@@ -1,6 +1,6 @@
 # Play flow değişiklikleri
 
-Bu dosya ses kadansı 1–6 ile eğitim, ekonomi, tempo ve günlük keşif paketinin (A–D) ürün kararlarını kaydeder. Tempo ve ses, pixel-perfect ölçüleri bozmayan bilinçli ürün kararlarıdır. İpucu kredisi / sahte reklam ödülü geri getirilmez.
+Bu dosya ses kadansı 1–6 ile eğitim, ekonomi, tempo ve günlük meydan okuma paketinin (A–D) ürün kararlarını kaydeder. Tempo ve ses, pixel-perfect ölçüleri bozmayan bilinçli ürün kararlarıdır. İpucu kredisi / sahte reklam ödülü geri getirilmez.
 
 ## Ses ve kapanış kadansı (1–6)
 
@@ -112,21 +112,31 @@ Sahte ödüllü reklam **yok**. AdMob native build’de banner’dır; rewarded 
 
 ## D. Bağlayıcılık
 
-### D1. Günlük Keşif ana menüde
+### D1. Günlük meydan okuma ana menüde
 
 - `DailyChallengeScreen` ana menü kartı ve alt `GÖREVLER` ile açılır.
-- Kart: seri, bugün hazır / ödül al / tamamlandı.
+- Kart: seri, bugün hazır / ödül al / tamamlandı · tekrar oyna.
 - Daily kendi progress storage’sunu kullanır; ana tur level / tahta / mücevher ilerlemesini ezmez.
-- Ödül mücevheri ana `gemCount`’a eklenir.
+- Ödül mücevheri yalnız ilk claim’de ana `gemCount`’a eklenir. Replay streak’i bozmaz ve tekrar ödül basmaz.
 
 ### D2. Günlük kadans
 
-- Hedef bulundu: `success`, ~`420 ms` sonra kutlama `levelComplete`. Timer ref’te tutulur; unmount, geri, sonraki bulmaca ve faz değişiminde iptal edilir (menüde geç hazine sesi yok).
+- Ana hedef: paylaşılan `ResultFlight` önce hedef kartına (`720 ms`) kısa iniş/emerald (`300/320 ms`), sonra aynı uçuşla x/5 ray yuvasına (`720 ms`); ara puzzle’da destinasyon kartı yok, sonraki bulmaca uçuş sonrası kısa fade (`180 ms`) ile açılır. `levelComplete` / konfeti yalnız 5/5 hazineye geçerken; global müzik duck’ı daily `celebrating` ile tetiklenmez.
+- 5/5: uçuş → kompakt konfeti + `levelComplete` → hazine kartı. Timer ref’te tutulur; unmount, geri, sonraki bulmaca ve faz değişiminde iptal edilir.
 - Hedef + bonus peş peşe: `setProgress(prev => …)` ve persist o next ile; ikinci kayıt birincinin id’sini ezmez.
-- Hazine / ödül alma ekranına geçiş ikinci `levelComplete` çalmaz.
-- Ödül alma `points` çalar (çift sting yok).
+- Bonus: paylaşılan `ResultFlight` önce bonus kartına (bulunan item), inişten sonra ★ puan HUD ve ilk koşuda 💎 header mücevhere. Replay’de kart mücevheri tekrar basılmaz.
+- Puan formülü ana turla aynıdır: seçilen sayıların toplamı × adım. Daily ★ / 💎 HUD ana tur `score` / `gemCount` bakiyesini gösterir; hedef ve bonus `onScore` ile bu puana ekler, ayrı `runScore` sayacı basılmaz.
+- Play tahtası ana oyun dilindedir: `getGameLayout`, büyük kontrastlı `ADIM SAYISI`, hedef kartı `●` noktaları, belirgin bonus (mücevher + `4/8/14` + adım), `NumberWheel`. Bırakınca `target.steps === indices.length`. Altta `58 dp` AdMob banner; sahte rewarded yok.
+- Claim `points` çalar. İlk claim kilitler; `Tekrar oyna` ve ana menü açıktır.
 
-### D3. Yeni rota mührü
+### D3. Beş puzzle, zorluk ve replay
+
+- Günlük set 5 yükselen puzzle’dır (Işınma → Tempo → Zirve); aynı gün aynı seed/hedefler.
+- Sayı havuzu ana tur `countryIndex` / `learningScore` / `cityDifficultyModifier` tabanına `+1` sayı zorluğu ekler. Bölme istisnası: hep 2 adım, küçük tam-bölünen çarpan ailesi; × ve zirve zor kalır.
+- Bonus kartı çözülünce 2/3/4 adım için `4/8/14` mücevher (ilk koşu). Beş bonus da bulununca claim’de ayrı ek paket `+8` (`DAILY_CHALLENGE_ALL_BONUS_REWARD`). Replay ve `claimed` bu ekstra ile kart mücevherlerini tekrar basmaz.
+- `claimed` ilk ödülü kilitler. Replay yeni koşu açar (ana `score` sıfırlanmaz, çözülenler puana eklenmeye devam eder); mücevher ve streak kilitleri kalır.
+
+### D4. Yeni rota mührü
 
 `continueAfterCountryCompletion` / `settleCountryCompletion` içinde `earnedRouteReward` varken:
 

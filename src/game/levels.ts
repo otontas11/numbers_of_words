@@ -192,9 +192,25 @@ export function getLevelNumberDifficulty(level: number, modifier: -1 | 0 | 1 = 0
   return Math.max(1, Math.min(5, routeDifficulty + modifier));
 }
 
-function getPool(op: Operation, level: number, difficultyModifier: -1 | 0 | 1): number[] {
+function dailyExactQuotientPool(countryIndex: number): number[] {
+  // Daily division stays a 2-step exact-quotient puzzle. Small factor families
+  // keep the result readable; multiplication and peak use the harder +1 band.
+  if (countryIndex < 8) return [2, 3, 4, 5, 6, 8, 10, 12, 24];
+  if (countryIndex < 16) return [2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 30];
+  return [2, 3, 4, 5, 6, 8, 10, 12, 15, 16, 18, 20, 24, 30, 36];
+}
+
+function getPool(
+  op: Operation,
+  level: number,
+  difficultyModifier: -1 | 0 | 1,
+  numberDifficultyBump = 0,
+): number[] {
   const countryIndex = Math.floor((level - 1) / COUNTRY_LEVEL_COUNT);
-  const difficulty = getLevelNumberDifficulty(level, difficultyModifier);
+  const difficulty = Math.max(
+    0,
+    Math.min(5, getLevelNumberDifficulty(level, difficultyModifier) + numberDifficultyBump),
+  );
 
   if (op === '+') {
     if (difficulty === 0) return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -392,6 +408,112 @@ export function generateLevelData(
     targets,
     bonusTarget,
   };
+}
+
+export type DailyPuzzleBoardSpec = {
+  op: Operation;
+  steps: 2 | 3 | 4;
+  bonusSteps: 2 | 3 | 4;
+  nodeCount: number;
+  sourceLevel: number;
+  difficultyModifier: -1 | 0 | 1;
+  /** Added on top of main-tour number difficulty. Daily uses 1; division uses 0. */
+  numberDifficultyBump?: number;
+  /** Force the small exact-quotient family instead of the late-tour division pool. */
+  exactQuotientLite?: boolean;
+};
+
+export type DailyPuzzleBoard = {
+  numbers: number[];
+  op: Operation;
+  target: Target;
+  bonusTarget: Target;
+};
+
+function mulberry32(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let next = Math.imul(state ^ (state >>> 15), 1 | state);
+    next ^= next + Math.imul(next ^ (next >>> 7), 61 | next);
+    return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleWith<T>(items: readonly T[], random: () => number): T[] {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
+}
+
+/**
+ * Builds one daily target + bonus board with a date/skill seed so the same day
+ * always yields the same numbers. Main-tour `generateLevelData` stays random.
+ */
+export function generateDailyPuzzleBoard(
+  spec: DailyPuzzleBoardSpec,
+  seed: number,
+): DailyPuzzleBoard {
+  const random = mulberry32(seed);
+  const nodeCount = Math.max(spec.steps + 1, Math.min(7, spec.nodeCount));
+  const sourceLevel = Math.max(1, Math.floor(spec.sourceLevel));
+  const countryIndex = Math.floor((sourceLevel - 1) / COUNTRY_LEVEL_COUNT);
+  let best: DailyPuzzleBoard | null = null;
+  let bestCoverage = -1;
+
+  for (let attempt = 0; attempt < 160; attempt += 1) {
+    const pool =
+      spec.exactQuotientLite && spec.op === '/'
+        ? dailyExactQuotientPool(countryIndex)
+        : getPool(
+            spec.op,
+            sourceLevel,
+            spec.difficultyModifier,
+            spec.numberDifficultyBump ?? 0,
+          );
+    const numbers = shuffleWith(pool, random).slice(0, nodeCount);
+    if (numbers.length < spec.steps) continue;
+
+    const targetCandidates = shuffleWith(
+      buildCandidates(numbers, spec.op, spec.steps),
+      random,
+    );
+    const target = targetCandidates[0];
+    if (!target) continue;
+
+    const bonusCandidates = shuffleWith(
+      buildCandidates(numbers, spec.op, spec.bonusSteps).filter(
+        (candidate) => candidate.value !== target.value,
+      ),
+      random,
+    );
+    const bonus = bonusCandidates[0];
+    if (!bonus) continue;
+
+    const coverage = new Set([...target.indices, ...bonus.indices]).size;
+    if (coverage > bestCoverage) {
+      bestCoverage = coverage;
+      best = {
+        numbers,
+        op: spec.op,
+        target: { value: target.value, steps: target.steps, op: target.op },
+        bonusTarget: { value: bonus.value, steps: bonus.steps, op: bonus.op },
+      };
+    }
+
+    if (coverage >= Math.min(nodeCount, spec.steps + 1)) break;
+  }
+
+  if (!best) {
+    throw new Error(
+      `Daily puzzle board could not be generated for ${spec.op}/${spec.steps}.`,
+    );
+  }
+
+  return best;
 }
 
 function travelMetadata(

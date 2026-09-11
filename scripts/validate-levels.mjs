@@ -27,6 +27,7 @@ import {
   resolveTravelLevel,
 } from '../src/game/travel.ts';
 import { updateWheelSelection } from '../src/game/wheel-selection.ts';
+import { validateDailyChallengePacks } from '../src/game/daily-challenge.ts';
 
 const RUN_COUNT = 5;
 const LAST_LEVEL = TOTAL_WORLD_LEVELS + 50;
@@ -266,6 +267,11 @@ for (let run = 0; run < RUN_COUNT; run += 1) {
   }
 }
 
+const dailyErrors = validateDailyChallengePacks();
+if (dailyErrors.length > 0) {
+  throw new Error(`Günlük meydan okuma paketleri hatalı: ${dailyErrors.join('; ')}`);
+}
+
 console.log(
-  `OK: ${TRAVEL_ROUTES.length} rota, ${WORLD_COUNTRIES.length} ülke etabı, ${TOTAL_DESTINATIONS} destinasyon, ${TOTAL_WORLD_LEVELS} ana level ve ${checkedLevelCount} prosedürel puzzle doğrulandı.`,
+  `OK: ${TRAVEL_ROUTES.length} rota, ${WORLD_COUNTRIES.length} ülke etabı, ${TOTAL_DESTINATIONS} destinasyon, ${TOTAL_WORLD_LEVELS} ana level, ${checkedLevelCount} prosedürel puzzle ve günlük 5’li setler doğrulandı.`,
 );

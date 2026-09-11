@@ -23,10 +23,24 @@ import { FreshGameTutorialModal } from '@/components/game/fresh-game-tutorial-mo
 import { CountryCompletionModal } from '@/components/game/game-modals';
 import { DailyChallengeScreen } from '@/components/daily/daily-challenge-screen';
 import { PassportCollection } from '@/components/collection/passport-collection';
-import { AdMobBanner } from '@/components/ads/admob-banner';
+import { AdMobBanner, AD_BANNER_SLOT_HEIGHT } from '@/components/ads/admob-banner';
 import { BackIcon, FootprintIcon, GemIcon, SettingsIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
+import {
+  BONUS_GEM_LAUNCH_DELAY,
+  BONUS_TARGET_INDEX,
+  POINTS_FLIGHT_DURATION,
+  RESULT_FLIGHT_DURATION,
+  ResultFlightBadge,
+  TARGET_COLOR_REVEAL_DURATION,
+  TARGET_LANDING_MS,
+  createResultFlight,
+  measureViewInWindow,
+  type MeasuredRect,
+  type ResultFlight,
+  type ScreenPoint,
+} from '@/components/game/result-flight';
 import { MainMenu, ProfileScreen } from '@/components/home/main-menu';
 import { SettingsModal } from '@/components/home/settings-modal';
 import { StartupSplash } from '@/components/startup-splash';
@@ -63,6 +77,7 @@ import {
   getDailyChallenge,
   getLocalDateKey,
   isDailyChallengeComplete,
+  skillFromDailyChallengeProgress,
 } from '@/game/daily-challenge';
 import { loadDailyChallengeProgress } from '@/game/daily-challenge-storage';
 import {
@@ -103,31 +118,6 @@ type Feedback = {
 };
 
 type Timer = ReturnType<typeof setTimeout>;
-
-type MeasuredRect = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-type ScreenPoint = {
-  x: number;
-  y: number;
-};
-
-type ResultFlight = {
-  id: number;
-  kind: 'result' | 'gem' | 'points';
-  value: number;
-  delay?: number;
-  followUpGemReward?: number;
-  targetIndex: number;
-  fromX: number;
-  fromY: number;
-  toX: number;
-  toY: number;
-};
 
 type ScoreAward = {
   targetIndex: number;
@@ -172,25 +162,12 @@ type DestinationTransitionState = {
   nextName: string;
 };
 
-const RESULT_FLIGHT_DURATION = 720;
-const RESULT_FLIGHT_ARRIVAL_PROGRESS = 0.9;
-const BONUS_GEM_LAUNCH_DELAY = 360;
-const BONUS_GEM_FLIGHT_DURATION = 960;
-const BONUS_GEM_ARRIVAL_PROGRESS = 0.92;
-const POINTS_FLIGHT_DURATION = 860;
-const POINTS_FLIGHT_ARRIVAL_PROGRESS = 0.9;
 const POINTS_FLIGHT_STAGGER = 120;
-const TARGET_COLOR_REVEAL_DURATION = 300;
-const RESULT_FLIGHT_WIDTH = 52;
-const RESULT_FLIGHT_HEIGHT = 52;
-const POINTS_FLIGHT_WIDTH = 66;
-const POINTS_FLIGHT_HEIGHT = 38;
 const LEVEL_CELEBRATION_DELAY = RESULT_FLIGHT_DURATION + 100;
 const SCORE_FLIGHT_START_DELAY = 320;
 const SHORT_CELEBRATION_DELAY = 280;
 const DESTINATION_CARD_DURATION = 1150;
 const CHALLENGE_CARD_DURATION = 2100;
-const BONUS_TARGET_INDEX = -1;
 const BONUS_DISCOVERY_GEM_REWARD = 1;
 const NODE_SELECTION_SOUNDS = [
   'select1',
@@ -225,154 +202,6 @@ function clearTimer(timer: MutableRefObject<Timer | null>) {
 function getNodeSelectionSound(selectionCount: number): GameSound {
   const index = Math.max(0, Math.min(NODE_SELECTION_SOUNDS.length - 1, selectionCount - 1));
   return NODE_SELECTION_SOUNDS[index];
-}
-
-function measureViewInWindow(view: View | null): Promise<MeasuredRect | null> {
-  if (!view) return Promise.resolve(null);
-
-  return new Promise((resolve) => {
-    view.measureInWindow((x, y, width, height) => {
-      resolve(width > 0 && height > 0 ? { x, y, width, height } : null);
-    });
-  });
-}
-
-function ResultFlightBadge({
-  flight,
-  onArrive,
-  onComplete,
-}: {
-  flight: ResultFlight;
-  onArrive: (flight: ResultFlight) => void;
-  onComplete: (flight: ResultFlight) => void;
-}) {
-  const [progress] = useState(() => new Animated.Value(0));
-  const isGem = flight.kind === 'gem';
-  const isPoints = flight.kind === 'points';
-
-  useEffect(() => {
-    let arrived = false;
-    let completed = false;
-    const markArrived = () => {
-      if (arrived) return;
-      arrived = true;
-      onArrive(flight);
-    };
-
-    progress.setValue(0);
-    // Native sürücüyle çalışan Animated animasyonlarında JS addListener
-    // geri çağrıları tetiklenmez; bu yüzden varış noktası platformdan
-    // bağımsız ve deterministik olarak zamanlayıcı ile kurulum yapılır.
-    const duration = isGem
-      ? BONUS_GEM_FLIGHT_DURATION
-      : isPoints
-        ? POINTS_FLIGHT_DURATION
-        : RESULT_FLIGHT_DURATION;
-    const arrivalProgress =
-      isGem
-        ? BONUS_GEM_ARRIVAL_PROGRESS
-        : isPoints
-          ? POINTS_FLIGHT_ARRIVAL_PROGRESS
-          : RESULT_FLIGHT_ARRIVAL_PROGRESS;
-    const launchDelay = flight.delay ?? 0;
-    const arrivalTimer = setTimeout(markArrived, launchDelay + duration * arrivalProgress);
-    const timingAnimation = Animated.timing(progress, {
-      toValue: 1,
-      duration,
-      easing:
-        isGem
-          ? Easing.bezier(0.22, 0.61, 0.36, 1)
-          : isPoints
-            ? Easing.bezier(0.2, 0.72, 0.3, 1)
-            : Easing.bezier(0.175, 0.885, 0.32, 1),
-      useNativeDriver: true,
-    });
-    const animation = launchDelay > 0
-      ? Animated.sequence([Animated.delay(launchDelay), timingAnimation])
-      : timingAnimation;
-    animation.start(({ finished }) => {
-      if (!finished) return;
-      completed = true;
-      markArrived();
-      onComplete(flight);
-    });
-    return () => {
-      clearTimeout(arrivalTimer);
-      if (!completed) animation.stop();
-    };
-  }, [flight, isGem, isPoints, onArrive, onComplete, progress]);
-
-  const middleX = flight.fromX + (flight.toX - flight.fromX) * 0.56;
-  const middleY = (flight.fromY + flight.toY) / 2 - (isGem ? 82 : isPoints ? 64 : 48);
-  const translateX = progress.interpolate({
-    inputRange: [0, 0.56, 1],
-    outputRange: [flight.fromX, middleX, flight.toX],
-  });
-  const translateY = progress.interpolate({
-    inputRange: [0, 0.56, 1],
-    outputRange: [flight.fromY, middleY, flight.toY],
-  });
-  const scale = progress.interpolate(
-    isGem
-      ? {
-          inputRange: [0, 0.16, 0.58, 0.84, 1],
-          outputRange: [0.72, 1.16, 1, 1.08, 0.35],
-        }
-      : isPoints
-        ? {
-            inputRange: [0, 0.16, 0.72, 1],
-            outputRange: [0.64, 1.14, 1, 0.38],
-          }
-        : {
-            inputRange: [0, 0.2, 0.8, 1],
-            outputRange: [1, 1.25, 1.02, 0.3],
-          },
-  );
-  const opacity = progress.interpolate(
-    isPoints
-      ? { inputRange: [0, 0.06, 0.82, 1], outputRange: [0, 1, 1, 0] }
-      : { inputRange: [0, 0.82, 1], outputRange: [1, 1, 0] },
-  );
-  const rotate = progress.interpolate({
-    inputRange: [0, 0.56, 1],
-    outputRange: isPoints ? ['-9deg', '5deg', '0deg'] : ['-5deg', '2deg', '0deg'],
-  });
-
-  return (
-    <Animated.View
-      style={[
-        styles.resultFlight,
-        isGem && styles.resultGemFlight,
-        isPoints && styles.resultPointsFlight,
-        {
-          opacity,
-          transform: [{ translateX }, { translateY }, { scale }, { rotate }],
-        },
-      ]}>
-      {isGem ? (
-        <Text style={styles.resultFlightGem}>💎</Text>
-      ) : isPoints ? (
-        <LinearGradient
-          colors={['#FFE790', '#E7A928']}
-          end={{ x: 1, y: 1 }}
-          start={{ x: 0, y: 0 }}
-          style={styles.resultPointsSurface}>
-          <Text style={styles.resultPointsStar}>★</Text>
-          <Text adjustsFontSizeToFit numberOfLines={1} style={styles.resultPointsValue}>
-            +{flight.value}
-          </Text>
-        </LinearGradient>
-      ) : (
-        <LinearGradient
-          colors={['#63D5B1', '#16906B']}
-          end={{ x: 1, y: 1 }}
-          start={{ x: 0, y: 0 }}
-          style={styles.resultFlightSurface}>
-          <Text style={styles.resultFlightValue}>{flight.value}</Text>
-        </LinearGradient>
-      )}
-    </Animated.View>
-  );
 }
 
 function Celebration({
@@ -1621,7 +1450,7 @@ export default function HomeScreen() {
     landingTimer.current = setTimeout(() => {
       setLandedTarget(null);
       landingTimer.current = null;
-    }, 320);
+    }, TARGET_LANDING_MS);
   }, []);
 
   const revealTarget = useCallback(
@@ -1655,16 +1484,15 @@ export default function HomeScreen() {
       return;
     }
 
-    const flight: ResultFlight = {
+    const flight = createResultFlight({
       id: nextFlightId.current,
       kind: 'gem',
       value: reward,
+      rootRect,
+      sourceRect,
+      targetRect,
       targetIndex: BONUS_TARGET_INDEX,
-      fromX: sourceRect.x + sourceRect.width / 2 - rootRect.x,
-      fromY: sourceRect.y + sourceRect.height / 2 - rootRect.y,
-      toX: targetRect.x + targetRect.width / 2 - rootRect.x,
-      toY: targetRect.y + targetRect.height / 2 - rootRect.y,
-    };
+    });
     nextFlightId.current += 1;
     setResultFlights((current) => [...current, flight]);
   }, []);
@@ -1706,17 +1534,16 @@ export default function HomeScreen() {
 
       const flights = awards.map((award, index): ResultFlight => {
         const sourceRect = sourceRects[index] ?? fallbackSource;
-        const flight: ResultFlight = {
+        const flight = createResultFlight({
           id: nextFlightId.current,
           kind: 'points',
           value: award.value,
           delay: index * POINTS_FLIGHT_STAGGER,
+          rootRect,
+          sourceRect,
+          targetRect,
           targetIndex: award.targetIndex,
-          fromX: sourceRect.x + sourceRect.width / 2 - rootRect.x,
-          fromY: sourceRect.y + sourceRect.height / 2 - rootRect.y,
-          toX: targetRect.x + targetRect.width / 2 - rootRect.x,
-          toY: targetRect.y + targetRect.height / 2 - rootRect.y,
-        };
+        });
         nextFlightId.current += 1;
         return flight;
       });
@@ -1778,17 +1605,17 @@ export default function HomeScreen() {
         return;
       }
 
-      const flight: ResultFlight = {
+      const flight = createResultFlight({
         id: nextFlightId.current,
         kind: 'result',
         value,
         followUpGemReward,
+        rootRect,
+        sourceRect,
+        targetRect,
+        origin: resultOrigin,
         targetIndex,
-        fromX: (resultOrigin?.x ?? sourceRect.x + sourceRect.width / 2) - rootRect.x,
-        fromY: (resultOrigin?.y ?? sourceRect.y + sourceRect.height * 0.44) - rootRect.y,
-        toX: targetRect.x + targetRect.width / 2 - rootRect.x,
-        toY: targetRect.y + targetRect.height / 2 - rootRect.y,
-      };
+      });
       nextFlightId.current += 1;
       setResultFlights((current) => [...current, flight]);
     },
@@ -2311,14 +2138,18 @@ export default function HomeScreen() {
 
   const refreshDailySummary = useCallback(async () => {
     const dateKey = getLocalDateKey();
-    const challenge = getDailyChallenge(dateKey);
-    const progress = await loadDailyChallengeProgress(dateKey);
+    const progress = await loadDailyChallengeProgress(dateKey, {
+      countryIndex: levelData.countryIndex,
+      learningScore,
+      cityDifficultyModifier,
+    });
+    const challenge = getDailyChallenge(dateKey, skillFromDailyChallengeProgress(progress));
     setDailySummary({
       claimed: progress.claimed,
-      completed: isDailyChallengeComplete(progress, challenge),
+      completed: isDailyChallengeComplete(progress, challenge) || progress.claimed,
       streak: progress.streak,
     });
-  }, []);
+  }, [cityDifficultyModifier, learningScore, levelData.countryIndex]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -2400,7 +2231,10 @@ export default function HomeScreen() {
               style={[styles.screen, activeScreen !== 'daily' && styles.hiddenScreen]}>
               <PersistentDailyChallenge
                 active={activeScreen === 'daily'}
+                cityDifficultyModifier={cityDifficultyModifier}
+                countryIndex={levelData.countryIndex}
                 gemCount={gemCount}
+                learningScore={learningScore}
                 onBack={navigateHome}
                 onEffect={(sound) => {
                   void triggerEffect(sound);
@@ -2409,9 +2243,13 @@ export default function HomeScreen() {
                   setGemCount((count) => count + gems);
                   void refreshDailySummary();
                 }}
+                onScore={(points) => {
+                  setScore((current) => current + points);
+                }}
                 onSpendGems={(cost) => {
                   setGemCount((count) => Math.max(0, count - cost));
                 }}
+                score={score}
               />
             </View>
           ) : null}
@@ -2716,7 +2554,7 @@ const styles = StyleSheet.create({
   gameAdSlot: {
     // Reserve the banner height even when no ad is returned. This keeps the
     // wheel controls in a stable position when an ad appears later.
-    height: 58,
+    height: AD_BANNER_SLOT_HEIGHT,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'flex-end',
@@ -3574,93 +3412,6 @@ const styles = StyleSheet.create({
     left: 0,
     zIndex: 70,
     overflow: 'hidden',
-  },
-  resultFlight: {
-    position: 'absolute',
-    left: -RESULT_FLIGHT_WIDTH / 2,
-    top: -RESULT_FLIGHT_HEIGHT / 2,
-    width: RESULT_FLIGHT_WIDTH,
-    height: RESULT_FLIGHT_HEIGHT,
-    borderRadius: RESULT_FLIGHT_HEIGHT / 2,
-    shadowColor: '#064E3B',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.42,
-    shadowRadius: 9,
-    elevation: 16,
-  },
-  resultFlightSurface: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: RESULT_FLIGHT_HEIGHT / 2,
-    borderWidth: 2,
-    borderColor: 'rgba(236,253,245,0.96)',
-  },
-  resultGemFlight: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#6B3E91',
-    shadowOpacity: 0.32,
-    shadowRadius: 5,
-  },
-  resultPointsFlight: {
-    left: -POINTS_FLIGHT_WIDTH / 2,
-    top: -POINTS_FLIGHT_HEIGHT / 2,
-    width: POINTS_FLIGHT_WIDTH,
-    height: POINTS_FLIGHT_HEIGHT,
-    borderRadius: POINTS_FLIGHT_HEIGHT / 2,
-    shadowColor: '#8A5A08',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.34,
-    shadowRadius: 7,
-    elevation: 18,
-  },
-  resultPointsSurface: {
-    flex: 1,
-    paddingHorizontal: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-    borderRadius: POINTS_FLIGHT_HEIGHT / 2,
-    borderWidth: 2,
-    borderColor: 'rgba(255,250,220,0.98)',
-  },
-  resultPointsStar: {
-    color: '#FFFDF0',
-    fontFamily: FONTS.black,
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: '900',
-    textShadowColor: 'rgba(98,62,4,0.42)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  resultPointsValue: {
-    minWidth: 0,
-    flexShrink: 1,
-    color: '#583A0C',
-    fontFamily: FONTS.black,
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  resultFlightValue: {
-    color: '#FFFFFF',
-    fontFamily: FONTS.black,
-    fontSize: 24,
-    lineHeight: 29,
-    fontWeight: '900',
-    textShadowColor: 'rgba(4,47,46,0.42)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  resultFlightGem: {
-    fontSize: 32,
-    lineHeight: 40,
-    textAlign: 'center',
-    textAlignVertical: 'center',
   },
   instruction: {
     color: '#557782',

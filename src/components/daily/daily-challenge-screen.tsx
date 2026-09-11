@@ -1,7 +1,10 @@
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { PIConfetti } from 'react-native-fast-confetti';
 import {
   Animated,
   Easing,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,22 +22,42 @@ import {
 } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AdMobBanner, AD_BANNER_SLOT_HEIGHT } from '@/components/ads/admob-banner';
+import { FootprintIcon, GemIcon } from '@/components/common/game-icons';
 import {
   NumberWheel,
   type WheelSelectionOutcome,
 } from '@/components/game/number-wheel';
+import {
+  BONUS_GEM_LAUNCH_DELAY,
+  BONUS_TARGET_INDEX,
+  ResultFlightBadge,
+  TARGET_COLOR_REVEAL_DURATION,
+  TARGET_LANDING_MS,
+  createResultFlight,
+  measureViewInWindow,
+  type ResultFlight,
+  type ScreenPoint,
+} from '@/components/game/result-flight';
 import { FONTS } from '@/constants/fonts';
 import {
   DAILY_CHALLENGE_ALL_BONUS_REWARD,
   DAILY_CHALLENGE_BASE_REWARD,
   DAILY_CHALLENGE_NO_HINT_REWARD,
+  DAILY_CHALLENGE_PUZZLE_COUNT,
   claimDailyChallengeProgress,
   createDailyChallengeProgress,
+  getClaimedDailyChallengeReward,
   getDailyChallenge,
   getLocalDateKey,
   isDailyChallengeComplete,
+  resolveDailyChallengeSkill,
+  skillFromDailyChallengeProgress,
+  startDailyChallengeReplay,
   type DailyChallenge,
   type DailyChallengeProgress,
+  type DailyPuzzle,
+  type DailyPuzzleTier,
 } from '@/game/daily-challenge';
 import {
   loadDailyChallengeProgress,
@@ -43,27 +66,51 @@ import {
 import {
   computeResult,
   findSolutionIndices,
+  getBonusGemReward,
+  getTargetScore,
   OPERATION_DETAILS,
+  type Target,
 } from '@/game/levels';
+import { getGameLayout } from '@/game/layout';
+import type { DifficultyModifier } from '@/game/adaptive-difficulty';
 import type { GameSound } from '@/hooks/use-game-sounds';
 import { useI18n } from '@/i18n';
 
 const HINT_GEM_COST = 10;
-const PUZZLE_COUNT = 3;
+const DAILY_TARGET_INDEX = 0;
+const RAIL_HOP_DELAY_MS = 280;
+const PUZZLE_FADE_MS = 180;
+const PUZZLE_AFTER_RAIL_MS = 80;
+const TREASURE_HOLD_MS = 720;
+const CONTENT_MAX_WIDTH = 512;
+const GAME_SKY_BACKGROUND = require('../../../assets/images/game-sky-background.png');
+const CONFETTI_COLORS = [
+  '#F59E0B',
+  '#60A5FA',
+  '#34D399',
+  '#FDE047',
+  '#A78BFA',
+  '#FB7185',
+] as const;
 
 type DailyChallengeScreenProps = {
   active: boolean;
   gemCount: number;
+  score: number;
+  countryIndex?: number;
+  learningScore?: number;
+  cityDifficultyModifier?: DifficultyModifier;
   onBack: () => void;
   onSpendGems: (cost: number) => void;
   onReward: (gems: number) => void;
+  onScore: (points: number) => void;
   onEffect: (sound: GameSound) => void;
 };
 
 type Phase = 'loading' | 'briefing' | 'play' | 'treasure' | 'completed';
+type Timer = ReturnType<typeof setTimeout>;
 type FeedbackTone = 'live' | 'success' | 'bonus' | 'info';
 type Feedback = { text: string; tone: FeedbackTone };
-type Timer = ReturnType<typeof setTimeout>;
 
 const FEEDBACK_COLORS: Record<FeedbackTone, { background: string; border: string; text: string }> = {
   live: { background: 'rgba(225, 249, 247, 0.95)', border: '#87D8D2', text: '#276F73' },
@@ -77,22 +124,390 @@ function selectionSound(selectionCount: number): GameSound {
   return `select${clamped}` as GameSound;
 }
 
-function GoalRow({
+function formatDailyDate(dateKey: string, locale: string) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  if (!year || !month || !day) return dateKey;
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date(year, month - 1, day));
+}
+
+function GoalCard({
   complete,
   children,
+  extra,
   reward,
 }: {
   complete: boolean;
   children: ReactNode;
+  extra?: string;
   reward?: number;
 }) {
   return (
-    <View style={[styles.goalRow, complete && styles.goalRowComplete]}>
+    <View style={[styles.goalCard, complete && styles.goalCardComplete]}>
       <View style={[styles.goalCheck, complete && styles.goalCheckComplete]}>
         <Text style={styles.goalCheckText}>{complete ? '✓' : '○'}</Text>
       </View>
-      <Text style={[styles.goalText, complete && styles.goalTextComplete]}>{children}</Text>
+      <View style={styles.goalCopy}>
+        <Text style={[styles.goalText, complete && styles.goalTextComplete]}>{children}</Text>
+        {extra ? <Text style={styles.goalExtra}>{extra}</Text> : null}
+      </View>
       {reward ? <Text style={styles.goalReward}>+{reward} 💎</Text> : null}
+    </View>
+  );
+}
+
+function PuzzleRail({
+  puzzles,
+  completedIds,
+  currentId,
+  pulsingId,
+  slotRefs,
+  accessibilityLabel,
+}: {
+  puzzles: readonly DailyPuzzle[];
+  completedIds: readonly string[];
+  currentId?: string;
+  pulsingId?: string | null;
+  slotRefs?: { current: Array<View | null> };
+  accessibilityLabel: string;
+}) {
+  const [pulse] = useState(() => new Animated.Value(1));
+
+  useEffect(() => {
+    if (!pulsingId) {
+      pulse.setValue(1);
+      return;
+    }
+    pulse.setValue(1);
+    const animation = Animated.sequence([
+      Animated.timing(pulse, { toValue: 1.22, duration: 90, useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 0.94, duration: 90, useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 1, duration: 140, useNativeDriver: true }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [pulse, pulsingId]);
+
+  return (
+    <View accessible accessibilityLabel={accessibilityLabel} style={styles.rail}>
+      {puzzles.map((puzzle, index) => {
+        const complete = completedIds.includes(puzzle.id);
+        const current = puzzle.id === currentId;
+        const pulsing = pulsingId === puzzle.id;
+        return (
+          <View key={puzzle.id} style={styles.railItem}>
+            {index > 0 ? (
+              <View style={[styles.railLine, complete && styles.railLineComplete]} />
+            ) : null}
+            <View
+              ref={(view) => {
+                if (slotRefs) slotRefs.current[index] = view;
+              }}
+              collapsable={false}>
+              <Animated.View
+                style={[
+                  styles.railDot,
+                  complete && styles.railDotComplete,
+                  current && styles.railDotCurrent,
+                  puzzle.tier === 'peak' && styles.railDotPeak,
+                  pulsing && { transform: [{ scale: pulse }] },
+                ]}>
+                <Text style={[styles.railDotText, (complete || current) && styles.railDotTextOn]}>
+                  {complete ? '✓' : index + 1}
+                </Text>
+              </Animated.View>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function CompactConfetti({ visible }: { visible: boolean }) {
+  if (!visible || Platform.OS === 'web') return null;
+  return (
+    <View pointerEvents="none" style={styles.confettiLayer}>
+      <PIConfetti autoplay colors={[...CONFETTI_COLORS]} fadeOutOnEnd flakeStyle="glossy">
+        <PIConfetti.Origin blastPosition="center" count={56} initialSpeed={1.15} spread={Math.PI * 2}>
+          <PIConfetti.Flake size={7} radius={3} />
+          <PIConfetti.Flake width={5} height={9} radius={3} />
+        </PIConfetti.Origin>
+      </PIConfetti>
+    </View>
+  );
+}
+
+function useTargetColorReveal(solved: boolean, landed: boolean) {
+  const [reveal] = useState(() => new Animated.Value(solved ? 1 : 0));
+
+  useEffect(() => {
+    reveal.stopAnimation();
+    let animation: Animated.CompositeAnimation | null = null;
+
+    if (!solved) {
+      reveal.setValue(0);
+    } else if (!landed) {
+      reveal.setValue(1);
+    } else {
+      reveal.setValue(0);
+      animation = Animated.timing(reveal, {
+        toValue: 1,
+        duration: TARGET_COLOR_REVEAL_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      });
+      animation.start();
+    }
+
+    return () => animation?.stop();
+  }, [landed, reveal, solved]);
+
+  return reveal;
+}
+
+function DailyTargetCard({
+  landed,
+  large,
+  measureRef,
+  solved,
+  target,
+}: {
+  landed: boolean;
+  large: boolean;
+  measureRef?: (view: View | null) => void;
+  solved: boolean;
+  target: Target;
+}) {
+  const { t } = useI18n();
+  const operation = OPERATION_DETAILS[target.op];
+  const [scale] = useState(() => new Animated.Value(1));
+  const colorReveal = useTargetColorReveal(solved, landed);
+
+  useEffect(() => {
+    scale.stopAnimation();
+    const animation = landed
+      ? Animated.sequence([
+          Animated.timing(scale, {
+            toValue: 1.08,
+            duration: 85,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scale, {
+            toValue: 0.98,
+            duration: 85,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scale, {
+            toValue: 1,
+            duration: 110,
+            useNativeDriver: true,
+          }),
+        ])
+      : Animated.timing(scale, {
+          toValue: 1,
+          duration: 120,
+          useNativeDriver: true,
+        });
+    animation.start();
+    return () => animation.stop();
+  }, [landed, scale]);
+
+  return (
+    <View ref={measureRef} collapsable={false} style={styles.boardTargetFrame}>
+      <Animated.View
+        accessibilityLabel={t('game.targetA11y', { value: target.value, steps: target.steps })}
+        style={[
+          styles.boardTargetPulse,
+          solved && styles.boardTargetSolvedFrame,
+          { transform: [{ scale }] },
+        ]}>
+        <LinearGradient
+          colors={['#F8FCFB', '#DCECEC']}
+          end={{ x: 1, y: 1 }}
+          start={{ x: 0, y: 0 }}
+          style={styles.boardTargetCard}>
+          {solved ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.boardTargetColorReveal, { transform: [{ scale: colorReveal }] }]}>
+              <LinearGradient
+                colors={['rgba(218,246,232,0.99)', 'rgba(189,232,213,0.99)']}
+                end={{ x: 1, y: 1 }}
+                start={{ x: 0, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+          ) : null}
+          <View style={[styles.boardTargetOpCorner, solved && styles.boardTargetOpCornerSolved]}>
+            <Text style={styles.boardTargetOpText}>{operation.symbol}</Text>
+          </View>
+          <Text
+            style={[
+              styles.boardTargetValue,
+              large && styles.boardTargetValueLarge,
+              solved && styles.boardSolvedText,
+            ]}>
+            {target.value}
+          </Text>
+          <Text style={[styles.boardTargetDots, solved && styles.boardSolvedText]}>
+            {Array.from({ length: target.steps }, () => '●').join('  ')}
+          </Text>
+          {solved ? <View pointerEvents="none" style={styles.boardTargetSolvedBorder} /> : null}
+        </LinearGradient>
+      </Animated.View>
+    </View>
+  );
+}
+
+function DailyBonusRow({
+  landed,
+  measureRef,
+  selectionCount,
+  solved,
+  target,
+}: {
+  landed: boolean;
+  measureRef?: (view: View | null) => void;
+  selectionCount: number;
+  solved: boolean;
+  target: Target;
+}) {
+  const { t } = useI18n();
+  const operation = OPERATION_DETAILS[target.op];
+  const reward = getBonusGemReward(target.steps, false);
+  const [scale] = useState(() => new Animated.Value(1));
+  const colorReveal = useTargetColorReveal(solved, landed);
+
+  useEffect(() => {
+    scale.stopAnimation();
+    const animation = landed
+      ? Animated.sequence([
+          Animated.timing(scale, { toValue: 1.1, duration: 90, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 0.98, duration: 90, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
+        ])
+      : Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [landed, scale]);
+
+  return (
+    <LinearGradient
+      accessibilityLabel={t('daily.bonusA11y', {
+        value: target.value,
+        steps: target.steps,
+        reward,
+      })}
+      colors={['rgba(255,247,206,0.98)', 'rgba(236,216,255,0.98)']}
+      end={{ x: 1, y: 1 }}
+      start={{ x: 0, y: 0 }}
+      style={[styles.boardBonusRow, solved && styles.boardBonusRowSolved]}>
+      {solved ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.boardBonusRowColorReveal, { transform: [{ scaleX: colorReveal }] }]}>
+          <LinearGradient
+            colors={['rgba(219,248,237,0.99)', 'rgba(190,235,218,0.99)']}
+            end={{ x: 1, y: 1 }}
+            start={{ x: 0, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+      ) : null}
+      <View style={styles.boardBonusStepBadge}>
+        <FootprintIcon color="#A87521" filled size={18} />
+        <Text style={styles.boardBonusStepLabel}>{t('game.stepCount')}</Text>
+        <View style={styles.boardBonusDots}>
+          {Array.from({ length: target.steps }, (_, index) => (
+            <View
+              key={`daily-bonus-step-${index}`}
+              style={[
+                styles.boardBonusDot,
+                index < selectionCount && styles.boardBonusDotFilled,
+              ]}
+            />
+          ))}
+        </View>
+      </View>
+      <View style={styles.boardBonusAnchor}>
+        <Text style={[styles.boardBonusLabel, solved && styles.boardSolvedText]}>BONUS</Text>
+        <View style={[styles.boardBonusPill, solved && styles.boardBonusPillSolved]}>
+          <GemIcon
+            color={solved ? '#66D7FF' : '#BDEFFF'}
+            facetColor={solved ? '#FFFFFF' : '#258AAF'}
+            outlineColor="#0B5875"
+            size={18}
+          />
+          <Text style={[styles.boardBonusRewardValue, solved && styles.boardBonusRewardSolved]}>
+            +{reward}
+          </Text>
+        </View>
+      </View>
+      <View ref={measureRef} collapsable={false} style={styles.boardBonusCardMeasure}>
+        <Animated.View style={{ transform: [{ scale }] }}>
+          <LinearGradient
+            colors={solved ? ['#5BC69A', '#238666'] : ['#9F69D1', '#65448B']}
+            end={{ x: 1, y: 1 }}
+            start={{ x: 0, y: 0 }}
+            style={styles.boardBonusCard}>
+            {solved ? (
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.boardTargetColorReveal, { transform: [{ scale: colorReveal }] }]}>
+                <LinearGradient
+                  colors={['#5BC69A', '#238666']}
+                  end={{ x: 1, y: 1 }}
+                  start={{ x: 0, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
+            ) : null}
+            <View style={styles.boardBonusOpCorner}>
+              <Text style={styles.boardBonusOpText}>{operation.symbol}</Text>
+            </View>
+            <Text style={styles.boardBonusValue}>{target.value}</Text>
+            <Text style={styles.boardBonusCardDots}>
+              {Array.from({ length: target.steps }, () => '●').join('  ')}
+            </Text>
+          </LinearGradient>
+        </Animated.View>
+      </View>
+    </LinearGradient>
+  );
+}
+
+function DailyScorePill({
+  compact,
+  measureRef,
+  score,
+}: {
+  compact: boolean;
+  measureRef?: { current: View | null };
+  score: number;
+}) {
+  const { locale, t } = useI18n();
+
+  return (
+    <View
+      ref={measureRef}
+      accessibilityLabel={t('home.pointsA11y', { value: score })}
+      collapsable={false}
+      style={[styles.scorePill, compact && styles.scorePillCompact]}>
+      <Text style={styles.scoreStar}>★</Text>
+      <View style={styles.scoreCopy}>
+        <Text style={styles.scoreLabel}>{t('common.score')}</Text>
+        <Text
+          adjustsFontSizeToFit
+          minimumFontScale={0.62}
+          numberOfLines={1}
+          style={[styles.scoreText, compact && styles.scoreTextCompact]}>
+          {score.toLocaleString(locale)}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -100,15 +515,21 @@ function GoalRow({
 export function DailyChallengeScreen({
   active,
   gemCount,
+  score,
+  countryIndex,
+  learningScore,
+  cityDifficultyModifier,
   onBack,
   onEffect,
   onReward,
+  onScore,
   onSpendGems,
 }: DailyChallengeScreenProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const { height, width } = useWindowDimensions();
+  const layout = getGameLayout(width, Math.max(520, height - AD_BANNER_SLOT_HEIGHT));
+  const { compactHeader, contentHorizontalPadding, wheelSize } = layout;
   const compact = height < 735;
-  const wheelSize = Math.min(width - 34, compact ? 296 : 346);
   const [challenge, setChallenge] = useState<DailyChallenge | null>(null);
   const [progress, setProgress] = useState<DailyChallengeProgress | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
@@ -117,13 +538,38 @@ export function DailyChallengeScreen({
   const [selectionCount, setSelectionCount] = useState(0);
   const [preview, setPreview] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [celebrating, setCelebrating] = useState(false);
+  const [flights, setFlights] = useState<ResultFlight[]>([]);
+  const [railFilledIds, setRailFilledIds] = useState<string[]>([]);
+  const [pulsingRailId, setPulsingRailId] = useState<string | null>(null);
+  const [targetFlying, setTargetFlying] = useState(false);
+  const [bonusFlying, setBonusFlying] = useState(false);
+  const [landedTarget, setLandedTarget] = useState<number | null>(null);
   const [sunPulse] = useState(() => new Animated.Value(0));
+  const [boardFade] = useState(() => new Animated.Value(1));
   const hintActiveRef = useRef(false);
   const claimInFlightRef = useRef(false);
+  const sequenceLockRef = useRef(false);
   const progressRef = useRef<DailyChallengeProgress | null>(null);
+  const challengeRef = useRef<DailyChallenge | null>(null);
+  const skillRef = useRef({ countryIndex, learningScore, cityDifficultyModifier });
   const feedbackTimerRef = useRef<Timer | null>(null);
   const hintTimerRef = useRef<Timer | null>(null);
-  const levelCompleteTimerRef = useRef<Timer | null>(null);
+  const sequenceTimerRef = useRef<Timer | null>(null);
+  const railPulseTimerRef = useRef<Timer | null>(null);
+  const landingTimerRef = useRef<Timer | null>(null);
+  const nextFlightId = useRef(1);
+  const resultLayerRef = useRef<View | null>(null);
+  const wheelSourceRef = useRef<View | null>(null);
+  const targetCardRef = useRef<View | null>(null);
+  const bonusCardRef = useRef<View | null>(null);
+  const scorePillRef = useRef<View | null>(null);
+  const gemPillRef = useRef<View | null>(null);
+  const railSlotRefs = useRef<Array<View | null>>([]);
+  const pendingRailRef = useRef<{ value: number; slotIndex: number } | null>(null);
+
+  skillRef.current = { countryIndex, learningScore, cityDifficultyModifier };
+  challengeRef.current = challenge;
 
   const clearFeedbackTimer = useCallback(() => {
     if (!feedbackTimerRef.current) return;
@@ -139,21 +585,37 @@ export function DailyChallengeScreen({
     hintActiveRef.current = false;
   }, []);
 
-  const clearLevelCompleteTimer = useCallback(() => {
-    if (!levelCompleteTimerRef.current) return;
-    clearTimeout(levelCompleteTimerRef.current);
-    levelCompleteTimerRef.current = null;
+  const clearSequenceTimer = useCallback(() => {
+    if (!sequenceTimerRef.current) return;
+    clearTimeout(sequenceTimerRef.current);
+    sequenceTimerRef.current = null;
+  }, []);
+
+  const clearLandingTimer = useCallback(() => {
+    if (!landingTimerRef.current) return;
+    clearTimeout(landingTimerRef.current);
+    landingTimerRef.current = null;
+  }, []);
+
+  const clearRailPulseTimer = useCallback(() => {
+    if (!railPulseTimerRef.current) return;
+    clearTimeout(railPulseTimerRef.current);
+    railPulseTimerRef.current = null;
   }, []);
 
   const clearPuzzleVisuals = useCallback(() => {
     clearHintTimer();
-    clearLevelCompleteTimer();
     setHintIndices([]);
     setSelectionCount(0);
     setPreview(null);
     clearFeedbackTimer();
     setFeedback(null);
-  }, [clearFeedbackTimer, clearHintTimer, clearLevelCompleteTimer]);
+    setFlights([]);
+    setTargetFlying(false);
+    setBonusFlying(false);
+    setLandedTarget(null);
+    pendingRailRef.current = null;
+  }, [clearFeedbackTimer, clearHintTimer]);
 
   const showFeedback = useCallback(
     (next: Feedback, duration = 1450) => {
@@ -173,18 +635,40 @@ export function DailyChallengeScreen({
     void saveDailyChallengeProgress(next).catch(() => undefined);
   }, []);
 
+  const tierLabel = useCallback(
+    (tier: DailyPuzzleTier) => {
+      if (tier === 'warmup') return t('daily.tierWarmup');
+      if (tier === 'tempo') return t('daily.tierTempo');
+      return t('daily.tierPeak');
+    },
+    [t],
+  );
+
   useEffect(() => {
     return () => {
       clearFeedbackTimer();
       clearHintTimer();
-      clearLevelCompleteTimer();
+      clearSequenceTimer();
+      clearLandingTimer();
+      clearRailPulseTimer();
     };
-  }, [clearFeedbackTimer, clearHintTimer, clearLevelCompleteTimer]);
+  }, [clearFeedbackTimer, clearHintTimer, clearLandingTimer, clearRailPulseTimer, clearSequenceTimer]);
 
   useEffect(() => {
     if (active && phase === 'play') return;
-    clearLevelCompleteTimer();
-  }, [active, clearLevelCompleteTimer, phase]);
+    clearSequenceTimer();
+    clearLandingTimer();
+    clearRailPulseTimer();
+    sequenceLockRef.current = false;
+    pendingRailRef.current = null;
+    setCelebrating(false);
+    setFlights([]);
+    setTargetFlying(false);
+    setBonusFlying(false);
+    setLandedTarget(null);
+    boardFade.stopAnimation();
+    boardFade.setValue(1);
+  }, [active, boardFade, clearLandingTimer, clearRailPulseTimer, clearSequenceTimer, phase]);
 
   useEffect(() => {
     sunPulse.stopAnimation();
@@ -216,31 +700,47 @@ export function DailyChallengeScreen({
 
     let cancelled = false;
     const dateKey = getLocalDateKey();
-    const nextChallenge = getDailyChallenge();
-    setChallenge(nextChallenge);
+    const liveSkill = resolveDailyChallengeSkill(skillRef.current);
+    setChallenge(null);
     setProgress(null);
     progressRef.current = null;
     setPhase('loading');
     claimInFlightRef.current = false;
+    sequenceLockRef.current = false;
+    pendingRailRef.current = null;
+    setCelebrating(false);
+    setFlights([]);
+    setRailFilledIds([]);
+    setPulsingRailId(null);
+    setTargetFlying(false);
+    setBonusFlying(false);
+    setLandedTarget(null);
+    boardFade.setValue(1);
 
-    void loadDailyChallengeProgress(dateKey)
-      .catch(() => createDailyChallengeProgress(dateKey))
+    void loadDailyChallengeProgress(dateKey, liveSkill)
+      .catch(() => createDailyChallengeProgress(dateKey, liveSkill))
       .then((loadedProgress) => {
         if (cancelled) return;
 
+        const nextChallenge = getDailyChallenge(
+          dateKey,
+          skillFromDailyChallengeProgress(loadedProgress),
+        );
         const nextPuzzleIndex = nextChallenge.puzzles.findIndex(
           (puzzle) => !loadedProgress.completedPuzzleIds.includes(puzzle.id),
         );
+        setChallenge(nextChallenge);
         setProgress(loadedProgress);
         progressRef.current = loadedProgress;
+        setRailFilledIds([...loadedProgress.completedPuzzleIds]);
         setPuzzleIndex(
           nextPuzzleIndex >= 0
             ? nextPuzzleIndex
             : Math.max(0, nextChallenge.puzzles.length - 1),
         );
-        if (loadedProgress.claimed) {
+        if (loadedProgress.claimed && isDailyChallengeComplete(loadedProgress, nextChallenge)) {
           setPhase('completed');
-        } else if (isDailyChallengeComplete(loadedProgress, nextChallenge)) {
+        } else if (!loadedProgress.claimed && isDailyChallengeComplete(loadedProgress, nextChallenge)) {
           setPhase('treasure');
         } else {
           setPhase('briefing');
@@ -272,11 +772,17 @@ export function DailyChallengeScreen({
     Boolean(currentPuzzle && progress?.completedPuzzleIds.includes(currentPuzzle.id));
   const bonusComplete =
     Boolean(currentPuzzle && progress?.completedBonusPuzzleIds.includes(currentPuzzle.id));
-  const noHintsUsed = !progress?.usedHint;
-  const rewardTotal =
+  const replayMode = Boolean(progress?.claimed);
+  const goalPuzzlesComplete = replayMode ? true : allPuzzlesComplete;
+  const goalBonusesComplete = replayMode ? Boolean(progress?.claimedAllBonuses) : allBonusesFound;
+  const goalNoHintsComplete = replayMode ? Boolean(progress?.claimedNoHint) : !progress?.usedHint;
+  const liveRewardTotal =
     DAILY_CHALLENGE_BASE_REWARD +
     (allBonusesFound ? DAILY_CHALLENGE_ALL_BONUS_REWARD : 0) +
-    (noHintsUsed ? DAILY_CHALLENGE_NO_HINT_REWARD : 0);
+    (progress?.usedHint ? 0 : DAILY_CHALLENGE_NO_HINT_REWARD);
+  const rewardTotal = replayMode
+    ? getClaimedDailyChallengeReward(progress ?? { claimed: false, claimedAllBonuses: false, claimedNoHint: false }).total
+    : liveRewardTotal;
   const sunStyle = useMemo(
     () => ({
       opacity: sunPulse.interpolate({ inputRange: [0, 1], outputRange: [0.38, 0.72] }),
@@ -287,6 +793,254 @@ export function DailyChallengeScreen({
       ],
     }),
     [sunPulse],
+  );
+
+  const pulseTarget = useCallback(
+    (targetIndex: number) => {
+      clearLandingTimer();
+      setLandedTarget(targetIndex);
+      landingTimerRef.current = setTimeout(() => {
+        landingTimerRef.current = null;
+        setLandedTarget(null);
+      }, TARGET_LANDING_MS);
+    },
+    [clearLandingTimer],
+  );
+
+  const fillRailSlot = useCallback(
+    (puzzleId: string) => {
+      setRailFilledIds((current) => (current.includes(puzzleId) ? current : [...current, puzzleId]));
+      setPulsingRailId(puzzleId);
+      clearRailPulseTimer();
+      railPulseTimerRef.current = setTimeout(() => {
+        railPulseTimerRef.current = null;
+        setPulsingRailId(null);
+      }, 420);
+    },
+    [clearRailPulseTimer],
+  );
+
+  const pushFlights = useCallback((nextFlights: ResultFlight[]) => {
+    if (nextFlights.length === 0) return;
+    setFlights((current) => [...current, ...nextFlights]);
+  }, []);
+
+  const allocateFlight = useCallback(
+    async ({
+      kind,
+      value,
+      toView,
+      origin,
+      sourceView,
+      delay = 0,
+      targetIndex,
+      railSlot,
+      followUpGemReward,
+      followUpPoints,
+    }: {
+      kind: ResultFlight['kind'];
+      value: number;
+      toView: View | null;
+      origin?: ScreenPoint;
+      sourceView?: View | null;
+      delay?: number;
+      targetIndex: number;
+      railSlot?: number;
+      followUpGemReward?: number;
+      followUpPoints?: number;
+    }): Promise<ResultFlight | null> => {
+      const [rootRect, sourceRect, targetRect] = await Promise.all([
+        measureViewInWindow(resultLayerRef.current),
+        measureViewInWindow(sourceView ?? wheelSourceRef.current),
+        measureViewInWindow(toView),
+      ]);
+      if (!rootRect || !targetRect) return null;
+      const source = sourceRect ?? targetRect;
+      const id = nextFlightId.current;
+      nextFlightId.current += 1;
+      return createResultFlight({
+        id,
+        kind,
+        value,
+        delay,
+        followUpGemReward,
+        followUpPoints,
+        rootRect,
+        sourceRect: source,
+        targetRect,
+        origin,
+        targetIndex,
+        railSlot,
+      });
+    },
+    [],
+  );
+
+  const finishPuzzleAfterRail = useCallback(
+    (fromIndex: number) => {
+      const currentChallenge = challengeRef.current;
+      const currentProgress = progressRef.current;
+      if (!currentChallenge || !currentProgress) {
+        sequenceLockRef.current = false;
+        return;
+      }
+
+      const nextPuzzleIndex = currentChallenge.puzzles.findIndex(
+        (puzzle) => !currentProgress.completedPuzzleIds.includes(puzzle.id),
+      );
+      const finale = nextPuzzleIndex < 0;
+
+      const swapBoard = () => {
+        clearPuzzleVisuals();
+        if (finale) {
+          setCelebrating(false);
+          setPhase(currentProgress.claimed ? 'completed' : 'treasure');
+          sequenceLockRef.current = false;
+          boardFade.setValue(1);
+          return;
+        }
+        setPuzzleIndex(nextPuzzleIndex);
+        sequenceLockRef.current = false;
+        Animated.timing(boardFade, {
+          toValue: 1,
+          duration: PUZZLE_FADE_MS,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }).start();
+      };
+
+      const fadeOutAndSwap = () => {
+        Animated.timing(boardFade, {
+          toValue: 0,
+          duration: PUZZLE_FADE_MS,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (!finished) return;
+          swapBoard();
+        });
+      };
+
+      if (finale) {
+        setCelebrating(true);
+        onEffect('levelComplete');
+        clearSequenceTimer();
+        sequenceTimerRef.current = setTimeout(() => {
+          sequenceTimerRef.current = null;
+          fadeOutAndSwap();
+        }, TREASURE_HOLD_MS);
+        return;
+      }
+
+      clearSequenceTimer();
+      sequenceTimerRef.current = setTimeout(() => {
+        sequenceTimerRef.current = null;
+        fadeOutAndSwap();
+      }, PUZZLE_AFTER_RAIL_MS);
+    },
+    [boardFade, clearPuzzleVisuals, clearSequenceTimer, onEffect],
+  );
+
+  const launchRailHop = useCallback(
+    async (value: number, slotIndex: number) => {
+      const flight = await allocateFlight({
+        kind: 'result',
+        value,
+        toView: railSlotRefs.current[slotIndex] ?? null,
+        sourceView: targetCardRef.current,
+        targetIndex: slotIndex,
+        railSlot: slotIndex,
+      });
+      if (!flight) {
+        const puzzle = challengeRef.current?.puzzles[slotIndex];
+        if (puzzle) fillRailSlot(puzzle.id);
+        finishPuzzleAfterRail(slotIndex);
+        return;
+      }
+      pushFlights([flight]);
+    },
+    [allocateFlight, fillRailSlot, finishPuzzleAfterRail, pushFlights],
+  );
+
+  const launchHudFollowUps = useCallback(
+    async (followUpPoints?: number, followUpGemReward?: number) => {
+      const [pointsFlight, gemFlight] = await Promise.all([
+        followUpPoints
+          ? allocateFlight({
+              kind: 'points',
+              value: followUpPoints,
+              toView: scorePillRef.current,
+              sourceView: bonusCardRef.current,
+              delay: BONUS_GEM_LAUNCH_DELAY,
+              targetIndex: BONUS_TARGET_INDEX,
+            })
+          : Promise.resolve(null),
+        followUpGemReward
+          ? allocateFlight({
+              kind: 'gem',
+              value: followUpGemReward,
+              toView: gemPillRef.current,
+              sourceView: bonusCardRef.current,
+              delay: BONUS_GEM_LAUNCH_DELAY,
+              targetIndex: BONUS_TARGET_INDEX,
+            })
+          : Promise.resolve(null),
+      ]);
+      pushFlights(
+        [pointsFlight, gemFlight].filter((flight): flight is ResultFlight => flight != null),
+      );
+    },
+    [allocateFlight, pushFlights],
+  );
+
+  const handleFlightArrive = useCallback(
+    (flight: ResultFlight) => {
+      if (flight.kind !== 'result') return;
+      if (flight.railSlot != null) {
+        const puzzle = challengeRef.current?.puzzles[flight.railSlot];
+        if (puzzle) fillRailSlot(puzzle.id);
+        return;
+      }
+      if (flight.targetIndex === BONUS_TARGET_INDEX) {
+        setBonusFlying(false);
+        pulseTarget(BONUS_TARGET_INDEX);
+        return;
+      }
+      setTargetFlying(false);
+      pulseTarget(DAILY_TARGET_INDEX);
+    },
+    [fillRailSlot, pulseTarget],
+  );
+
+  const handleFlightComplete = useCallback(
+    (flight: ResultFlight) => {
+      setFlights((current) => current.filter((item) => item.id !== flight.id));
+      if (flight.kind !== 'result') return;
+
+      if (flight.followUpGemReward !== undefined || flight.followUpPoints !== undefined) {
+        void launchHudFollowUps(flight.followUpPoints, flight.followUpGemReward);
+      }
+
+      if (flight.railSlot != null) {
+        pendingRailRef.current = null;
+        finishPuzzleAfterRail(flight.railSlot);
+        return;
+      }
+
+      if (flight.targetIndex === BONUS_TARGET_INDEX) return;
+
+      const pending = pendingRailRef.current;
+      if (!pending) {
+        finishPuzzleAfterRail(flight.targetIndex);
+        return;
+      }
+      clearSequenceTimer();
+      sequenceTimerRef.current = setTimeout(() => {
+        sequenceTimerRef.current = null;
+        void launchRailHop(pending.value, pending.slotIndex);
+      }, RAIL_HOP_DELAY_MS);
+    },
+    [clearSequenceTimer, finishPuzzleAfterRail, launchHudFollowUps, launchRailHop],
   );
 
   const handlePreview = useCallback(
@@ -309,17 +1063,15 @@ export function DailyChallengeScreen({
   );
 
   const handleComplete = useCallback(
-    (indices: number[]): WheelSelectionOutcome => {
+    (indices: number[], resultOrigin?: ScreenPoint): WheelSelectionOutcome => {
       const currentProgress = progressRef.current;
-      if (!currentPuzzle || !currentProgress || currentProgress.claimed || indices.length < 2) {
+      if (!currentPuzzle || !currentProgress || sequenceLockRef.current || indices.length < 2) {
         setPreview(null);
         return 'invalid';
       }
 
-      const calculation = computeResult(
-        indices.map((index) => currentPuzzle.numbers[index]),
-        currentPuzzle.op,
-      );
+      const values = indices.map((index) => currentPuzzle.numbers[index]);
+      const calculation = computeResult(values, currentPuzzle.op);
       setPreview(null);
       if (!calculation) {
         showFeedback({ text: t('feedback.invalid'), tone: 'info' });
@@ -327,6 +1079,7 @@ export function DailyChallengeScreen({
       }
 
       const puzzleId = currentPuzzle.id;
+      const earnedPoints = getTargetScore(values);
       const isTargetMatch =
         calculation.result === currentPuzzle.target.value &&
         indices.length === currentPuzzle.target.steps;
@@ -342,27 +1095,48 @@ export function DailyChallengeScreen({
         const next = {
           ...currentProgress,
           completedPuzzleIds: [...currentProgress.completedPuzzleIds, puzzleId],
+          runScore: currentProgress.runScore + earnedPoints,
         };
         progressRef.current = next;
         setProgress((prev) => {
-          if (!prev || prev.claimed || prev.completedPuzzleIds.includes(puzzleId)) {
+          if (!prev || prev.completedPuzzleIds.includes(puzzleId)) {
             return prev ?? next;
           }
           return {
             ...prev,
             completedPuzzleIds: [...prev.completedPuzzleIds, puzzleId],
+            runScore: prev.runScore + earnedPoints,
           };
         });
         void saveDailyChallengeProgress(next).catch(() => undefined);
+        onScore(earnedPoints);
         clearHintTimer();
         setHintIndices([]);
         onEffect('success');
-        showFeedback({ text: t('daily.targetFound'), tone: 'success' }, 1900);
-        clearLevelCompleteTimer();
-        levelCompleteTimerRef.current = setTimeout(() => {
-          levelCompleteTimerRef.current = null;
-          onEffect('levelComplete');
-        }, 420);
+        showFeedback(
+          { text: t('daily.targetFound', { points: earnedPoints }), tone: 'success' },
+          1900,
+        );
+        sequenceLockRef.current = true;
+        setTargetFlying(true);
+        pendingRailRef.current = { value: calculation.result, slotIndex: puzzleIndex };
+        void allocateFlight({
+          kind: 'result',
+          value: calculation.result,
+          toView: targetCardRef.current,
+          origin: resultOrigin,
+          sourceView: wheelSourceRef.current,
+          targetIndex: DAILY_TARGET_INDEX,
+        }).then((flight) => {
+          if (!flight) {
+            setTargetFlying(false);
+            pulseTarget(DAILY_TARGET_INDEX);
+            fillRailSlot(puzzleId);
+            finishPuzzleAfterRail(puzzleIndex);
+            return;
+          }
+          pushFlights([flight]);
+        });
         return 'success';
       }
 
@@ -371,23 +1145,54 @@ export function DailyChallengeScreen({
           showFeedback({ text: t('feedback.alreadyFound'), tone: 'info' }, 1250);
           return 'invalid';
         }
+        const bonusReward = getBonusGemReward(currentPuzzle.bonusTarget.steps, false);
+        const paysGems = !currentProgress.claimed;
         const next = {
           ...currentProgress,
           completedBonusPuzzleIds: [...currentProgress.completedBonusPuzzleIds, puzzleId],
+          runScore: currentProgress.runScore + earnedPoints,
         };
         progressRef.current = next;
         setProgress((prev) => {
-          if (!prev || prev.claimed || prev.completedBonusPuzzleIds.includes(puzzleId)) {
+          if (!prev || prev.completedBonusPuzzleIds.includes(puzzleId)) {
             return prev ?? next;
           }
           return {
             ...prev,
             completedBonusPuzzleIds: [...prev.completedBonusPuzzleIds, puzzleId],
+            runScore: prev.runScore + earnedPoints,
           };
         });
         void saveDailyChallengeProgress(next).catch(() => undefined);
+        onScore(earnedPoints);
+        if (paysGems) onReward(bonusReward);
         onEffect('bonus');
-        showFeedback({ text: t('daily.bonusFound'), tone: 'bonus' }, 1850);
+        showFeedback(
+          {
+            text: t('daily.bonusFound', { reward: bonusReward, points: earnedPoints }),
+            tone: 'bonus',
+          },
+          1850,
+        );
+        setBonusFlying(true);
+        void allocateFlight({
+          kind: 'result',
+          value: calculation.result,
+          toView: bonusCardRef.current,
+          origin: resultOrigin,
+          sourceView: wheelSourceRef.current,
+          targetIndex: BONUS_TARGET_INDEX,
+          followUpGemReward: paysGems ? bonusReward : undefined,
+          followUpPoints: earnedPoints,
+        }).then((flight) => {
+          if (!flight) {
+            setBonusFlying(false);
+            pulseTarget(BONUS_TARGET_INDEX);
+            void launchHudFollowUps(earnedPoints, paysGems ? bonusReward : undefined);
+            return;
+          }
+          pushFlights([flight]);
+        });
         return 'bonus';
       }
 
@@ -401,19 +1206,36 @@ export function DailyChallengeScreen({
       return 'invalid';
     },
     [
+      allocateFlight,
       clearHintTimer,
-      clearLevelCompleteTimer,
       currentPuzzle,
+      fillRailSlot,
+      finishPuzzleAfterRail,
+      launchHudFollowUps,
       onEffect,
+      onReward,
+      onScore,
+      pulseTarget,
+      puzzleIndex,
+      pushFlights,
       showFeedback,
       t,
     ],
   );
 
   const handleBack = useCallback(() => {
-    clearLevelCompleteTimer();
+    clearSequenceTimer();
+    sequenceLockRef.current = false;
+    pendingRailRef.current = null;
+    setCelebrating(false);
+    setFlights([]);
+    setTargetFlying(false);
+    setBonusFlying(false);
+    setLandedTarget(null);
+    boardFade.stopAnimation();
+    boardFade.setValue(1);
     onBack();
-  }, [clearLevelCompleteTimer, onBack]);
+  }, [boardFade, clearSequenceTimer, onBack]);
 
   const handleHint = useCallback(() => {
     const currentProgress = progressRef.current;
@@ -433,9 +1255,10 @@ export function DailyChallengeScreen({
       return;
     }
 
-    const next = currentProgress.usedHint
-      ? currentProgress
-      : { ...currentProgress, usedHint: true };
+    const next =
+      currentProgress.claimed || currentProgress.usedHint
+        ? currentProgress
+        : { ...currentProgress, usedHint: true };
     persistProgress(next);
     onSpendGems(HINT_GEM_COST);
     hintActiveRef.current = true;
@@ -465,18 +1288,29 @@ export function DailyChallengeScreen({
     onEffect('shuffle');
   }, [clearHintTimer, onEffect]);
 
-  const handleNextPuzzle = useCallback(() => {
-    if (!challenge || !progress || !targetComplete) return;
-    const nextPuzzleIndex = challenge.puzzles.findIndex(
-      (puzzle) => !progress.completedPuzzleIds.includes(puzzle.id),
-    );
+  const handleEnterPlay = useCallback(() => {
     clearPuzzleVisuals();
-    if (nextPuzzleIndex < 0) {
-      setPhase('treasure');
-      return;
-    }
-    setPuzzleIndex(nextPuzzleIndex);
-  }, [challenge, clearPuzzleVisuals, progress, targetComplete]);
+    sequenceLockRef.current = false;
+    setCelebrating(false);
+    setRailFilledIds([...(progressRef.current?.completedPuzzleIds ?? [])]);
+    boardFade.setValue(1);
+    setPhase('play');
+  }, [boardFade, clearPuzzleVisuals]);
+
+  const handleReplay = useCallback(() => {
+    const currentProgress = progressRef.current;
+    if (!currentProgress?.claimed) return;
+    const next = startDailyChallengeReplay(currentProgress);
+    persistProgress(next);
+    setPuzzleIndex(0);
+    clearPuzzleVisuals();
+    sequenceLockRef.current = false;
+    setCelebrating(false);
+    setRailFilledIds([]);
+    setPulsingRailId(null);
+    boardFade.setValue(1);
+    setPhase('play');
+  }, [boardFade, clearPuzzleVisuals, persistProgress]);
 
   const handleClaim = useCallback(() => {
     if (!challenge || !progress || !allPuzzlesComplete || progress.claimed || claimInFlightRef.current) {
@@ -485,40 +1319,61 @@ export function DailyChallengeScreen({
     claimInFlightRef.current = true;
     const claimedProgress = claimDailyChallengeProgress(progress, challenge);
     persistProgress(claimedProgress);
-    onReward(rewardTotal);
+    onReward(liveRewardTotal);
     onEffect('points');
     setPhase('completed');
   }, [
     allPuzzlesComplete,
     challenge,
+    liveRewardTotal,
     onEffect,
     onReward,
     persistProgress,
     progress,
-    rewardTotal,
   ]);
 
   if (!active) return null;
 
-  const puzzleTotal = challenge?.puzzles.length ?? PUZZLE_COUNT;
+  const puzzleTotal = challenge?.puzzles.length ?? DAILY_CHALLENGE_PUZZLE_COUNT;
   const displayedFeedback = feedback ?? (preview ? { text: preview, tone: 'live' as const } : null);
   const operationSymbol = currentPuzzle
     ? OPERATION_DETAILS[currentPuzzle.op].symbol
     : undefined;
+  const briefingCta =
+    replayMode && completedPuzzleCount === 0
+      ? t('daily.replay')
+      : completedPuzzleCount > 0 && !allPuzzlesComplete
+        ? t('daily.continueRun')
+        : t('daily.start');
+  const formattedDate = challenge ? formatDailyDate(challenge.dateKey, locale) : '';
 
   return (
     <View style={styles.screen}>
-      <LinearGradient
-        colors={['#BFE8EE', '#E8F6F0', '#FFF3D9', '#F9E3B5']}
-        locations={[0, 0.38, 0.72, 1]}
-        style={StyleSheet.absoluteFill}
-      />
-      <View pointerEvents="none" style={styles.waveOne} />
-      <View pointerEvents="none" style={styles.waveTwo} />
-      <Animated.View pointerEvents="none" style={[styles.sunGlow, sunStyle]} />
+      {phase === 'play' ? (
+        <>
+          <Image contentFit="cover" source={GAME_SKY_BACKGROUND} style={styles.backgroundImage} />
+          <LinearGradient
+            colors={['rgba(12,22,33,0.07)', 'rgba(12,22,33,0.03)', 'rgba(12,22,33,0.10)']}
+            locations={[0, 0.5, 1]}
+            pointerEvents="none"
+            style={StyleSheet.absoluteFill}
+          />
+        </>
+      ) : (
+        <>
+          <LinearGradient
+            colors={['#8FB9C4', '#D7EFE8', '#F6E4B4', '#E7C36A']}
+            locations={[0, 0.34, 0.72, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+          <View pointerEvents="none" style={styles.waveOne} />
+          <View pointerEvents="none" style={styles.waveTwo} />
+          <Animated.View pointerEvents="none" style={[styles.sunGlow, sunStyle]} />
+        </>
+      )}
 
       <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
-        <View style={styles.header}>
+        <View style={[styles.header, compactHeader && styles.headerCompact]}>
           <Pressable
             accessibilityLabel={t('daily.backA11y')}
             accessibilityRole="button"
@@ -527,12 +1382,22 @@ export function DailyChallengeScreen({
             style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
             <Text style={styles.backIcon}>‹</Text>
           </Pressable>
+          <DailyScorePill
+            compact={compactHeader}
+            measureRef={scorePillRef}
+            score={score}
+          />
           <View pointerEvents="none" style={styles.headerTitleBlock}>
             <Text numberOfLines={1} style={styles.headerTitle}>
-              {t('daily.title')}
+              {t('daily.hudTitle')}
             </Text>
           </View>
-          <View accessible accessibilityLabel={`${gemCount} 💎`} style={styles.gemPill}>
+          <View
+            ref={gemPillRef}
+            accessible
+            accessibilityLabel={`${gemCount} 💎`}
+            collapsable={false}
+            style={styles.gemPill}>
             <Text style={styles.gemPillText}>💎 {gemCount}</Text>
           </View>
         </View>
@@ -549,194 +1414,267 @@ export function DailyChallengeScreen({
         {phase === 'briefing' && challenge && progress ? (
           <ScrollView
             contentContainerStyle={[styles.briefingScroll, compact && styles.briefingScrollCompact]}
-            showsVerticalScrollIndicator={false}>
-            <View style={styles.heroMedallion}>
-              <Text style={styles.heroSun}>☀</Text>
-              <Text style={styles.heroSparkle}>✦</Text>
-            </View>
-            <Text style={styles.briefingTitle}>{t('daily.title')}</Text>
-            <Text style={styles.briefingSubtitle}>{t('daily.subtitle')}</Text>
-
-            <View style={styles.progressCard}>
-              <View style={styles.progressCardTop}>
-                <Text style={styles.progressCaption}>
-                  {t('daily.puzzleProgress', {
+            showsVerticalScrollIndicator={false}
+            style={styles.phaseFill}>
+            <View style={styles.poster}>
+              <Text style={styles.dateText}>{formattedDate}</Text>
+              <View style={styles.heroMedallion}>
+                <Text style={styles.heroSun}>🏆</Text>
+                <Text style={styles.heroSparkle}>✦</Text>
+              </View>
+              <Text style={styles.briefingTitle}>{t('daily.title')}</Text>
+              <Text style={styles.briefingSubtitle}>{t('daily.subtitle')}</Text>
+              <View style={styles.streakPill}>
+                <Text style={styles.posterStreakText}>{t('daily.streak', { count: progress.streak })}</Text>
+              </View>
+              {replayMode ? (
+                <View style={styles.trainingBadge}>
+                  <Text style={styles.trainingBadgeText}>{t('daily.trainingBadge')}</Text>
+                </View>
+              ) : null}
+              <View style={styles.posterRail}>
+                <PuzzleRail
+                  accessibilityLabel={t('daily.railA11y', {
                     completed: completedPuzzleCount,
                     total: puzzleTotal,
                   })}
-                </Text>
-                <Text style={styles.progressValue}>{completedPuzzleCount}/{puzzleTotal}</Text>
-              </View>
-              <View style={styles.progressTrack}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${(completedPuzzleCount / puzzleTotal) * 100}%` },
-                  ]}
+                  completedIds={progress.completedPuzzleIds}
+                  currentId={currentPuzzle?.id}
+                  puzzles={challenge.puzzles}
                 />
               </View>
+              <View style={styles.tierLegend}>
+                <Text style={styles.tierLegendText}>{t('daily.tierWarmup')}</Text>
+                <Text style={styles.tierLegendDot}>·</Text>
+                <Text style={styles.tierLegendText}>{t('daily.tierTempo')}</Text>
+                <Text style={styles.tierLegendDot}>·</Text>
+                <Text style={styles.tierLegendText}>{t('daily.tierPeak')}</Text>
+              </View>
             </View>
 
-            <View style={styles.goalCard}>
-              <GoalRow complete={allPuzzlesComplete} reward={DAILY_CHALLENGE_BASE_REWARD}>
-                {t('daily.goalSolvePuzzles')}
-              </GoalRow>
-              <GoalRow complete={allBonusesFound} reward={DAILY_CHALLENGE_ALL_BONUS_REWARD}>
-                {t('daily.goalBonus')}
-              </GoalRow>
-              <GoalRow complete={noHintsUsed} reward={DAILY_CHALLENGE_NO_HINT_REWARD}>
-                {t('daily.goalNoHints')}
-              </GoalRow>
-            </View>
+            <Text style={styles.goalsEyebrow}>{t('daily.briefingGoals')}</Text>
+            <GoalCard complete={goalPuzzlesComplete} reward={DAILY_CHALLENGE_BASE_REWARD}>
+              {t('daily.goalSolvePuzzles')}
+            </GoalCard>
+            <GoalCard
+              complete={goalBonusesComplete}
+              extra={t('daily.goalBonusExtra', { gems: DAILY_CHALLENGE_ALL_BONUS_REWARD })}
+              reward={DAILY_CHALLENGE_ALL_BONUS_REWARD}>
+              {t('daily.goalBonus')}
+            </GoalCard>
+            <GoalCard complete={goalNoHintsComplete} reward={DAILY_CHALLENGE_NO_HINT_REWARD}>
+              {t('daily.goalNoHints')}
+            </GoalCard>
 
-            <Text style={styles.streakText}>{t('daily.streak', { count: progress.streak })}</Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() => {
-                clearPuzzleVisuals();
-                setPhase('play');
-              }}
+              onPress={handleEnterPlay}
               style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryPressed]}>
               <LinearGradient
                 colors={['#F9C85C', '#E99A2E', '#C96D20']}
                 end={{ x: 0.72, y: 1 }}
                 start={{ x: 0.15, y: 0 }}
                 style={styles.primaryButtonSurface}>
-                <Text style={styles.primaryButtonText}>{t('daily.start')}</Text>
+                <Text style={styles.primaryButtonText}>{briefingCta}</Text>
               </LinearGradient>
             </Pressable>
           </ScrollView>
         ) : null}
 
         {phase === 'play' && currentPuzzle && progress ? (
-          <ScrollView
-            contentContainerStyle={[styles.playScroll, compact && styles.playScrollCompact]}
-            showsVerticalScrollIndicator={false}>
-            <View style={styles.playProgressRow}>
-              <Text style={styles.playProgressText}>
-                {t('daily.puzzleProgress', {
-                  completed: completedPuzzleCount,
-                  total: puzzleTotal,
-                })}
-              </Text>
-              <View style={styles.miniProgressTrack}>
-                <View
-                  style={[
-                    styles.miniProgressFill,
-                    { width: `${(completedPuzzleCount / puzzleTotal) * 100}%` },
-                  ]}
+          <View style={styles.playShell}>
+            <LinearGradient
+              colors={['rgba(36,139,151,0.98)', 'rgba(35,83,111,0.98)']}
+              end={{ x: 0, y: 1 }}
+              start={{ x: 0, y: 0 }}
+              style={styles.challengeStrip}>
+              <View style={styles.challengeStripTop}>
+                <Text numberOfLines={1} style={styles.challengeEyebrow}>
+                  {t('daily.hudTitle')}
+                </Text>
+                <View style={styles.challengeMetaChips}>
+                  <View style={styles.challengeTierChip}>
+                    <Text style={styles.challengeTierText}>{tierLabel(currentPuzzle.tier)}</Text>
+                  </View>
+                  {replayMode ? (
+                    <View style={styles.challengeTrainChip}>
+                      <Text style={styles.challengeTrainText}>{t('daily.trainingBadge')}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+              <View style={styles.challengeStripBottom}>
+                <Text style={styles.challengePuzzleIndex}>
+                  {t('daily.puzzleHud', {
+                    current: puzzleIndex + 1,
+                    total: puzzleTotal,
+                  })}
+                </Text>
+                <PuzzleRail
+                  accessibilityLabel={t('daily.railA11y', {
+                    completed: completedPuzzleCount,
+                    total: puzzleTotal,
+                  })}
+                  completedIds={railFilledIds}
+                  currentId={currentPuzzle.id}
+                  pulsingId={pulsingRailId}
+                  puzzles={challenge?.puzzles ?? []}
+                  slotRefs={railSlotRefs}
                 />
-              </View>
-            </View>
-
-            <View style={styles.targetDeck}>
-              <View
-                accessible
-                accessibilityLabel={t('daily.targetA11y', {
-                  value: currentPuzzle.target.value,
-                  steps: currentPuzzle.target.steps,
-                })}
-                style={[styles.targetCard, targetComplete && styles.targetCardComplete]}>
-                <View style={styles.targetIconCircle}>
-                  <Text style={styles.targetIcon}>{targetComplete ? '✓' : '✦'}</Text>
-                </View>
-                <View style={styles.targetCopy}>
-                  <Text style={styles.targetEyebrow}>🎯</Text>
-                  <Text style={styles.targetValue}>{currentPuzzle.target.value}</Text>
-                  <Text style={styles.targetMeta}>
-                    {operationSymbol} · {currentPuzzle.target.steps}
-                  </Text>
-                </View>
-              </View>
-
-              <View
-                accessible
-                accessibilityLabel={t('daily.bonusA11y', {
-                  value: currentPuzzle.bonusTarget.value,
-                  steps: currentPuzzle.bonusTarget.steps,
-                })}
-                style={[styles.bonusCard, bonusComplete && styles.bonusCardComplete]}>
-                <Text style={styles.bonusIcon}>{bonusComplete ? '✓' : '💎'}</Text>
-                <Text style={styles.bonusValue}>{currentPuzzle.bonusTarget.value}</Text>
-                <Text style={styles.bonusMeta}>
-                  {operationSymbol} · {currentPuzzle.bonusTarget.steps}
+                <Text style={styles.challengeStreak}>
+                  {t('daily.streak', { count: progress.streak })}
                 </Text>
               </View>
-            </View>
+            </LinearGradient>
 
-            <View style={styles.expressionSlot}>
-              {displayedFeedback ? (
-                <View
-                  style={[
-                    styles.feedbackPill,
-                    {
-                      backgroundColor: FEEDBACK_COLORS[displayedFeedback.tone].background,
-                      borderColor: FEEDBACK_COLORS[displayedFeedback.tone].border,
-                    },
-                  ]}>
-                  <Text
-                    style={[
-                      styles.feedbackText,
-                      { color: FEEDBACK_COLORS[displayedFeedback.tone].text },
-                    ]}>
-                    {displayedFeedback.text}
-                  </Text>
+            <Animated.View
+              style={[
+                styles.playBoard,
+                { paddingHorizontal: contentHorizontalPadding, opacity: boardFade },
+              ]}>
+              <LinearGradient
+                colors={
+                  currentPuzzle.miniChallenge
+                    ? ['rgba(255,252,235,0.98)', 'rgba(229,242,235,0.97)']
+                    : ['rgba(250,253,252,0.97)', 'rgba(225,238,238,0.96)']
+                }
+                end={{ x: 0, y: 1 }}
+                start={{ x: 0, y: 0 }}
+                style={[
+                  styles.boardTopSection,
+                  currentPuzzle.miniChallenge && styles.boardTopSectionChallenge,
+                ]}>
+                <View style={styles.operationRow}>
+                  <View style={styles.operationSide}>
+                    <Text style={styles.operationLabel}>{t('game.operationType')}</Text>
+                    <View
+                      style={[
+                        styles.operationBadge,
+                        { backgroundColor: OPERATION_DETAILS[currentPuzzle.op].color },
+                      ]}>
+                      <Text style={styles.operationSymbol}>
+                        {OPERATION_DETAILS[currentPuzzle.op].symbol}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.operationSide}>
+                    <Text style={styles.operationLabel}>{t('game.stepCount')}</Text>
+                    <View style={styles.requiredBadge}>
+                      <Text style={styles.requiredLabel}>{currentPuzzle.target.steps}</Text>
+                      <View style={styles.requiredDots}>
+                        {Array.from({ length: currentPuzzle.target.steps }, (_, index) => (
+                          <View
+                            key={`daily-step-${index}`}
+                            style={[
+                              styles.requiredDot,
+                              index < selectionCount && styles.requiredDotFilled,
+                            ]}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  </View>
                 </View>
-              ) : (
-                <Text style={styles.connectHint}>{operationSymbol}</Text>
-              )}
-            </View>
 
-            <View style={styles.wheelShell}>
-              <NumberWheel
-                key={`${challenge?.dateKey ?? ''}-${currentPuzzle.id}-${wheelSize}`}
-                canUseHint={gemCount >= HINT_GEM_COST && !targetComplete}
-                hintCost={HINT_GEM_COST}
-                hintIndices={hintIndices}
-                numbers={currentPuzzle.numbers}
-                operationGuideSymbol={operationSymbol}
-                onComplete={handleComplete}
-                onDraggingChange={(dragging) => {
-                  if (!dragging) {
-                    setSelectionCount(0);
-                    setPreview(null);
-                  }
-                }}
-                onHint={handleHint}
-                onNodeAdded={(count) => {
-                  setSelectionCount(count);
-                  onEffect(selectionSound(count));
-                }}
-                onNodeRemoved={(count) => {
-                  setSelectionCount(count);
-                  onEffect(selectionSound(count));
-                }}
-                onPreview={handlePreview}
-                onShuffle={handleShuffle}
-                size={wheelSize}
-              />
-            </View>
+                <View style={styles.boardTargets}>
+                  <DailyTargetCard
+                    landed={landedTarget === DAILY_TARGET_INDEX}
+                    large={!layout.compact}
+                    measureRef={(view) => {
+                      targetCardRef.current = view;
+                    }}
+                    solved={targetComplete && !targetFlying}
+                    target={currentPuzzle.target}
+                  />
+                </View>
 
-            <View style={styles.selectionHintRow}>
-              <View style={styles.selectionDot} />
-              <Text style={styles.selectionHintText}>
-                {selectionCount}/{currentPuzzle.target.steps}
-              </Text>
-            </View>
+                <DailyBonusRow
+                  landed={landedTarget === BONUS_TARGET_INDEX}
+                  measureRef={(view) => {
+                    bonusCardRef.current = view;
+                  }}
+                  selectionCount={selectionCount}
+                  solved={bonusComplete && !bonusFlying}
+                  target={currentPuzzle.bonusTarget}
+                />
+              </LinearGradient>
 
-            {targetComplete ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={handleNextPuzzle}
-                style={({ pressed }) => [styles.nextButton, pressed && styles.primaryPressed]}>
-                <Text style={styles.nextButtonText}>{t('daily.nextPuzzle')} ›</Text>
-              </Pressable>
-            ) : null}
-          </ScrollView>
+              <View style={styles.feedbackSlot}>
+                {displayedFeedback ? (
+                  <View
+                    style={[
+                      styles.boardFeedbackPill,
+                      {
+                        backgroundColor: FEEDBACK_COLORS[displayedFeedback.tone].background,
+                        borderColor: FEEDBACK_COLORS[displayedFeedback.tone].border,
+                      },
+                    ]}>
+                    <Text
+                      style={[
+                        styles.boardFeedbackText,
+                        { color: FEEDBACK_COLORS[displayedFeedback.tone].text },
+                      ]}>
+                      {displayedFeedback.text}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <View ref={wheelSourceRef} collapsable={false} style={styles.wheelContainer}>
+                <NumberWheel
+                  key={`${challenge?.dateKey ?? ''}-${currentPuzzle.id}-${wheelSize}`}
+                  canUseHint={gemCount >= HINT_GEM_COST && !targetComplete}
+                  hintCost={HINT_GEM_COST}
+                  hintIndices={hintIndices}
+                  numbers={currentPuzzle.numbers}
+                  operationGuideSymbol={operationSymbol}
+                  onComplete={handleComplete}
+                  onDraggingChange={(dragging) => {
+                    if (!dragging) {
+                      setSelectionCount(0);
+                      setPreview(null);
+                    }
+                  }}
+                  onHint={handleHint}
+                  onNodeAdded={(count) => {
+                    setSelectionCount(count);
+                    onEffect(selectionSound(count));
+                  }}
+                  onNodeRemoved={(count) => {
+                    setSelectionCount(count);
+                    onEffect(selectionSound(count));
+                  }}
+                  onPreview={handlePreview}
+                  onShuffle={handleShuffle}
+                  size={wheelSize}
+                />
+              </View>
+            </Animated.View>
+
+            <CompactConfetti visible={celebrating} />
+
+            <View
+              ref={resultLayerRef}
+              collapsable={false}
+              pointerEvents="none"
+              style={styles.resultFlightLayer}>
+              {flights.map((flight) => (
+                <ResultFlightBadge
+                  flight={flight}
+                  key={flight.id}
+                  onArrive={handleFlightArrive}
+                  onComplete={handleFlightComplete}
+                />
+              ))}
+            </View>
+          </View>
         ) : null}
 
         {phase === 'treasure' && challenge && progress ? (
-          <ScrollView contentContainerStyle={styles.treasureScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.treasureScroll}
+            showsVerticalScrollIndicator={false}
+            style={styles.phaseFill}>
             <View style={styles.treasureChest}>
               <Text style={styles.treasureSparkleLeft}>✦</Text>
               <Text style={styles.treasureEmoji}>🎁</Text>
@@ -749,17 +1687,20 @@ export function DailyChallengeScreen({
               <Text style={styles.rewardBig}>💎 +{rewardTotal}</Text>
               <Text style={styles.rewardLabel}>{t('daily.reward', { gems: rewardTotal })}</Text>
               <View style={styles.rewardDivider} />
-              <GoalRow complete={true} reward={DAILY_CHALLENGE_BASE_REWARD}>
+              <GoalCard complete={true} reward={DAILY_CHALLENGE_BASE_REWARD}>
                 {t('daily.goalSolvePuzzles')}
-              </GoalRow>
-              <GoalRow complete={allBonusesFound} reward={DAILY_CHALLENGE_ALL_BONUS_REWARD}>
+              </GoalCard>
+              <GoalCard
+                complete={allBonusesFound}
+                extra={t('daily.goalBonusExtra', { gems: DAILY_CHALLENGE_ALL_BONUS_REWARD })}
+                reward={DAILY_CHALLENGE_ALL_BONUS_REWARD}>
                 {t('daily.goalBonus')}
-              </GoalRow>
-              <GoalRow complete={noHintsUsed} reward={DAILY_CHALLENGE_NO_HINT_REWARD}>
+              </GoalCard>
+              <GoalCard complete={!progress.usedHint} reward={DAILY_CHALLENGE_NO_HINT_REWARD}>
                 {t('daily.goalNoHints')}
-              </GoalRow>
+              </GoalCard>
             </View>
-            <Text style={styles.streakText}>{t('daily.streak', { count: progress.streak })}</Text>
+            <Text style={styles.bodyStreakText}>{t('daily.streak', { count: progress.streak })}</Text>
             <Pressable
               accessibilityRole="button"
               onPress={handleClaim}
@@ -784,10 +1725,26 @@ export function DailyChallengeScreen({
             <Text style={styles.completedSummary}>
               {t('daily.completedSummary', { total: puzzleTotal })}
             </Text>
-            <Text style={styles.streakText}>{t('daily.streak', { count: progress.streak })}</Text>
+            <View style={styles.trainingBadge}>
+              <Text style={styles.trainingBadgeText}>{t('daily.trainingBadge')}</Text>
+            </View>
+            <Text style={styles.bodyStreakText}>{t('daily.streak', { count: progress.streak })}</Text>
             <View style={styles.alreadyCard}>
               <Text style={styles.alreadyText}>{t('daily.alreadyCompleted')}</Text>
             </View>
+            <Pressable
+              accessibilityLabel={t('daily.replayA11y')}
+              accessibilityRole="button"
+              onPress={handleReplay}
+              style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryPressed]}>
+              <LinearGradient
+                colors={['#F9C85C', '#E99A2E', '#C96D20']}
+                end={{ x: 0.72, y: 1 }}
+                start={{ x: 0.15, y: 0 }}
+                style={styles.primaryButtonSurface}>
+                <Text style={styles.primaryButtonText}>{t('daily.replay')}</Text>
+              </LinearGradient>
+            </Pressable>
             <Pressable
               accessibilityLabel={t('daily.backA11y')}
               accessibilityRole="button"
@@ -797,6 +1754,9 @@ export function DailyChallengeScreen({
             </Pressable>
           </View>
         ) : null}
+        <View style={styles.gameAdSlot}>
+          <AdMobBanner />
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -810,10 +1770,42 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     overflow: 'hidden',
-    backgroundColor: '#DFF2EE',
+    backgroundColor: '#C9DED6',
   },
   safeArea: {
     flex: 1,
+  },
+  backgroundImage: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  phaseFill: {
+    flex: 1,
+  },
+  gameAdSlot: {
+    height: AD_BANNER_SLOT_HEIGHT,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(2,6,23,0.22)',
+  },
+  header: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+    height: 46,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerCompact: {
+    marginTop: 5,
+    paddingHorizontal: 10,
   },
   waveOne: {
     position: 'absolute',
@@ -822,7 +1814,7 @@ const styles = StyleSheet.create({
     left: '-20%',
     top: '29%',
     borderRadius: 190,
-    backgroundColor: 'rgba(255,255,255,0.26)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
     transform: [{ rotate: '-8deg' }],
   },
   waveTwo: {
@@ -832,7 +1824,7 @@ const styles = StyleSheet.create({
     left: '-29%',
     bottom: '-8%',
     borderRadius: 240,
-    backgroundColor: 'rgba(255,249,229,0.54)',
+    backgroundColor: 'rgba(255,236,186,0.42)',
     transform: [{ rotate: '7deg' }],
   },
   sunGlow: {
@@ -843,13 +1835,6 @@ const styles = StyleSheet.create({
     top: -92,
     right: -48,
     backgroundColor: '#FFE6A2',
-  },
-  header: {
-    minHeight: 54,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   backButton: {
     width: 39,
@@ -876,13 +1861,57 @@ const styles = StyleSheet.create({
   headerTitleBlock: {
     flex: 1,
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
   headerTitle: {
-    color: '#285C68',
+    color: '#7A4E12',
     fontFamily: FONTS.black,
-    fontSize: 15,
-    letterSpacing: 0.9,
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
+  scorePill: {
+    height: 39,
+    minWidth: 72,
+    maxWidth: 104,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,231,157,0.94)',
+    backgroundColor: 'rgba(94,68,31,0.93)',
+  },
+  scorePillCompact: {
+    minWidth: 64,
+    maxWidth: 86,
+    paddingHorizontal: 6,
+  },
+  scoreStar: {
+    color: '#FFE58C',
+    fontSize: 16,
+  },
+  scoreCopy: {
+    minWidth: 0,
+    flexShrink: 1,
+    alignItems: 'center',
+  },
+  scoreLabel: {
+    color: '#FFE9A9',
+    fontFamily: FONTS.bold,
+    fontSize: 7,
+    lineHeight: 8,
+    letterSpacing: 0.6,
+  },
+  scoreText: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 13,
+    lineHeight: 16,
+  },
+  scoreTextCompact: {
+    fontSize: 12,
   },
   gemPill: {
     minWidth: 67,
@@ -933,19 +1962,45 @@ const styles = StyleSheet.create({
   briefingScroll: {
     flexGrow: 1,
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 18,
+    paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 30,
   },
   briefingScrollCompact: {
-    paddingTop: 4,
+    paddingTop: 2,
     paddingBottom: 18,
   },
+  poster: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(201,154,58,0.45)',
+    backgroundColor: 'rgba(20,48,56,0.78)',
+    shadowColor: '#1C3C44',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  dateText: {
+    color: '#E8C36A',
+    fontFamily: FONTS.bold,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'capitalize',
+    textAlign: 'center',
+  },
   heroMedallion: {
-    width: 104,
-    height: 104,
-    marginBottom: 12,
-    borderRadius: 52,
+    width: 86,
+    height: 86,
+    marginTop: 10,
+    marginBottom: 8,
+    borderRadius: 43,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFF2BD',
@@ -958,7 +2013,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   heroSun: {
-    fontSize: 53,
+    fontSize: 42,
   },
   heroSparkle: {
     position: 'absolute',
@@ -966,83 +2021,155 @@ const styles = StyleSheet.create({
     top: 6,
     color: '#E59B2E',
     fontFamily: FONTS.black,
-    fontSize: 22,
+    fontSize: 18,
   },
   briefingTitle: {
-    color: '#245C66',
+    color: '#FFF6DE',
     fontFamily: FONTS.black,
-    fontSize: 23,
-    letterSpacing: 0.6,
+    fontSize: 22,
+    letterSpacing: 0.7,
     textAlign: 'center',
   },
   briefingSubtitle: {
     maxWidth: 335,
     marginTop: 8,
-    color: '#4C7377',
+    color: '#D7E7E4',
     fontFamily: FONTS.semibold,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 19,
     textAlign: 'center',
   },
-  progressCard: {
-    width: '100%',
-    maxWidth: 390,
-    marginTop: 24,
-    padding: 15,
-    borderRadius: 18,
+  streakPill: {
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,214,120,0.18)',
     borderWidth: 1,
-    borderColor: 'rgba(48,128,133,0.16)',
-    backgroundColor: 'rgba(255,255,255,0.71)',
+    borderColor: 'rgba(232,195,106,0.45)',
   },
-  progressCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  progressCaption: {
-    flex: 1,
-    color: '#39737A',
+  posterStreakText: {
+    color: '#F4D48A',
     fontFamily: FONTS.bold,
     fontSize: 13,
+    textAlign: 'center',
   },
-  progressValue: {
-    color: '#22707B',
+  bodyStreakText: {
+    marginTop: 14,
+    color: '#357378',
+    fontFamily: FONTS.bold,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  trainingBadge: {
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(66,170,155,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(126,214,196,0.45)',
+  },
+  trainingBadgeText: {
+    color: '#B8EFE4',
+    fontFamily: FONTS.extraBold,
+    fontSize: 11,
+    letterSpacing: 0.4,
+  },
+  posterRail: {
+    width: '100%',
+    marginTop: 14,
+  },
+  rail: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  railItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  railLine: {
+    width: 14,
+    height: 2,
+    marginHorizontal: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+  },
+  railLineComplete: {
+    backgroundColor: '#E8C36A',
+  },
+  railDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  railDotComplete: {
+    borderColor: '#E8C36A',
+    backgroundColor: '#D7A441',
+  },
+  railDotCurrent: {
+    borderColor: '#7EE0D4',
+    backgroundColor: '#2F8F88',
+  },
+  railDotPeak: {
+    borderColor: '#F3C45A',
+  },
+  railDotText: {
+    color: '#E7F4F1',
     fontFamily: FONTS.black,
-    fontSize: 14,
+    fontSize: 11,
   },
-  progressTrack: {
-    height: 9,
-    marginTop: 11,
-    overflow: 'hidden',
-    borderRadius: 4.5,
-    backgroundColor: '#D9ECE9',
+  railDotTextOn: {
+    color: '#FFFFFF',
   },
-  progressFill: {
-    height: '100%',
-    minWidth: 0,
-    borderRadius: 4.5,
-    backgroundColor: '#42AA9B',
+  tierLegend: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tierLegendText: {
+    color: '#C9DED8',
+    fontFamily: FONTS.bold,
+    fontSize: 10,
+    letterSpacing: 0.4,
+  },
+  tierLegendDot: {
+    marginHorizontal: 6,
+    color: '#E8C36A',
+  },
+  goalsEyebrow: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    marginTop: 16,
+    marginBottom: 8,
+    color: '#5A4A28',
+    fontFamily: FONTS.black,
+    fontSize: 11,
+    letterSpacing: 1.1,
   },
   goalCard: {
     width: '100%',
-    maxWidth: 390,
-    marginTop: 13,
+    maxWidth: CONTENT_MAX_WIDTH,
+    minHeight: 52,
+    marginBottom: 8,
     paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(120,97,46,0.12)',
-    backgroundColor: 'rgba(255,252,241,0.8)',
-  },
-  goalRow: {
-    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(123,111,77,0.1)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(120,97,46,0.16)',
+    backgroundColor: 'rgba(255,252,241,0.88)',
   },
-  goalRowComplete: {
-    opacity: 0.82,
+  goalCardComplete: {
+    borderColor: 'rgba(74,168,144,0.35)',
+    backgroundColor: 'rgba(232,253,240,0.92)',
   },
   goalCheck: {
     width: 23,
@@ -1065,8 +2192,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 17,
   },
-  goalText: {
+  goalCopy: {
     flex: 1,
+  },
+  goalText: {
     color: '#587477',
     fontFamily: FONTS.bold,
     fontSize: 13,
@@ -1074,23 +2203,22 @@ const styles = StyleSheet.create({
   goalTextComplete: {
     color: '#387B6D',
   },
+  goalExtra: {
+    marginTop: 2,
+    color: '#B2751A',
+    fontFamily: FONTS.extraBold,
+    fontSize: 11,
+  },
   goalReward: {
     marginLeft: 8,
     color: '#B2751A',
     fontFamily: FONTS.extraBold,
     fontSize: 12,
   },
-  streakText: {
-    marginTop: 14,
-    color: '#357378',
-    fontFamily: FONTS.bold,
-    fontSize: 13,
-    textAlign: 'center',
-  },
   primaryButton: {
     width: '100%',
     maxWidth: 355,
-    marginTop: 17,
+    marginTop: 12,
     overflow: 'hidden',
     borderRadius: 17,
     shadowColor: '#A45C22',
@@ -1117,202 +2245,459 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 0.75,
   },
-  playScroll: {
-    alignItems: 'center',
-    paddingHorizontal: 17,
-    paddingTop: 9,
-    paddingBottom: 25,
-  },
-  playScrollCompact: {
-    paddingTop: 2,
-    paddingBottom: 16,
-  },
-  playProgressRow: {
-    width: '100%',
-    maxWidth: 408,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  playProgressText: {
-    marginRight: 10,
-    color: '#3B7277',
-    fontFamily: FONTS.bold,
-    fontSize: 12,
-  },
-  miniProgressTrack: {
+  playShell: {
     flex: 1,
-    height: 7,
-    overflow: 'hidden',
-    borderRadius: 4,
-    backgroundColor: 'rgba(67,139,143,0.18)',
   },
-  miniProgressFill: {
-    height: '100%',
-    borderRadius: 4,
-    backgroundColor: '#3EA79C',
-  },
-  targetDeck: {
-    width: '100%',
-    maxWidth: 408,
-    marginTop: 11,
-    flexDirection: 'row',
-  },
-  targetCard: {
-    minHeight: 88,
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+  challengeStrip: {
+    width: '94%',
+    maxWidth: 488,
+    alignSelf: 'center',
+    marginTop: 4,
+    marginBottom: 4,
     paddingHorizontal: 12,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#7AC9C7',
-    backgroundColor: 'rgba(245,255,252,0.9)',
-    shadowColor: '#3D8585',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.13,
-    shadowRadius: 5,
-    elevation: 3,
+    paddingTop: 6,
+    paddingBottom: 6,
+    overflow: 'hidden',
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#FFE7A3',
   },
-  targetCardComplete: {
-    borderColor: '#55B087',
-    backgroundColor: 'rgba(232,253,240,0.93)',
-  },
-  targetIconCircle: {
-    width: 40,
-    height: 40,
-    marginRight: 9,
-    borderRadius: 20,
+  challengeStripTop: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#D2F0E8',
+    justifyContent: 'space-between',
+    gap: 8,
   },
-  targetIcon: {
-    color: '#278B83',
+  challengeEyebrow: {
+    flexShrink: 1,
+    color: '#E8C36A',
     fontFamily: FONTS.black,
-    fontSize: 20,
+    fontSize: 10,
+    letterSpacing: 1.1,
   },
-  targetCopy: {
-    flex: 1,
+  challengeMetaChips: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  targetEyebrow: {
-    marginBottom: -3,
+  challengeTierChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(232,195,106,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(232,195,106,0.45)',
+  },
+  challengeTierText: {
+    color: '#F4D48A',
+    fontFamily: FONTS.black,
+    fontSize: 10,
+    letterSpacing: 0.4,
+  },
+  challengeTrainChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(126,224,212,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(126,224,212,0.35)',
+  },
+  challengeTrainText: {
+    color: '#B8EFE4',
+    fontFamily: FONTS.bold,
+    fontSize: 9,
+  },
+  challengeStripBottom: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  challengePuzzleIndex: {
+    color: '#F4FBFA',
+    fontFamily: FONTS.black,
     fontSize: 12,
   },
-  targetValue: {
-    color: '#1F6970',
-    fontFamily: FONTS.black,
-    fontSize: 29,
-    lineHeight: 33,
-  },
-  targetMeta: {
-    color: '#638789',
-    fontFamily: FONTS.bold,
-    fontSize: 11,
-  },
-  bonusCard: {
-    width: 100,
-    minHeight: 88,
-    marginLeft: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#E9C36A',
-    backgroundColor: 'rgba(255,250,224,0.92)',
-    shadowColor: '#AA7D32',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  bonusCardComplete: {
-    borderColor: '#D6A441',
-    backgroundColor: 'rgba(255,243,195,0.98)',
-  },
-  bonusIcon: {
-    fontSize: 17,
-  },
-  bonusValue: {
-    marginTop: -2,
-    color: '#9C691A',
-    fontFamily: FONTS.black,
-    fontSize: 23,
-    lineHeight: 27,
-  },
-  bonusMeta: {
-    color: '#A68248',
+  challengeStreak: {
+    color: '#F4D48A',
     fontFamily: FONTS.bold,
     fontSize: 10,
   },
-  expressionSlot: {
+  playBoard: {
+    flex: 1,
     width: '100%',
-    minHeight: 36,
-    marginTop: 8,
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 2,
+    paddingBottom: 2,
   },
-  feedbackPill: {
-    maxWidth: '100%',
-    paddingHorizontal: 15,
-    paddingVertical: 7,
-    borderRadius: 15,
-    borderWidth: 1,
-  },
-  feedbackText: {
-    fontFamily: FONTS.bold,
-    fontSize: 12,
-    lineHeight: 16,
-    textAlign: 'center',
-  },
-  connectHint: {
-    color: '#4D9294',
-    fontFamily: FONTS.black,
-    fontSize: 20,
-  },
-  wheelShell: {
+  boardTopSection: {
+    width: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingTop: 7,
+    paddingBottom: 8,
+    overflow: 'hidden',
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: '#D5EEF2',
   },
-  selectionHintRow: {
-    minHeight: 16,
-    marginTop: 3,
+  boardTopSectionChallenge: {
+    borderColor: '#E2BA5C',
+  },
+  operationRow: {
+    width: '100%',
+    minHeight: 30,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 7,
+    gap: 8,
   },
-  selectionDot: {
-    width: 6,
-    height: 6,
-    marginRight: 5,
-    borderRadius: 3,
-    backgroundColor: '#54AFA9',
+  operationSide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
   },
-  selectionHintText: {
-    color: '#538084',
-    fontFamily: FONTS.bold,
-    fontSize: 11,
+  operationLabel: {
+    color: '#1F3F4A',
+    fontFamily: FONTS.black,
+    fontSize: 12,
+    letterSpacing: 0.6,
   },
-  nextButton: {
-    minWidth: 220,
-    minHeight: 45,
-    marginTop: 12,
-    paddingHorizontal: 20,
+  operationBadge: {
+    minHeight: 30,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 15,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.72)',
-    backgroundColor: '#3E9C94',
-    shadowColor: '#2B7472',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 4,
+    borderColor: 'rgba(232,247,247,0.9)',
   },
-  nextButtonText: {
+  operationSymbol: {
     color: '#FFFFFF',
     fontFamily: FONTS.black,
+    fontSize: 14,
+  },
+  requiredBadge: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0CB8B',
+    backgroundColor: 'rgba(255,244,202,0.82)',
+  },
+  requiredLabel: {
+    color: '#3A2A0C',
+    fontFamily: FONTS.black,
+    fontSize: 18,
+    lineHeight: 20,
+  },
+  requiredDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  requiredDot: {
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    borderWidth: 1.2,
+    borderColor: '#B98834',
+    backgroundColor: 'rgba(255,255,255,0.54)',
+  },
+  requiredDotFilled: {
+    backgroundColor: '#D9A83E',
+    borderColor: '#A87521',
+  },
+  boardTargets: {
+    width: '100%',
+    minHeight: 62,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
+  boardTargetFrame: {
+    width: '31.6%',
+    minHeight: 62,
+    borderRadius: 16,
+  },
+  boardTargetPulse: {
+    width: '100%',
+    minHeight: 62,
+    borderRadius: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  boardTargetSolvedFrame: {
+    shadowColor: '#10B981',
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+  },
+  boardTargetCard: {
+    minHeight: 62,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#C6DEE2',
+    padding: 8,
+  },
+  boardTargetColorReveal: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    width: 180,
+    height: 180,
+    marginLeft: -90,
+    marginTop: -90,
+    overflow: 'hidden',
+    borderRadius: 90,
+  },
+  boardTargetOpCorner: {
+    position: 'absolute',
+    zIndex: 3,
+    top: 5,
+    right: 6,
+    width: 21,
+    height: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(85,119,130,0.38)',
+    backgroundColor: 'rgba(222,239,240,0.94)',
+  },
+  boardTargetOpCornerSolved: {
+    borderColor: 'rgba(35,120,91,0.42)',
+    backgroundColor: 'rgba(232,250,239,0.94)',
+  },
+  boardTargetOpText: {
+    color: '#416B78',
+    fontFamily: FONTS.black,
+    fontSize: 15,
+    lineHeight: 17,
+  },
+  boardTargetValue: {
+    color: '#233540',
+    fontFamily: FONTS.black,
+    fontSize: 24,
+    lineHeight: 29,
+  },
+  boardTargetValueLarge: {
+    fontSize: 30,
+    lineHeight: 36,
+  },
+  boardTargetDots: {
+    color: '#1F3F4A',
+    fontFamily: FONTS.black,
+    fontSize: 15,
+    letterSpacing: 1.2,
+  },
+  boardSolvedText: {
+    color: '#23785B',
+  },
+  boardTargetSolvedBorder: {
+    position: 'absolute',
+    zIndex: 2,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#10B981',
+  },
+  boardBonusRow: {
+    width: '100%',
+    minHeight: 60,
+    marginTop: 8,
+    paddingLeft: 12,
+    paddingRight: 7,
+    paddingVertical: 7,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#D9B95A',
+  },
+  boardBonusRowSolved: {
+    borderColor: '#3DA27B',
+  },
+  boardBonusRowColorReveal: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: '200%',
+  },
+  boardBonusStepBadge: {
+    zIndex: 1,
+    minHeight: 34,
+    paddingHorizontal: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(201,145,43,0.55)',
+    backgroundColor: 'rgba(255,249,219,0.68)',
+  },
+  boardBonusStepLabel: {
+    color: '#5C3F10',
+    fontFamily: FONTS.black,
+    fontSize: 11,
+  },
+  boardBonusDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  boardBonusDot: {
+    width: 13,
+    height: 13,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#B98834',
+    backgroundColor: 'rgba(255,255,255,0.54)',
+  },
+  boardBonusDotFilled: {
+    borderColor: '#A87521',
+    backgroundColor: '#D9A83E',
+  },
+  boardBonusAnchor: {
+    zIndex: 1,
+    alignItems: 'center',
+    marginLeft: 'auto',
+  },
+  boardBonusLabel: {
+    color: '#5A2F78',
+    fontFamily: FONTS.black,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    lineHeight: 13,
+    marginBottom: 2,
+  },
+  boardBonusPill: {
+    height: 24,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(117,80,151,0.44)',
+    backgroundColor: 'rgba(141,93,180,0.14)',
+  },
+  boardBonusPillSolved: {
+    borderColor: 'rgba(28,119,91,0.42)',
+    backgroundColor: 'rgba(255,255,255,0.52)',
+  },
+  boardBonusRewardValue: {
+    color: '#176F8C',
+    fontFamily: FONTS.black,
+    fontSize: 14,
+    lineHeight: 16,
+  },
+  boardBonusRewardSolved: {
+    color: '#176D58',
+  },
+  boardBonusCardMeasure: {
+    zIndex: 1,
+    width: 102,
+    height: 48,
+    justifyContent: 'center',
+  },
+  boardBonusCard: {
+    width: 102,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.92)',
+  },
+  boardBonusOpCorner: {
+    position: 'absolute',
+    zIndex: 3,
+    top: 4,
+    right: 5,
+    width: 19,
+    height: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: 'rgba(80,49,108,0.62)',
+  },
+  boardBonusOpText: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 14,
+    lineHeight: 16,
+  },
+  boardBonusValue: {
+    color: '#FFFFFF',
+    fontFamily: FONTS.black,
+    fontSize: 22,
+    lineHeight: 25,
+  },
+  boardBonusCardDots: {
+    color: 'rgba(255,255,255,0.95)',
+    fontFamily: FONTS.black,
     fontSize: 13,
-    letterSpacing: 0.5,
+    lineHeight: 15,
+    letterSpacing: 1,
+  },
+  feedbackSlot: {
+    width: '100%',
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 4,
+  },
+  boardFeedbackPill: {
+    maxWidth: '94%',
+    minHeight: 44,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    borderWidth: 1.5,
+  },
+  boardFeedbackText: {
+    fontFamily: FONTS.black,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  wheelContainer: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultFlightLayer: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 72,
+    overflow: 'hidden',
+  },
+  confettiLayer: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 70,
   },
   treasureScroll: {
     flexGrow: 1,
@@ -1395,6 +2780,7 @@ const styles = StyleSheet.create({
   rewardDivider: {
     height: 1,
     marginTop: 13,
+    marginBottom: 8,
     backgroundColor: 'rgba(154,119,54,0.16)',
   },
   completedContent: {
@@ -1461,7 +2847,7 @@ const styles = StyleSheet.create({
   secondaryButton: {
     minWidth: 218,
     minHeight: 47,
-    marginTop: 23,
+    marginTop: 14,
     paddingHorizontal: 18,
     alignItems: 'center',
     justifyContent: 'center',
