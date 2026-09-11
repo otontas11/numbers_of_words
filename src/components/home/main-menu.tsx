@@ -63,10 +63,16 @@ const BIRD_FORMATION = [
 type MainMenuProps = {
   active: boolean;
   currentLevel: number;
+  dailySummary: {
+    claimed: boolean;
+    completed: boolean;
+    streak: number;
+  } | null;
   gemCount: number;
   levelData: LevelData;
   score: number;
   onOpenCollection: () => void;
+  onOpenDaily: () => void;
   onOpenProfile: () => void;
   onOpenSettings: () => void;
   onOpenTravel: () => void;
@@ -220,10 +226,12 @@ function FlyingBirds({ active }: { active: boolean }) {
 export function MainMenu({
   active,
   currentLevel,
+  dailySummary,
   gemCount,
   levelData,
   score,
   onOpenCollection,
+  onOpenDaily,
   onOpenProfile,
   onOpenSettings,
   onOpenTravel,
@@ -413,6 +421,26 @@ export function MainMenu({
             </Pressable>
           </View>
 
+          <Pressable
+            accessibilityLabel={t('home.dailyCardA11y', { streak: dailySummary?.streak ?? 0 })}
+            accessibilityRole="button"
+            onPress={onOpenDaily}
+            style={({ pressed }) => [
+              styles.dailyCard,
+              compact && styles.dailyCardCompact,
+              pressed && styles.cardPressed,
+            ]}>
+            <Text style={styles.dailyEyebrow}>{t('daily.title')}</Text>
+            <Text numberOfLines={1} style={styles.dailyStatus}>
+              {dailySummary?.claimed
+                ? t('home.dailyDone')
+                : dailySummary?.completed
+                  ? t('home.dailyClaim')
+                  : t('home.dailyReady')}
+            </Text>
+            <Text style={styles.dailyStreak}>{t('daily.streak', { count: dailySummary?.streak ?? 0 })}</Text>
+          </Pressable>
+
           <View
             accessible
             accessibilityLabel={t('home.routeProgress', { route: routeName, progress: routeProgress, total: route?.countryIds.length ?? 0 })}
@@ -493,7 +521,7 @@ export function MainMenu({
         onCollection={onOpenCollection}
         onHome={() => {}}
         onMap={onOpenTravel}
-        onTasks={onOpenProfile}
+        onTasks={onOpenDaily}
       />
     </View>
   );
@@ -506,6 +534,7 @@ export function ProfileScreen({
   levelData,
   onHome,
   onMap,
+  onOpenDaily,
   onOpenPassport,
   performanceHistory,
   learningScore,
@@ -518,6 +547,7 @@ export function ProfileScreen({
   levelData: LevelData;
   onHome: () => void;
   onMap: () => void;
+  onOpenDaily: () => void;
   onOpenPassport: () => void;
   performanceHistory: PuzzlePerformance[];
   learningScore: number;
@@ -657,11 +687,10 @@ export function ProfileScreen({
         </ScrollView>
       </SafeAreaView>
       <AppFooter
-        activeItem="tasks"
         onCollection={onOpenPassport}
         onHome={onHome}
         onMap={onMap}
-        onTasks={() => {}}
+        onTasks={onOpenDaily}
       />
     </LinearGradient>
   );
@@ -754,6 +783,46 @@ const styles = StyleSheet.create({
   birdImage: { width: '100%', height: '100%' },
   playButtonStack: { width: 154, height: 154, alignItems: 'center', justifyContent: 'center' },
   playButtonStackCompact: { width: 124, height: 124 },
+  dailyCard: {
+    width: '94%',
+    maxWidth: 500,
+    marginBottom: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#E2B65C',
+    backgroundColor: 'rgba(255,251,246,0.94)',
+  },
+  dailyCardCompact: {
+    marginBottom: 8,
+    paddingVertical: 8,
+  },
+  dailyEyebrow: {
+    color: '#B97825',
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  dailyStatus: {
+    flex: 1,
+    color: '#173E72',
+    fontFamily: FONTS.extraBold,
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  dailyStreak: {
+    color: '#234C78',
+    fontFamily: FONTS.bold,
+    fontSize: 11,
+    fontWeight: '700',
+  },
   playGlow: { position: 'absolute', width: 148, height: 148, borderRadius: 74, backgroundColor: '#FFF2B2', shadowColor: '#FFFFFF', shadowOpacity: 0.95, shadowRadius: 30, elevation: 4 },
   playGlowCompact: { width: 119, height: 119, borderRadius: 60 },
   playButtonFrame: { width: 138, height: 138, borderRadius: 69, shadowColor: '#265782', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.34, shadowRadius: 11, elevation: 12 },

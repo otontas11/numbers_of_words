@@ -11,6 +11,9 @@
       "bundleIdentifier": "platform.tnts.numberofwonders",
       "icon": "./assets/images/app_icon1.png",
       "appleTeamId": "PSH5U378D5",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
       "googleServicesFile": "./firebase/ios/GoogleService-Info.plist"
     },
     "android": {

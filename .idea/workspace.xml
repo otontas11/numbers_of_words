@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1f1286ff-0618-41fb-995e-c5757f0c5d40" name="Changes" comment="ver-1" />
+    <list default="true" id="1f1286ff-0618-41fb-995e-c5757f0c5d40" name="Changes" comment="ver-1">
+      <change beforePath="$PROJECT_DIR$/app.json" beforeDir="false" afterPath="$PROJECT_DIR$/app.json" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -39,13 +41,14 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "main",
-    "last_opened_file_path": "/Users/oktaytontas/Documents/android_apps/numbers_of_wonders/assets/images/img",
+    "last_opened_file_path": "/Users/oktaytontas/Documents/android_apps/numbers_of_wonders/assets/images",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
     "npm.android.executor": "Run",
+    "npm.devices:android.executor": "Run",
     "npm.ios.executor": "Run",
     "npm.validate:levels.executor": "Run",
     "ts.external.directory.path": "/Users/oktaytontas/Documents/android_apps/numbers_of_wonders/node_modules/typescript/lib",
@@ -54,25 +57,36 @@
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/assets/images" />
+      <recent name="$PROJECT_DIR$/assets/sounds" />
+      <recent name="$PROJECT_DIR$/firebase/ios" />
+      <recent name="$PROJECT_DIR$/firebase" />
       <recent name="$PROJECT_DIR$/assets/images/img" />
-      <recent name="$PROJECT_DIR$/assets/lotties" />
-      <recent name="$PROJECT_DIR$/assets" />
-      <recent name="$PROJECT_DIR$/assets/images/countries" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/assets/sounds" />
+      <recent name="$PROJECT_DIR$/firebase/android" />
       <recent name="$PROJECT_DIR$/assets/images/country" />
       <recent name="$PROJECT_DIR$/assets/lotties" />
       <recent name="$PROJECT_DIR$/assets/images/countries/hidden-africa" />
-      <recent name="$PROJECT_DIR$/assets/images/countries/north-america-arctic" />
-      <recent name="$PROJECT_DIR$/assets/images/countries/pacific-islands" />
     </key>
   </component>
-  <component name="RunManager" selected="npm.ios">
+  <component name="RunManager" selected="npm.android">
     <configuration name="android" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
       <package-json value="$PROJECT_DIR$/package.json" />
       <command value="run" />
       <scripts>
         <script value="android" />
+      </scripts>
+      <node-interpreter value="project" />
+      <envs />
+      <method v="2" />
+    </configuration>
+    <configuration name="devices:android" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
+      <package-json value="$PROJECT_DIR$/package.json" />
+      <command value="run" />
+      <scripts>
+        <script value="devices:android" />
       </scripts>
       <node-interpreter value="project" />
       <envs />
@@ -100,8 +114,9 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="npm.ios" />
         <item itemvalue="npm.android" />
+        <item itemvalue="npm.ios" />
+        <item itemvalue="npm.devices:android" />
         <item itemvalue="npm.validate:levels" />
       </list>
     </recent_temporary>

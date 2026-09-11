@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FreshGameTutorialModal } from '@/components/game/fresh-game-tutorial-modal';
 import { CountryCompletionModal } from '@/components/game/game-modals';
+import { DailyChallengeScreen } from '@/components/daily/daily-challenge-screen';
 import { PassportCollection } from '@/components/collection/passport-collection';
 import { AdMobBanner } from '@/components/ads/admob-banner';
 import { BackIcon, FootprintIcon, GemIcon, SettingsIcon } from '@/components/common/game-icons';
@@ -36,6 +37,8 @@ import {
   ACTIVITY_IDLE_TIMEOUT_MS,
   INITIAL_LEARNING_SCORE,
   appendPerformance,
+  applyConsecutiveStruggleRelief,
+  isAdaptiveDifficultyEnabled,
   ratePuzzlePerformance,
   difficultyModifierFromLearningScore,
   updateLearningScore,
@@ -56,6 +59,12 @@ import {
 } from '@/game/levels';
 import { getGameLayout } from '@/game/layout';
 import { loadGameProgress, saveGameProgress } from '@/game/progress-storage';
+import {
+  getDailyChallenge,
+  getLocalDateKey,
+  isDailyChallengeComplete,
+} from '@/game/daily-challenge';
+import { loadDailyChallengeProgress } from '@/game/daily-challenge-storage';
 import {
   COUNTRY_LEVEL_COUNT,
   COUNTRY_BY_ID,
@@ -79,13 +88,14 @@ const PersistentMainMenu = memo(MainMenu);
 const PersistentProfileScreen = memo(ProfileScreen);
 const PersistentPassportCollection = memo(PassportCollection);
 const PersistentJourneyMap = memo(JourneyMap);
+const PersistentDailyChallenge = memo(DailyChallengeScreen);
 
 const INITIAL_GEM_COUNT = 30;
 const HINT_GEM_COST = 10;
 const ROUTE_GEM_REWARD = 10;
 
 type FeedbackTone = 'live' | 'success' | 'bonus' | 'info';
-type AppScreen = 'home' | 'game' | 'profile' | 'travel' | 'collection';
+type AppScreen = 'home' | 'game' | 'profile' | 'travel' | 'collection' | 'daily';
 
 type Feedback = {
   text: string;
@@ -176,6 +186,10 @@ const RESULT_FLIGHT_HEIGHT = 52;
 const POINTS_FLIGHT_WIDTH = 66;
 const POINTS_FLIGHT_HEIGHT = 38;
 const LEVEL_CELEBRATION_DELAY = RESULT_FLIGHT_DURATION + 100;
+const SCORE_FLIGHT_START_DELAY = 320;
+const SHORT_CELEBRATION_DELAY = 280;
+const DESTINATION_CARD_DURATION = 1150;
+const CHALLENGE_CARD_DURATION = 2100;
 const BONUS_TARGET_INDEX = -1;
 const BONUS_DISCOVERY_GEM_REWARD = 1;
 const NODE_SELECTION_SOUNDS = [
@@ -361,7 +375,13 @@ function ResultFlightBadge({
   );
 }
 
-function Celebration({ visible }: { visible: boolean }) {
+function Celebration({
+  compact = false,
+  visible,
+}: {
+  compact?: boolean;
+  visible: boolean;
+}) {
   if (!visible || Platform.OS === 'web') return null;
 
   return (
@@ -376,11 +396,11 @@ function Celebration({ visible }: { visible: boolean }) {
         flakeStyle="glossy">
         <PIConfetti.Origin
           blastPosition="center"
-          count={180}
-          initialSpeed={1.8}
+          count={compact ? 56 : 180}
+          initialSpeed={compact ? 1.15 : 1.8}
           spread={Math.PI * 2}>
-          <PIConfetti.Flake size={10} radius={4} />
-          <PIConfetti.Flake width={7} height={13} radius={3} />
+          <PIConfetti.Flake size={compact ? 7 : 10} radius={compact ? 3 : 4} />
+          <PIConfetti.Flake width={compact ? 5 : 7} height={compact ? 9 : 13} radius={3} />
         </PIConfetti.Origin>
       </PIConfetti>
     </View>
@@ -1180,6 +1200,13 @@ export default function HomeScreen() {
   const [musicEnabled, setMusicEnabled] = useState(false);
   const [musicVolume, setMusicVolume] = useState(0.5);
   const [celebrating, setCelebrating] = useState(false);
+  const [celebrationFull, setCelebrationFull] = useState(true);
+  const [routeRewardToast, setRouteRewardToast] = useState<string | null>(null);
+  const [dailySummary, setDailySummary] = useState<{
+    claimed: boolean;
+    completed: boolean;
+    streak: number;
+  } | null>(null);
   const [destinationTransition, setDestinationTransition] =
     useState<DestinationTransitionState | null>(null);
   const [countryCompletionLevel, setCountryCompletionLevel] = useState<number | null>(null);
@@ -1210,6 +1237,7 @@ export default function HomeScreen() {
     [navigateToScreen],
   );
   const navigateTravel = useCallback(() => navigateToScreen('travel'), [navigateToScreen]);
+  const navigateDaily = useCallback(() => navigateToScreen('daily'), [navigateToScreen]);
   const openSettings = useCallback(() => setSettingsVisible(true), []);
   const resultLayerRef = useRef<View>(null);
   const resultSourceRef = useRef<View>(null);
@@ -1245,7 +1273,11 @@ export default function HomeScreen() {
   const layout = getGameLayout(width, height);
   const { compact, compactHeader, wheelSize } = layout;
   const playSound = useGameSounds(effectsEnabled);
-  useBackgroundMusic(hydrated && musicEnabled, musicVolume);
+  const musicDucked =
+    celebrating ||
+    (activeScreen === 'game' && countryCompletionLevel !== null) ||
+    destinationTransition !== null;
+  useBackgroundMusic(hydrated && musicEnabled, musicVolume, musicDucked);
   const targetWidth = (levelData.targets.length === 3 ? '31.6%' : '23.5%') as `${number}%`;
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
   const levelJustCompleted = hasCompletedRequiredTargets(solvedTargets.size, levelData);
@@ -1472,7 +1504,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (activeScreen !== 'game') {
+    if (activeScreen !== 'game' || tutorialVisible) {
       operationGuideLevelKeyRef.current = null;
       return;
     }
@@ -1487,7 +1519,7 @@ export default function HomeScreen() {
       setOperationGuideVisible(false);
       setOperationGuideSymbol(undefined);
     }
-  }, [activeScreen, hydrated, levelData]);
+  }, [activeScreen, hydrated, levelData, tutorialVisible]);
 
   useEffect(
     () => () => {
@@ -1521,7 +1553,7 @@ export default function HomeScreen() {
       activeScreen === 'home' ||
       activeScreen === 'travel' ||
       settingsVisible ||
-      countryCompletionLevel !== null
+      (activeScreen === 'game' && countryCompletionLevel !== null)
     ) {
       return;
     }
@@ -1774,7 +1806,7 @@ export default function HomeScreen() {
     let nextDifficultyModifier = cityDifficultyModifierRef.current;
     let nextDifficultyLocationId = cityDifficultyLocationIdRef.current;
 
-    if (globalCountryIndex < 5) {
+    if (!isAdaptiveDifficultyEnabled(globalCountryIndex)) {
       nextDifficultyModifier = 0;
       consecutiveStrugglesRef.current = 0;
       if (!nextDestination.countryChallenge) {
@@ -1787,12 +1819,13 @@ export default function HomeScreen() {
       nextDifficultyModifier = difficultyModifierFromLearningScore(learningScoreRef.current);
       nextDifficultyLocationId = nextDestination.location.id;
       consecutiveStrugglesRef.current = 0;
-    } else if (
-      !nextDestination.countryChallenge &&
-      consecutiveStrugglesRef.current >= 2
-    ) {
-      nextDifficultyModifier = Math.max(-1, nextDifficultyModifier - 1) as DifficultyModifier;
-      consecutiveStrugglesRef.current = 0;
+    } else if (!nextDestination.countryChallenge) {
+      const relief = applyConsecutiveStruggleRelief(
+        nextDifficultyModifier,
+        consecutiveStrugglesRef.current,
+      );
+      nextDifficultyModifier = relief.modifier;
+      consecutiveStrugglesRef.current = relief.consecutiveStruggles;
     }
 
     cityDifficultyModifierRef.current = nextDifficultyModifier;
@@ -1821,6 +1854,7 @@ export default function HomeScreen() {
     setFlyingTargets(new Set());
     setLandedTarget(null);
     setCelebrating(false);
+    setCelebrationFull(true);
     setDestinationTransition(null);
     setCountryCompletionLevel(null);
     resetPuzzleActivity();
@@ -1919,15 +1953,19 @@ export default function HomeScreen() {
                       : t('feedback.destinationUnlocked', { destination: nextDestination.location.name })
                   })
                 : t('feedback.puzzleComplete', { current: levelData.locationLevel, total: levelData.locationLevelCount, city: levelData.city });
+          const fullCeremony = completedLocation || completedCountry;
           showTimedFeedback(
             {
               text: t('feedback.levelComplete', { points: levelScorePending.current, message: completionMessage }),
               tone: 'success',
             },
-            LEVEL_CELEBRATION_DELAY +
-              POINTS_FLIGHT_DURATION +
-              Math.max(0, nextSolved.size - 1) * POINTS_FLIGHT_STAGGER +
-              250,
+            fullCeremony
+              ? LEVEL_CELEBRATION_DELAY +
+                SCORE_FLIGHT_START_DELAY +
+                POINTS_FLIGHT_DURATION +
+                Math.max(0, nextSolved.size - 1) * POINTS_FLIGHT_STAGGER +
+                250
+              : SHORT_CELEBRATION_DELAY + POINTS_FLIGHT_DURATION + 80,
           );
           clearTimer(levelTimer);
           levelTimer.current = setTimeout(() => {
@@ -1955,51 +1993,67 @@ export default function HomeScreen() {
             }
             levelScorePending.current = 0;
             targetScoreAwardsRef.current.clear();
+            setCelebrationFull(fullCeremony);
             setCelebrating(true);
+            if (fullCeremony) {
+              triggerEffect('levelComplete');
+            }
 
-            void launchScoreFlights(scoreAwards.filter((award) => award.value > 0)).then(
-              (scoreFlightDuration) => {
-                const settleDelay = scoreFlightDuration > 0 ? scoreFlightDuration + 140 : 0;
-                const finishCompletion = () => {
-                  if (completedCountry) {
-                    setCountryCompletionLevel(completedPuzzleLevel);
+            const beginScoreFlights = () => {
+              void launchScoreFlights(scoreAwards.filter((award) => award.value > 0)).then(
+                (scoreFlightDuration) => {
+                  const settleDelay = scoreFlightDuration > 0
+                    ? scoreFlightDuration + (fullCeremony ? 140 : 80)
+                    : 0;
+                  const finishCompletion = () => {
+                    if (completedCountry) {
+                      setCountryCompletionLevel(completedPuzzleLevel);
+                      return;
+                    }
+
+                    startLevel(
+                      completedPuzzleLevel + 1,
+                      levelData.targets.map((target) => target.value),
+                    );
+                  };
+
+                  if (completedLocation) {
+                    levelTimer.current = setTimeout(() => {
+                      setDestinationTransition({
+                        completedEmoji: levelData.emoji,
+                        completedName: levelData.city,
+                        countryChallenge: nextDestination.countryChallenge,
+                        nextEmoji: nextDestination.countryChallenge
+                          ? levelData.flag
+                          : nextDestination.location.emoji,
+                        nextName: nextDestination.countryChallenge
+                          ? completedCountryName
+                          : nextDestination.location.name,
+                      });
+                      levelTimer.current = setTimeout(
+                        finishCompletion,
+                        nextDestination.countryChallenge
+                          ? CHALLENGE_CARD_DURATION
+                          : DESTINATION_CARD_DURATION,
+                      );
+                    }, settleDelay);
                     return;
                   }
 
-                  startLevel(
-                    completedPuzzleLevel + 1,
-                    levelData.targets.map((target) => target.value),
+                  levelTimer.current = setTimeout(
+                    finishCompletion,
+                    fullCeremony ? Math.max(1000, settleDelay) : Math.max(280, settleDelay),
                   );
-                };
+                },
+              );
+            };
 
-                if (completedLocation) {
-                  levelTimer.current = setTimeout(() => {
-                    setDestinationTransition({
-                      completedEmoji: levelData.emoji,
-                      completedName: levelData.city,
-                      countryChallenge: nextDestination.countryChallenge,
-                      nextEmoji: nextDestination.countryChallenge
-                        ? levelData.flag
-                        : nextDestination.location.emoji,
-                      nextName: nextDestination.countryChallenge
-                        ? completedCountryName
-                        : nextDestination.location.name,
-                    });
-                    levelTimer.current = setTimeout(
-                      finishCompletion,
-                      nextDestination.countryChallenge ? 2300 : 1600,
-                    );
-                  }, settleDelay);
-                  return;
-                }
-
-                levelTimer.current = setTimeout(
-                  finishCompletion,
-                  Math.max(1000, settleDelay),
-                );
-              },
-            );
-          }, LEVEL_CELEBRATION_DELAY);
+            if (fullCeremony) {
+              levelTimer.current = setTimeout(beginScoreFlights, SCORE_FLIGHT_START_DELAY);
+              return;
+            }
+            beginScoreFlights();
+          }, fullCeremony ? LEVEL_CELEBRATION_DELAY : SHORT_CELEBRATION_DELAY);
         } else {
           showTimedFeedback(
             {
@@ -2181,52 +2235,68 @@ export default function HomeScreen() {
     triggerEffect('select1');
   }, [navigateToScreen, triggerEffect]);
 
+  const settleCountryCompletion = useCallback(
+    (nextScreen: Extract<AppScreen, 'game' | 'travel'>) => {
+      if (countryCompletionLevel === null) return;
+
+      const completion = getTravelLevelCompletion(countryCompletionLevel);
+      const previousTargetValues =
+        levelData.level === countryCompletionLevel
+          ? levelData.targets.map((target) => target.value)
+          : [];
+      const unlockedRouteId = completion.nextDestination.route.id;
+      const earnedRouteReward =
+        !completion.worldTourCompleted &&
+        unlockedRouteId !== levelData.routeId &&
+        !rewardedRouteIds.has(unlockedRouteId);
+
+      if (earnedRouteReward) {
+        setGemCount((count) => count + ROUTE_GEM_REWARD);
+        setRewardedRouteIds((current) => new Set(current).add(unlockedRouteId));
+        triggerEffect('diamond');
+        setRouteRewardToast(t('feedback.routeGemToast', { count: ROUTE_GEM_REWARD }));
+        setTimeout(() => setRouteRewardToast(null), 2200);
+      }
+
+      startLevel(completion.nextDestination.globalLevel, previousTargetValues);
+      navigateToScreen(nextScreen);
+      showTimedFeedback(
+        {
+          text: completion.worldTourCompleted
+            ? t('feedback.masterStarted')
+            : t('feedback.countryUnlocked', {
+                flag: completion.nextDestination.country.flag,
+                country: localizeCountry(completion.nextDestination.country),
+                destination: completion.nextDestination.location.name,
+                reward: earnedRouteReward
+                  ? t('feedback.routeGemReward', { count: ROUTE_GEM_REWARD })
+                  : '',
+              }),
+          tone: 'success',
+        },
+        1800,
+      );
+    },
+    [
+      countryCompletionLevel,
+      levelData,
+      navigateToScreen,
+      rewardedRouteIds,
+      showTimedFeedback,
+      startLevel,
+      t,
+      triggerEffect,
+    ],
+  );
+
   const continueAfterCountryCompletion = useCallback(() => {
+    settleCountryCompletion('game');
+  }, [settleCountryCompletion]);
+
+  const viewMapAfterCountryCompletion = useCallback(() => {
     if (countryCompletionLevel === null) return;
-
-    const completion = getTravelLevelCompletion(countryCompletionLevel);
-    const previousTargetValues =
-      levelData.level === countryCompletionLevel
-        ? levelData.targets.map((target) => target.value)
-        : [];
-    const unlockedRouteId = completion.nextDestination.route.id;
-    const earnedRouteReward =
-      !completion.worldTourCompleted &&
-      unlockedRouteId !== levelData.routeId &&
-      !rewardedRouteIds.has(unlockedRouteId);
-
-    if (earnedRouteReward) {
-      setGemCount((count) => count + ROUTE_GEM_REWARD);
-      setRewardedRouteIds((current) => new Set(current).add(unlockedRouteId));
-    }
-
-    startLevel(completion.nextDestination.globalLevel, previousTargetValues);
-    navigateToScreen('game');
-    showTimedFeedback(
-      {
-        text: completion.worldTourCompleted
-          ? t('feedback.masterStarted')
-          : t('feedback.countryUnlocked', {
-              flag: completion.nextDestination.country.flag,
-              country: localizeCountry(completion.nextDestination.country),
-              destination: completion.nextDestination.location.name,
-              reward: earnedRouteReward
-                ? t('feedback.routeGemReward', { count: ROUTE_GEM_REWARD })
-                : '',
-            }),
-        tone: 'success',
-      },
-      1800,
-    );
-  }, [
-    countryCompletionLevel,
-    levelData,
-    navigateToScreen,
-    rewardedRouteIds,
-    showTimedFeedback,
-    startLevel,
-    t,
-  ]);
+    navigateTravel();
+  }, [countryCompletionLevel, navigateTravel]);
 
   const handleTutorialEffect = useCallback((sound: GameSound) => {
     // Eğitim shuffle'ı yalnız görsel + ses ile anlatılır; modal içindeki
@@ -2238,6 +2308,22 @@ export default function HomeScreen() {
     setTutorialVisible(false);
     void AsyncStorage.setItem(TUTORIAL_STORAGE_KEY, 'done');
   }, []);
+
+  const refreshDailySummary = useCallback(async () => {
+    const dateKey = getLocalDateKey();
+    const challenge = getDailyChallenge(dateKey);
+    const progress = await loadDailyChallengeProgress(dateKey);
+    setDailySummary({
+      claimed: progress.claimed,
+      completed: isDailyChallengeComplete(progress, challenge),
+      streak: progress.streak,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void refreshDailySummary();
+  }, [activeScreen, hydrated, refreshDailySummary]);
 
   if (!hydrated || !contentBootstrap.ready || !splashDismissed) {
     return <StartupSplash
@@ -2262,8 +2348,10 @@ export default function HomeScreen() {
       />
       <CountryCompletionModal
         blurTarget={blurTarget}
-        completedLevel={countryCompletionLevel}
+        completedLevel={activeScreen === 'game' ? countryCompletionLevel : null}
+        onClose={navigateHome}
         onContinue={continueAfterCountryCompletion}
+        onViewMap={viewMapAfterCountryCompletion}
       />
       <FreshGameTutorialModal
         visible={tutorialVisible && activeScreen === 'game'}
@@ -2290,14 +2378,40 @@ export default function HomeScreen() {
               <PersistentMainMenu
                 active={activeScreen === 'home'}
                 currentLevel={displayedProgressLevel}
+                dailySummary={dailySummary}
                 gemCount={gemCount}
                 levelData={contentLevelData}
                 onOpenCollection={navigateCollection}
+                onOpenDaily={navigateDaily}
                 onOpenProfile={navigateProfile}
                 onOpenSettings={openSettings}
                 onOpenTravel={navigateTravel}
                 onPlay={openGame}
                 score={score}
+              />
+            </View>
+          ) : null}
+
+          {activeScreen === 'daily' || mountedShellScreens.has('daily') ? (
+            <View
+              accessibilityElementsHidden={activeScreen !== 'daily'}
+              importantForAccessibility={activeScreen === 'daily' ? 'auto' : 'no-hide-descendants'}
+              pointerEvents={activeScreen === 'daily' ? 'auto' : 'none'}
+              style={[styles.screen, activeScreen !== 'daily' && styles.hiddenScreen]}>
+              <PersistentDailyChallenge
+                active={activeScreen === 'daily'}
+                gemCount={gemCount}
+                onBack={navigateHome}
+                onEffect={(sound) => {
+                  void triggerEffect(sound);
+                }}
+                onReward={(gems) => {
+                  setGemCount((count) => count + gems);
+                  void refreshDailySummary();
+                }}
+                onSpendGems={(cost) => {
+                  setGemCount((count) => Math.max(0, count - cost));
+                }}
               />
             </View>
           ) : null}
@@ -2315,6 +2429,7 @@ export default function HomeScreen() {
                 levelData={contentLevelData}
                 onHome={navigateHome}
                 onMap={navigateTravel}
+                onOpenDaily={navigateDaily}
                 onOpenPassport={navigateCollection}
                 performanceHistory={performanceHistory}
                 learningScore={learningScore}
@@ -2347,7 +2462,7 @@ export default function HomeScreen() {
               style={[styles.screen, activeScreen !== 'travel' && styles.hiddenScreen]}>
               <PersistentJourneyMap
                 active={activeScreen === 'travel'}
-                level={level}
+                level={displayedProgressLevel}
                 levelData={contentLevelData}
                 onBack={navigateHome}
                 onContinue={openGame}
@@ -2554,7 +2669,12 @@ export default function HomeScreen() {
             />
           ))}
         </View>
-        <Celebration visible={celebrating} />
+        <Celebration compact={!celebrationFull} visible={celebrating} />
+        {routeRewardToast ? (
+          <View pointerEvents="none" style={styles.routeRewardToast}>
+            <Text style={styles.routeRewardToastText}>{routeRewardToast}</Text>
+          </View>
+        ) : null}
         <DestinationTransition transition={destinationTransition} />
         </BlurTargetView>
         ) : null}
@@ -3659,5 +3779,25 @@ const styles = StyleSheet.create({
     left: 0,
     zIndex: 60,
     overflow: 'hidden',
+  },
+  routeRewardToast: {
+    position: 'absolute',
+    alignSelf: 'center',
+    bottom: 118,
+    zIndex: 70,
+    maxWidth: '86%',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#F4D37B',
+    backgroundColor: 'rgba(36,55,68,0.92)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  routeRewardToastText: {
+    color: '#FFF6D6',
+    fontFamily: FONTS.extraBold,
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
   },
 });

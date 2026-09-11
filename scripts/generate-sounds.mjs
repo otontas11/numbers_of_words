@@ -214,8 +214,12 @@ const success = renderSuccess();
 ].forEach(([filename, frequency]) => {
   writePcmWave(filename, renderSelectionTone(frequency));
 });
-writePcmWave('hint.wav', renderPop(620));
-writePcmWave('shuffle.wav', renderPop(360));
+const hint = renderPop(620);
+const shuffle = renderPop(360);
+writePcmWave('hint.wav', hint);
+writePcmWave('pop_hint.wav', hint);
+writePcmWave('shuffle.wav', shuffle);
+writePcmWave('pop_shuffle.wav', shuffle);
 writePcmWave('success.wav', success);
 writePcmWave('points.wav', renderScoreTick());
 writePcmWave('diamond.wav', renderBonusReward());

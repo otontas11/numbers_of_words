@@ -1,6 +1,8 @@
 export const ACTIVITY_IDLE_TIMEOUT_MS = 15_000;
 export const PERFORMANCE_HISTORY_LIMIT = 5;
 export const INITIAL_LEARNING_SCORE = 50;
+export const ADAPTIVE_DIFFICULTY_UNLOCK_COUNTRY_INDEX = 5;
+export const CONSECUTIVE_STRUGGLE_RELIEF_THRESHOLD = 2;
 
 export type DifficultyModifier = -1 | 0 | 1;
 
@@ -70,6 +72,25 @@ export function scorePuzzlePerformance(performance: PuzzlePerformance): number {
 export function updateLearningScore(current: number, performance: PuzzlePerformance): number {
   const next = current * 0.75 + scorePuzzlePerformance(performance) * 0.25;
   return Math.max(1, Math.min(100, Math.round(next)));
+}
+
+export function isAdaptiveDifficultyEnabled(countryIndex: number) {
+  return countryIndex >= ADAPTIVE_DIFFICULTY_UNLOCK_COUNTRY_INDEX;
+}
+
+/** Drops number-pool difficulty by at most one step after two straight struggles. */
+export function applyConsecutiveStruggleRelief(
+  modifier: DifficultyModifier,
+  consecutiveStruggles: number,
+): { consecutiveStruggles: number; modifier: DifficultyModifier } {
+  if (consecutiveStruggles < CONSECUTIVE_STRUGGLE_RELIEF_THRESHOLD) {
+    return { consecutiveStruggles, modifier };
+  }
+
+  return {
+    consecutiveStruggles: 0,
+    modifier: Math.max(-1, modifier - 1) as DifficultyModifier,
+  };
 }
 
 export function difficultyModifierFromLearningScore(score: number): DifficultyModifier {

@@ -2,15 +2,15 @@
 
 Bu belge oyun motorunun oyuncu performansına göre nasıl ayarlandığını açıklar. Sistem oyuncuyu bir anda farklı bir işleme veya farklı bir adım sayısına taşımaz; işlem serisi ve şehir akışı korunur.
 
-## 1. İpucu bakiyesi
+## 1. İpucu ve mücevher ekonomisi
 
-1. Yeni oyuncu `3` ipucu kredisiyle başlar.
-2. İpucu düğmesine basıldığında ve çözüm bulunabildiğinde `1` kredi harcanır.
-3. Bakiye `0` ise ipucu kullanılmaz; oyun yalnızca `İpucu kredin bitti` mesajını gösterir.
-4. Ödüllü reklam başarıyla tamamlandığında `+3` ipucu verilir.
-5. Yeni bir rota ilk kez açıldığında `+3` ipucu verilir.
-6. Aynı rota için bu ödül ikinci kez verilmez; açılan rota kimlikleri kalıcı kayıtta tutulur.
-7. Reklam sağlayıcısı bağlanmadan uygulama kendiliğinden reklam ödülü vermez. Reklam SDK'sının başarı callback'i, ileride `setHintCredits(current => current + 3)` ile bu akışa bağlanmalıdır.
+Ayrı bir ipucu kredisi bakiyesi yoktur. İpucu yalnız ana mücevher bakiyesinden ödenir.
+
+1. Yeni oyuncu `30` mücevherle başlar.
+2. İpucu düğmesine basıldığında ve çözüm bulunabildiğinde `10` mücevher harcanır.
+3. Bakiye `10` mücevherin altındaysa ipucu kullanılmaz; oyun `feedback.noHints` ile mücevher dilinde uyarı gösterir.
+4. Yeni bir rota ilk kez açıldığında `+10` mücevher verilir (`ROUTE_GEM_REWARD`). Aynı rota için bu ödül ikinci kez verilmez; açılan rota kimlikleri kalıcı kayıtta tutulur.
+5. Sahte ödüllü reklam yoktur. AdMob native build’de varsa banner içindir; rewarded callback hazır değildir. Gerçek rewarded ileride bağlanırsa ipucu kredisi değil `+30` mücevher (3 ipucu değeri) verilebilir. Reklam yüklenememesi, iptal veya arka plan ödül üretmez.
 
 ## 2. Aktif oyun süresi
 
@@ -53,13 +53,14 @@ Sınıflandırma:
 4. Toplam en az `+3` ise sonraki şehir için zorluk `+1` olur.
 5. Toplam en fazla `-2` ise sonraki şehir için zorluk `-1` olur.
 6. Diğer durumda zorluk değişmez.
-7. İlk beş öğretici ülkede adaptif değişiklik kapalıdır.
-8. Zorluk yalnız yeni şehir başlarken uygulanır; aynı şehirdeki 7 puzzle'ın işlemi ve temel adım kuralı değişmez.
+7. İlk beş öğretici ülkede adaptif değişiklik kapalıdır (`countryIndex < 5`).
+8. Öğrenme skorundan gelen `−1/0/+1` sayı zorluğu yeni şehir başında uygulanır. Aynı şehirde işlem türü ve temel adım kuralı değişmez.
+9. Aynı şehir içinde (Country Challenge hariç) art arda iki `Zorlandı` sonucu oluşursa **sonraki puzzle** üretiminde zorluk en fazla `1` kademe düşer; sayaç sıfırlanır. Challenge bu rahatlamayı almaz.
 
 ## 5. Başarısız zor şehir için güvenli geri dönüş
 
 1. Zorluk yükseltilmiş bir şehirde tek kötü puzzle hemen düşüş oluşturmaz.
-2. Arka arkaya iki `Zorlandı` sonucu oluşursa bir sonraki şehir/puzzle üretiminde zorluk en fazla `1` kademe azaltılır.
+2. Arka arkaya iki `Zorlandı` sonucu oluşursa, aynı şehirde (Challenge değilse) bir sonraki puzzle üretiminde zorluk en fazla `1` kademe azaltılır. Yeni şehir başı ayrı olarak öğrenme skorunu kullanır.
 3. Zorluk hiçbir zaman tek kararda birden fazla kademe değişmez.
 4. İşlem türü, şehir serisi, ülke ilerlemesi ve kazanılmış ödüller geri alınmaz.
 
@@ -82,21 +83,24 @@ Oyuncu düzeltmesi yalnız sayı havuzunu ve hedef üretim zorluğunu etkiler. �
 
 Şu bilgiler cihazda saklanır:
 
-- ipucu kredisi
+- mücevher bakiyesi
 - ödülü alınmış rota kimlikleri
 - son performans kayıtları
 - şehir zorluk düzeltmesi ve şehir kimliği
 - art arda zorlanma sayısı
+- öğrenme skoru
 
-Eski kayıtlar varsayılan olarak `3` ipucuyla ve nötr zorluk düzeltmesiyle açılır. Yeni kayıt biçimi eski ilerlemeyi koruyacak şekilde sürümlendirilmiştir.
+Eski kayıtlar varsayılan olarak `30` mücevher ve nötr zorluk düzeltmesiyle açılır. Yeni kayıt biçimi eski ilerlemeyi koruyacak şekilde sürümlendirilmiştir. Ayrı ipucu kredisi alanı yoktur.
 
 ## 8. Reklam entegrasyonu için sınır
 
-Projede henüz bir reklam SDK'sı bulunmadığı için reklam gösterimi bu kod tarafından taklit edilmez. Gerçek entegrasyon şu sözleşmeyi uygulamalıdır:
+AdMob native build’de banner için bağlanabilir; Expo Go’da güvenli biçimde kapalıdır. Ödüllü reklam callback’i hazır değildir ve uygulama kendiliğinden reklam ödülü taklit etmez.
+
+İleride gerçek rewarded bağlanırsa sözleşme mücevher ekonomisine aittir:
 
 ```ts
 onRewardedAdCompleted(() => {
-  setHintCredits((credits) => credits + 3);
+  setGemCount((count) => count + 30); // 3 ipucu değeri
 });
 ```
 

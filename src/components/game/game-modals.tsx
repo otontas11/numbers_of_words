@@ -200,11 +200,15 @@ export function PassportModal({
 export function CountryCompletionModal({
   completedLevel,
   blurTarget,
+  onClose,
   onContinue,
+  onViewMap,
 }: {
   completedLevel: number | null;
   blurTarget: RefObject<View | null>;
+  onClose: () => void;
   onContinue: () => void;
+  onViewMap: () => void;
 }) {
   const { language, t } = useI18n();
   if (completedLevel === null) return null;
@@ -223,7 +227,8 @@ export function CountryCompletionModal({
       appearance="journey"
       blurTarget={blurTarget}
       footer={
-        <Pressable
+        <View style={styles.countryFooterActions}>
+          <Pressable
           accessibilityLabel={
             worldTourCompleted
               ? t('modal.masterTour')
@@ -251,9 +256,17 @@ export function CountryCompletionModal({
             </View>
           </LinearGradient>
         </Pressable>
+          <Pressable
+            accessibilityLabel={t('modal.viewMapA11y')}
+            accessibilityRole="button"
+            onPress={onViewMap}
+            style={({ pressed }) => [styles.countryMapButton, pressed && styles.pressed]}>
+            <Text style={styles.countryMapButtonText}>{t('modal.viewMap')}</Text>
+          </Pressable>
+        </View>
       }
       icon={worldTourCompleted ? '🌍' : country.flag}
-      onClose={onContinue}
+      onClose={onClose}
       subtitle={
         worldTourCompleted
           ? t('modal.worldDiscovered', { count: TOTAL_COUNTRIES })
@@ -586,6 +599,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.34,
     shadowRadius: 9,
     elevation: 8,
+  },
+  countryFooterActions: {
+    alignSelf: 'stretch',
+    gap: 8,
+  },
+  countryMapButton: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#C9A15A',
+    backgroundColor: 'rgba(255,252,244,0.92)',
+  },
+  countryMapButtonText: {
+    color: '#2F5360',
+    fontFamily: FONTS.extraBold,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   countryContinueSurface: {
     minHeight: 56,
