@@ -76,7 +76,7 @@ Mevcut sayı matrisi, çözülmüş hedefler, toplam puan, mücevher bakiyesi, s
 
 Oyun tahtası da eğitim modalındaki RN responder çizim akışını kullanır: dokunma düğüm üzerinde başlar, her hareket segmenti düğümler boyunca taranır, geri yönde geçiş son düğümü çıkarır ve release anındaki son segment de doğrulanır. Android’de bu akışın önüne RNGH manual handler geçirilmez; böylece çizgi ve düğüm sesi aynı dokunma olayında kararlı kalır.
 
-Gerçek oyun tahtasının merkezindeki işlem düğmesi (`+`, `−`, `×`, `÷`) yalnızca yönlendirme amacı taşır. İlk ülkede ilk üç şehir girişinde birer kez gösterilir ve oyuncu ilk sayı düğmesine dokunduğunda kapanır. Sonraki ülkelerde her işlem türü için en fazla iki gösterim yapılır. Gösterim sayaçları `@numbers-of-wonders/operation-guide-v1` anahtarıyla cihazda saklanır; reklam, ekran geçişi veya yeniden açılış bu sayaçları sıfırlamaz.
+Gerçek oyun tahtasının merkezindeki işlem düğmesi (`+`, `−`, `×`, `÷`) yalnızca yönlendirme amacı taşır. Eğitim bittikten sonra her destinasyon/şehir değişiminde ve Country Challenge girişinde bir kez gösterilir; oyuncu ilk sayı düğmesine dokunduğunda kapanır. Aynı şehirdeki sonraki puzzle’larda tekrarlanmaz. Gösterilen şehir id’leri `@numbers-of-wonders/operation-guide-v1` anahtarıyla cihazda saklanır; reklam, ekran geçişi veya yeniden açılış bu listeyi sıfırlamaz.
 
 ## Android ses ve dokunma çözümü
 

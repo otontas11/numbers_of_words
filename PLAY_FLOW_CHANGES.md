@@ -61,7 +61,7 @@ Android SoundPool değişikliği native rebuild ister.
 
 - Eğitim kapanışı: `levelComplete` + konfeti (modal içinde).
 - Modal kapanınca gerçek puzzle ikinci konfeti / kapanış sesi çalmaz.
-- İşlem yönlendirmesi (`operation guide`) eğitim kapanana kadar bekler, sonra ilk gerçek puzzle’da görünür.
+- İşlem yönlendirmesi (`operation guide`) eğitim kapanana kadar bekler. Sonra her destinasyon/şehir değişiminde (`locationLevel === 1`) ve Country Challenge girişinde çarkın ortasında bir kez görünür; oyuncu ilk sayıya dokununca kapanır. Aynı şehirdeki 7 puzzle’da tekrarlanmaz. İşlem türü başına en fazla 2 gösterim kuralı yoktur. Storage `shownLocationIds` (`locationId`, Challenge ayrı id) listesidir; reklam/ekran değişimi sıfırlamaz.
 
 ## B. Oynanabilirlik ve ekonomi
 
@@ -96,6 +96,15 @@ Sahte ödüllü reklam **yok**. AdMob native build’de banner’dır; rewarded 
 | --- | --- | --- | --- | --- |
 | Ara puzzle | kompakt (`56` flake) | hayır | hemen | `max(280 ms, settle)` — 1 sn tabanı yok |
 | Destinasyon / Challenge girişi / ülke | tam (`180` flake) | evet, konfetiyle | `320 ms` sonra | destinasyon kartı veya `max(1000 ms, settle)` |
+
+Ana tur puzzle geçişinde çark doğumu **görünür** olmalıdır (`NumberWheel` `key` yalnız `wheelSize`, GameScreen unmount olmaz):
+
+1. Son hedef uçuşu + kısa kutlama.
+2. Konfeti / destinasyon kartı kapanır; çark görünürken **outro `220 ms`** (sayılar merkeze, kaybolmadan). Kartın veya konfetinin arkasında sessiz token yoktur.
+3. `startLevel` + **intro `460 ms`** yörüngeye.
+4. Sonra çizim serbest.
+
+Ülke modalı: outro modal altında park edebilir; modal kapanıp `gameplayVisible` olunca intro `460 ms` oynar (overlay açıkken 0 ms yörünge snap intro’yu tüketmez). İlk Play / kayıtlı devamda intro zorunlu değildir. Karıştırma bozulmaz.
 
 ### C2. Kart süreleri
 

@@ -65,6 +65,8 @@ type NumberWheelProps = {
   onDraggingChange: (dragging: boolean) => void;
   introToken?: string | number;
   outroToken?: number;
+  /** When false, intro is parked at center and played at full duration once visible. */
+  motionEnabled?: boolean;
 };
 
 export type WheelSelectionOutcome = 'success' | 'bonus' | 'invalid';
@@ -332,6 +334,7 @@ export const NumberWheel = memo(function NumberWheel({
   onDraggingChange,
   introToken,
   outroToken,
+  motionEnabled = true,
 }: NumberWheelProps) {
   const { t } = useI18n();
   const [slotOrder, setSlotOrder] = useState(() =>
@@ -349,7 +352,10 @@ export const NumberWheel = memo(function NumberWheel({
   const rotationTurnsRef = useRef(0);
   const orbitMotionLockRef = useRef(false);
   const lastOutroTokenRef = useRef(outroToken);
+  const motionEnabledRef = useRef(motionEnabled);
+  const pendingIntroRef = useRef(false);
   const numbersRef = useRef(numbers);
+  motionEnabledRef.current = motionEnabled;
   const departingNodesRef = useRef<DepartingWheelNode[] | null>(null);
   const ghostAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
   const [departingNodes, setDepartingNodes] = useState<DepartingWheelNode[] | null>(null);
@@ -489,8 +495,6 @@ export const NumberWheel = memo(function NumberWheel({
     setSlotOrder(identity);
     lockOrbitMotion(true);
 
-    const staggerStep = count > 1 ? NODE_INTRO_STAGGER_MAX / (count - 1) : 0;
-    const run = shuffleRunRef.current;
     const departing = departingNodesRef.current;
     const startScale = departing && departing.length > 0 ? NODE_OUTRO_SCALE : NODE_INTRO_SCALE;
     for (let index = 0; index < count; index += 1) {
@@ -498,6 +502,16 @@ export const NumberWheel = memo(function NumberWheel({
       nodeScales[index].setValue(startScale);
       nodeOpacities[index].setValue(NODE_OUTRO_OPACITY);
     }
+
+    // Overlay açıkken 0 ms yörünge snap intro'yu tüketir. Merkezde bekle, görününce 460 ms oyna.
+    if (!motionEnabledRef.current) {
+      pendingIntroRef.current = true;
+      return;
+    }
+    pendingIntroRef.current = false;
+
+    const staggerStep = count > 1 ? NODE_INTRO_STAGGER_MAX / (count - 1) : 0;
+    const run = shuffleRunRef.current;
 
     if (departing && departing.length > 0) {
       ghostOpacity.setValue(NODE_OUTRO_OPACITY);
@@ -586,6 +600,16 @@ export const NumberWheel = memo(function NumberWheel({
     setDepartingNodes(departing);
     ghostOpacity.setValue(NODE_OUTRO_OPACITY);
 
+    if (!motionEnabledRef.current) {
+      for (let index = 0; index < count; index += 1) {
+        const rest = departing[index];
+        animatedPositions[index].setValue({ x: rest.x, y: rest.y });
+        nodeScales[index].setValue(NODE_OUTRO_SCALE);
+        nodeOpacities[index].setValue(NODE_OUTRO_OPACITY);
+      }
+      return;
+    }
+
     const animation = RNAnimated.parallel(
       Array.from({ length: count }, (_, index) => {
         const rest = departing[index];
@@ -651,6 +675,11 @@ export const NumberWheel = memo(function NumberWheel({
     // introToken is the only retrigger; playNodeIntro reads layout via refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [introToken]);
+
+  useEffect(() => {
+    if (!motionEnabled || !pendingIntroRef.current) return;
+    playNodeIntro();
+  }, [motionEnabled, playNodeIntro]);
 
   useEffect(() => {
     if (outroToken == null || lastOutroTokenRef.current === outroToken) return;

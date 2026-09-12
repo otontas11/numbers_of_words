@@ -26,7 +26,11 @@ import { PassportCollection } from '@/components/collection/passport-collection'
 import { AdMobBanner, AD_BANNER_SLOT_HEIGHT } from '@/components/ads/admob-banner';
 import { BackIcon, FootprintIcon, GemIcon, SettingsIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
-import { NumberWheel, type WheelSelectionOutcome } from '@/components/game/number-wheel';
+import {
+  NumberWheel,
+  NODE_OUTRO_DURATION,
+  type WheelSelectionOutcome,
+} from '@/components/game/number-wheel';
 import {
   BONUS_GEM_LAUNCH_DELAY,
   BONUS_TARGET_INDEX,
@@ -131,27 +135,47 @@ const TUTORIAL_STORAGE_KEY = '@numbers-of-wonders/tutorial-completed';
 const OPERATION_GUIDE_STORAGE_KEY = '@numbers-of-wonders/operation-guide-v1';
 
 type OperationGuideState = {
-  firstCountryLocations: string[];
-  operationCounts: Partial<Record<keyof typeof OPERATION_DETAILS, number>>;
+  shownLocationIds: string[];
 };
 
 const EMPTY_OPERATION_GUIDE_STATE: OperationGuideState = {
-  firstCountryLocations: [],
-  operationCounts: {},
+  shownLocationIds: [],
 };
 
-function shouldShowOperationGuide(levelData: LevelData, state: OperationGuideState) {
-  if (levelData.countryChallenge || levelData.locationLevel !== 1) return false;
+function operationGuideLocationKey(levelData: Pick<LevelData, 'locationId'>) {
+  return levelData.locationId;
+}
 
-  // The first country introduces the mechanic once per city for its first
-  // three cities (Istanbul, then the next two destinations).
-  if (levelData.countryIndex === 0 && levelData.locationIndex < 3) {
-    return !state.firstCountryLocations.includes(levelData.locationId);
+function parseOperationGuideState(value: string): OperationGuideState {
+  try {
+    const parsed = JSON.parse(value) as Partial<OperationGuideState> & {
+      firstCountryLocations?: unknown;
+    };
+    const fromNew = Array.isArray(parsed.shownLocationIds)
+      ? parsed.shownLocationIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    const fromLegacy = Array.isArray(parsed.firstCountryLocations)
+      ? parsed.firstCountryLocations.filter((id): id is string => typeof id === 'string')
+      : [];
+    return { shownLocationIds: [...new Set([...fromNew, ...fromLegacy])] };
+  } catch {
+    return { shownLocationIds: [] };
   }
+}
 
-  // Later countries get two introductions per operation globally. This keeps
-  // the cue useful when a new operation appears without repeating forever.
-  return (state.operationCounts[levelData.op] ?? 0) < 2;
+function shouldShowOperationGuide(levelData: LevelData, state: OperationGuideState) {
+  // Her destinasyon/şehir (ve Challenge) girişinin ilk puzzle'ında bir kez.
+  if (levelData.locationLevel !== 1) return false;
+  return !state.shownLocationIds.includes(operationGuideLocationKey(levelData));
+}
+
+function rememberShownOperationGuide(
+  levelData: LevelData,
+  state: OperationGuideState,
+): OperationGuideState {
+  const key = operationGuideLocationKey(levelData);
+  if (state.shownLocationIds.includes(key)) return state;
+  return { shownLocationIds: [...state.shownLocationIds, key] };
 }
 
 type DestinationTransitionState = {
@@ -1039,6 +1063,8 @@ export default function HomeScreen() {
   const [destinationTransition, setDestinationTransition] =
     useState<DestinationTransitionState | null>(null);
   const [countryCompletionLevel, setCountryCompletionLevel] = useState<number | null>(null);
+  const [wheelOutroToken, setWheelOutroToken] = useState(0);
+  const [wheelIntroToken, setWheelIntroToken] = useState<number | undefined>();
   const [resultFlights, setResultFlights] = useState<ResultFlight[]>([]);
   const [flyingTargets, setFlyingTargets] = useState<Set<number>>(() => new Set());
   const [bonusFlying, setBonusFlying] = useState(false);
@@ -1094,7 +1120,6 @@ export default function HomeScreen() {
   const hintTimer = useRef<Timer | null>(null);
   const hintActiveRef = useRef(false);
   const operationGuideStateRef = useRef<OperationGuideState>(EMPTY_OPERATION_GUIDE_STATE);
-  const operationGuideLevelKeyRef = useRef<string | null>(null);
   const bonusGemTimer = useRef<Timer | null>(null);
   const landingTimer = useRef<Timer | null>(null);
   const levelTimer = useRef<Timer | null>(null);
@@ -1267,20 +1292,7 @@ export default function HomeScreen() {
       setHydrated(true);
       if (tutorialValue !== 'done') setTutorialVisible(true);
       if (operationGuideValue) {
-        try {
-          const parsed = JSON.parse(operationGuideValue) as Partial<OperationGuideState>;
-          operationGuideStateRef.current = {
-            firstCountryLocations: Array.isArray(parsed.firstCountryLocations)
-              ? parsed.firstCountryLocations.filter((value): value is string => typeof value === 'string')
-              : [],
-            operationCounts:
-              parsed.operationCounts && typeof parsed.operationCounts === 'object'
-                ? parsed.operationCounts
-                : {},
-          };
-        } catch {
-          operationGuideStateRef.current = { ...EMPTY_OPERATION_GUIDE_STATE };
-        }
+        operationGuideStateRef.current = parseOperationGuideState(operationGuideValue);
       }
     });
 
@@ -1333,21 +1345,24 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (activeScreen !== 'game' || tutorialVisible) {
-      operationGuideLevelKeyRef.current = null;
+    if (tutorialVisible) {
+      setOperationGuideVisible(false);
       return;
     }
-    const levelKey = `${levelData.locationId}:${levelData.locationLevel}:${levelData.op}`;
-    if (operationGuideLevelKeyRef.current === levelKey) return;
-    operationGuideLevelKeyRef.current = levelKey;
-
-    if (shouldShowOperationGuide(levelData, operationGuideStateRef.current)) {
-      setOperationGuideSymbol(OPERATION_DETAILS[levelData.op].symbol);
-      setOperationGuideVisible(true);
-    } else {
+    if (activeScreen !== 'game') return;
+    if (levelData.locationLevel !== 1) {
       setOperationGuideVisible(false);
-      setOperationGuideSymbol(undefined);
+      return;
     }
+    if (!shouldShowOperationGuide(levelData, operationGuideStateRef.current)) return;
+
+    const next = rememberShownOperationGuide(levelData, operationGuideStateRef.current);
+    operationGuideStateRef.current = next;
+    setOperationGuideSymbol(OPERATION_DETAILS[levelData.op].symbol);
+    setOperationGuideVisible(true);
+    void AsyncStorage.setItem(OPERATION_GUIDE_STORAGE_KEY, JSON.stringify(next)).catch(
+      () => undefined,
+    );
   }, [activeScreen, hydrated, levelData, tutorialVisible]);
 
   useEffect(
@@ -1668,6 +1683,7 @@ export default function HomeScreen() {
     );
     setLevel(nextLevel);
     setLevelData(nextLevelData);
+    setWheelIntroToken(nextLevel);
     levelScorePending.current = 0;
     targetScoreAwardsRef.current.clear();
     setSelectionCount(0);
@@ -1686,6 +1702,24 @@ export default function HomeScreen() {
     setCountryCompletionLevel(null);
     resetPuzzleActivity();
   }, [resetPuzzleActivity]);
+
+  const startLevelAfterWheelOutro = useCallback(
+    (nextLevel: number, previousTargetValues: readonly number[]) => {
+      // Konfeti ve destinasyon kartı çarkı örter. Token'ı kartın/kutlamanın
+      // arkasında sessizce tüketme: overlay kapanır, sonra 220 ms outro görünür,
+      // ardından startLevel intro'yu (460 ms) çark açıkken başlatır.
+      // Ülke modalı burada kapanmaz; outro modal altında park edebilir, intro
+      // modal kapanıp oyun görününce oynar.
+      setCelebrating(false);
+      setDestinationTransition(null);
+      setWheelOutroToken((token) => token + 1);
+      clearTimer(levelTimer);
+      levelTimer.current = setTimeout(() => {
+        startLevel(nextLevel, previousTargetValues);
+      }, NODE_OUTRO_DURATION);
+    },
+    [startLevel],
+  );
 
   const handlePreview = useCallback(
     (indices: number[]) => {
@@ -1838,7 +1872,7 @@ export default function HomeScreen() {
                       return;
                     }
 
-                    startLevel(
+                    startLevelAfterWheelOutro(
                       completedPuzzleLevel + 1,
                       levelData.targets.map((target) => target.value),
                     );
@@ -1954,7 +1988,7 @@ export default function HomeScreen() {
       recordCompletedPuzzlePerformance,
       showTimedFeedback,
       solvedTargets,
-      startLevel,
+      startLevelAfterWheelOutro,
       t,
       triggerEffect,
     ],
@@ -1996,26 +2030,8 @@ export default function HomeScreen() {
 
   const dismissOperationGuide = useCallback(() => {
     if (!operationGuideVisible) return;
-    const current = operationGuideStateRef.current;
-    const next: OperationGuideState = {
-      firstCountryLocations: [...current.firstCountryLocations],
-      operationCounts: { ...current.operationCounts },
-    };
-
-    if (levelData.countryIndex === 0 && levelData.locationIndex < 3) {
-      if (!next.firstCountryLocations.includes(levelData.locationId)) {
-        next.firstCountryLocations.push(levelData.locationId);
-      }
-    } else if (levelData.countryIndex > 0) {
-      next.operationCounts[levelData.op] = (next.operationCounts[levelData.op] ?? 0) + 1;
-    }
-
-    operationGuideStateRef.current = next;
     setOperationGuideVisible(false);
-    void AsyncStorage.setItem(OPERATION_GUIDE_STORAGE_KEY, JSON.stringify(next)).catch(
-      () => undefined,
-    );
-  }, [levelData, operationGuideVisible]);
+  }, [operationGuideVisible]);
 
   const handleWheelNodeAdded = useCallback(
     (selectionCount: number) => {
@@ -2085,7 +2101,7 @@ export default function HomeScreen() {
         setTimeout(() => setRouteRewardToast(null), 2200);
       }
 
-      startLevel(completion.nextDestination.globalLevel, previousTargetValues);
+      startLevelAfterWheelOutro(completion.nextDestination.globalLevel, previousTargetValues);
       navigateToScreen(nextScreen);
       showTimedFeedback(
         {
@@ -2110,7 +2126,7 @@ export default function HomeScreen() {
       navigateToScreen,
       rewardedRouteIds,
       showTimedFeedback,
-      startLevel,
+      startLevelAfterWheelOutro,
       t,
       triggerEffect,
     ],
@@ -2469,10 +2485,12 @@ export default function HomeScreen() {
                 collapsable={false}
                 style={styles.wheelContainer}>
                 <NumberWheel
-                  key={`${level}-${wheelSize}`}
+                  key={`tour-${wheelSize}`}
                   canUseHint={gemCount >= HINT_GEM_COST}
                   hintCost={HINT_GEM_COST}
                   hintIndices={hintIndices}
+                  introToken={wheelIntroToken}
+                  motionEnabled={gameplayVisible}
                   numbers={levelData.numbers}
                   operationGuideSymbol={operationGuideVisible ? operationGuideSymbol : undefined}
                   onComplete={handleComplete}
@@ -2482,6 +2500,7 @@ export default function HomeScreen() {
                   onNodeRemoved={handleWheelNodeRemoved}
                   onPreview={handlePreview}
                   onShuffle={handleWheelShuffle}
+                  outroToken={wheelOutroToken}
                   size={wheelSize}
                 />
               </View>
