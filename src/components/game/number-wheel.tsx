@@ -93,6 +93,11 @@ const SELECTION_HOLD_DURATION: Record<WheelSelectionOutcome, number> = {
   bonus: 440,
   invalid: 180,
 };
+// Geçersiz/iptal bırakışta düğüm rengi lastik yayını beklemez: parmak kalkınca
+// ip hâlâ ilk düğüme yaylanırken düğümler varsayılana döner. Tek dokunuşta
+// neredeyse anında, sürüklenmiş zincirde 150ms üst sınır.
+const NODE_RELEASE_TAP_MS = 70;
+const NODE_RELEASE_CHAIN_MS = 150;
 // Lastik dönüşü, m=1 piksel-kütle: F = −k·x − c·v (Hooke + sönüm).
 // ζ=0.86 ≈ kritik; lastik gibi minik overshoot, sonsuz salınım yok.
 // k,c gerilmeye göre: kısa ~180ms (k≈384, c≈34), uzun ~420ms (k≈196, c≈24).
@@ -104,7 +109,8 @@ const RUBBER_MAX_MS = 420;
 const RUBBER_SHORT_PX = 28;
 const RUBBER_LONG_PX = 210;
 const RUBBER_SETTLE_POS = 1.35;
-const RUBBER_UNLOCK_TIMEOUT_MS = 500;
+// Spring callback'i düşerse path'i temizleyen ağ; dokunma kilidi değil.
+const RUBBER_CLEAR_TIMEOUT_MS = 500;
 const CONNECTION_COLORS: Record<
   ConnectionTone,
   { core: string; end: string; glow: string; start: string }
@@ -347,6 +353,10 @@ export const NumberWheel = memo(function NumberWheel({
   const shuffleRunRef = useRef(0);
   const hintAnimationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
   const selectionReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nodeReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Lastik dönüşü kesilebildiği için geç gelen clear callback'lerini JS tarafında
+  // eşlemek gerekir: SharedValue token'ı UI'dan JS'e gecikmeli ulaşıyor.
+  const rubberRunRef = useRef(0);
   const rotationTurnsRef = useRef(0);
   const orbitMotionLockRef = useRef(false);
   const lastOutroTokenRef = useRef(outroToken);
@@ -375,6 +385,8 @@ export const NumberWheel = memo(function NumberWheel({
   const gestureAccepted = useSharedValue(false);
   const selectionOnUI = useSharedValue<number[]>([]);
   const shufflingOnUI = useSharedValue(false);
+  // Dokunma kilidi: yalnız parmak kalktıktan sonraki sonuç kararı ve geçerli
+  // çözüm hold'u için açık kalır; lastik dönüşü başlarken bırakılır.
   const holdingOnUI = useSharedValue(false);
   const responderGestureAcceptedRef = useRef(false);
   const responderSelectionRef = useRef<number[]>([]);
@@ -440,6 +452,11 @@ export const NumberWheel = memo(function NumberWheel({
       clearTimeout(selectionReleaseTimerRef.current);
       selectionReleaseTimerRef.current = null;
     }
+    if (nodeReleaseTimerRef.current) {
+      clearTimeout(nodeReleaseTimerRef.current);
+      nodeReleaseTimerRef.current = null;
+    }
+    rubberRunRef.current += 1;
     setSelectedIndices([]);
     setConnectionTone('active');
     callbacksRef.current.onDraggingChange(false);
@@ -723,6 +740,9 @@ export const NumberWheel = memo(function NumberWheel({
       if (selectionReleaseTimerRef.current) {
         clearTimeout(selectionReleaseTimerRef.current);
       }
+      if (nodeReleaseTimerRef.current) {
+        clearTimeout(nodeReleaseTimerRef.current);
+      }
       cancelAnimation(rubberT);
     },
     [rubberT],
@@ -764,6 +784,16 @@ export const NumberWheel = memo(function NumberWheel({
   }, [hintIndices, hintPulse]);
 
   const beginSelection = useCallback((nodeIndex: number) => {
+    // Yarım kalan lastiğin bekleyen temizliği yeni zinciri silmesin.
+    if (selectionReleaseTimerRef.current) {
+      clearTimeout(selectionReleaseTimerRef.current);
+      selectionReleaseTimerRef.current = null;
+    }
+    if (nodeReleaseTimerRef.current) {
+      clearTimeout(nodeReleaseTimerRef.current);
+      nodeReleaseTimerRef.current = null;
+    }
+    rubberRunRef.current += 1;
     const next = [nodeIndex];
     setConnectionTone('active');
     setSelectedIndices(next);
@@ -795,13 +825,36 @@ export const NumberWheel = memo(function NumberWheel({
    * SharedValues. React's generic ref/immutability rules cannot model them.
    */
   /* eslint-disable react-hooks/immutability, react-hooks/refs */
-  const finishRubberReturn = useCallback(() => {
-    rubberActive.value = false;
-    clearSelectionVisuals();
-  }, [clearSelectionVisuals, rubberActive]);
+  const finishRubberReturn = useCallback(
+    (run: number) => {
+      // Yeni zincir başladıysa run artmıştır; bu callback geç kalmış demektir.
+      if (run !== rubberRunRef.current) return;
+      rubberActive.value = false;
+      clearSelectionVisuals();
+    },
+    [clearSelectionVisuals, rubberActive],
+  );
+
+  // Düğüm rengi ile ip dönüşü ayrı yaşar: renk hemen boşalır, ip yaylanmayı
+  // sürdürür. Uzunluk bırakışın sürüklenmiş olup olmadığını verir.
+  const releaseNodeHighlight = useCallback((selectionLength: number) => {
+    if (nodeReleaseTimerRef.current) {
+      clearTimeout(nodeReleaseTimerRef.current);
+    }
+    nodeReleaseTimerRef.current = setTimeout(
+      () => {
+        nodeReleaseTimerRef.current = null;
+        setSelectedIndices([]);
+      },
+      selectionLength < 2 ? NODE_RELEASE_TAP_MS : NODE_RELEASE_CHAIN_MS,
+    );
+  }, []);
 
   const startRubberReturn = useCallback(
     (completedSelection: number[]) => {
+      // Lastik yalnız görsel: dönüş oynarken kullanıcı başka düğümden yeni
+      // zincir başlatabilsin, dokunma kilidi burada bırakılır.
+      holdingOnUI.value = false;
       const lastIndex = completedSelection[completedSelection.length - 1];
       const rest =
         lastIndex != null
@@ -817,65 +870,77 @@ export const NumberWheel = memo(function NumberWheel({
         selectionReleaseTimerRef.current = null;
       }
 
+      releaseNodeHighlight(completedSelection.length);
+
       const token = rubberToken.value + 1;
       rubberToken.value = token;
+      rubberRunRef.current += 1;
+      const run = rubberRunRef.current;
       const restX = rest.x;
       const restY = rest.y;
 
       selectionReleaseTimerRef.current = setTimeout(() => {
-        if (rubberToken.value !== token) return;
-        finishRubberReturn();
-      }, RUBBER_UNLOCK_TIMEOUT_MS);
+        finishRubberReturn(run);
+      }, RUBBER_CLEAR_TIMEOUT_MS);
 
       // Stretch + withSpring aynı UI karesinde; cancelAnimation bu karede yok —
       // Reanimated yeni spring'i bir önceki cancel ile öldürüyordu.
-      runOnUI((nextRestX: number, nextRestY: number, nextToken: number) => {
-        'worklet';
-        if (rubberToken.value !== nextToken) return;
+      runOnUI(
+        (
+          nextRestX: number,
+          nextRestY: number,
+          nextToken: number,
+          nextRun: number,
+        ) => {
+          'worklet';
+          if (rubberToken.value !== nextToken) return;
 
-        const deltaX = pointerX.value - nextRestX;
-        const deltaY = pointerY.value - nextRestY;
-        const stretch = Math.hypot(deltaX, deltaY);
+          const deltaX = pointerX.value - nextRestX;
+          const deltaY = pointerY.value - nextRestY;
+          const stretch = Math.hypot(deltaX, deltaY);
 
-        if (stretch < 2) {
-          pointerX.value = nextRestX;
-          pointerY.value = nextRestY;
-          rubberActive.value = false;
-          runOnJS(finishRubberReturn)();
-          return;
-        }
+          if (stretch < 2) {
+            pointerX.value = nextRestX;
+            pointerY.value = nextRestY;
+            rubberActive.value = false;
+            runOnJS(finishRubberReturn)(nextRun);
+            return;
+          }
 
-        const physics = rubberPhysicsForStretch(stretch);
-        rubberRestX.value = nextRestX;
-        rubberRestY.value = nextRestY;
-        rubberDirX.value = deltaX / stretch;
-        rubberDirY.value = deltaY / stretch;
-        rubberT.value = stretch;
-        rubberActive.value = true;
-        rubberT.value = withSpring(
-          0,
-          {
-            mass: 1,
-            stiffness: physics.stiffness,
-            damping: physics.damping,
-            velocity: physics.velocity,
-            overshootClamping: false,
-            reduceMotion: ReduceMotion.Never,
-          },
-          (finished) => {
-            'worklet';
-            if (finished && rubberToken.value === nextToken) {
-              runOnJS(finishRubberReturn)();
-            }
-          },
-        );
-      })(restX, restY, token);
+          const physics = rubberPhysicsForStretch(stretch);
+          rubberRestX.value = nextRestX;
+          rubberRestY.value = nextRestY;
+          rubberDirX.value = deltaX / stretch;
+          rubberDirY.value = deltaY / stretch;
+          rubberT.value = stretch;
+          rubberActive.value = true;
+          rubberT.value = withSpring(
+            0,
+            {
+              mass: 1,
+              stiffness: physics.stiffness,
+              damping: physics.damping,
+              velocity: physics.velocity,
+              overshootClamping: false,
+              reduceMotion: ReduceMotion.Never,
+            },
+            (finished) => {
+              'worklet';
+              if (finished && rubberToken.value === nextToken) {
+                runOnJS(finishRubberReturn)(nextRun);
+              }
+            },
+          );
+        },
+      )(restX, restY, token, run);
     },
     [
       clearSelectionVisuals,
       finishRubberReturn,
+      holdingOnUI,
       pointerX,
       pointerY,
+      releaseNodeHighlight,
       rubberActive,
       rubberDirX,
       rubberDirY,
@@ -893,8 +958,7 @@ export const NumberWheel = memo(function NumberWheel({
         return;
       }
 
-      // 1 düğüm / iptal: onComplete yok. JS setState spring'in ilk karelerini
-      // geciktirip holding kilidini açık bırakıyordu.
+      // 1 düğüm / iptal: onComplete yok, lastik dokunmayı kilitlemez.
       if (!shouldComplete || completedSelection.length < 2) {
         startRubberReturn(completedSelection);
         return;
@@ -913,6 +977,8 @@ export const NumberWheel = memo(function NumberWheel({
       // mevcut nötr turkuaz tonunda kısa süre görünür.
       setConnectionTone(outcome === 'invalid' ? 'active' : outcome);
 
+      // Geçerli çözümün hold'u DESIGN gereği kesilmez: holdingOnUI açık kalır,
+      // dokunmalar clearSelectionVisuals'a kadar reddedilir.
       if (outcome === 'success' || outcome === 'bonus') {
         if (lastPosition) {
           pointerX.value = lastPosition.x;
@@ -972,6 +1038,7 @@ export const NumberWheel = memo(function NumberWheel({
 
       responderGestureAcceptedRef.current = true;
       responderSelectionRef.current = [nodeIndex];
+      // Oynayan lastik anında kesilir; eski path selectionOnUI ile düşer.
       selectionOnUI.value = [nodeIndex];
       rubberToken.value += 1;
       cancelAnimation(rubberT);
@@ -1089,6 +1156,7 @@ export const NumberWheel = memo(function NumberWheel({
           }
 
           gestureAccepted.value = true;
+          // Oynayan lastik aynı UI karesinde kesilir; eski path artığı kalmaz.
           selectionOnUI.value = [nodeIndex];
           rubberToken.value += 1;
           cancelAnimation(rubberT);
