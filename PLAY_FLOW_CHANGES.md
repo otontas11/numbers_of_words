@@ -50,6 +50,8 @@ Kısa efekt çarpanları RMS’e göre eşitlendi; implicit `1.0` ve `0.30` sın
 | pointsRising | — | 0.64 |
 | levelComplete | 0.35 | 0.58 |
 
+Kristal (`diamond`) 0.78 → 0.52: duyulur kalır, bonus (0.90) ve `pointsRising` (0.64) altındadır; 0.30’a dönülmedi.
+
 ### 5. Müzik fade
 
 Fade `320 ms`, `32 ms` tik. Açılış / ön plana dönüşte `0`’dan hedef sese; kapanış / arka planda `0`’a inip pause. `shouldPlayInBackground: false`. İlk play sesi `1` ile patlatılmaz (`audibleRef`).

@@ -86,7 +86,7 @@ const SOUND_VOLUMES: Record<GameSound, number> = {
   hint: 0.9,
   success: 0.82,
   bonus: 0.9,
-  diamond: 0.78,
+  diamond: 0.52,
   points: 0.68,
   pointsRising: 0.64,
   shuffle: 0.9,
