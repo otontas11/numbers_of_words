@@ -7,30 +7,48 @@ Bu dosya ses kadansı 1–6 ile eğitim, ekonomi, tempo ve günlük meydan okuma
 ### 1. Son hedef ve konfeti ayrı olaylardır
 
 - Ana hedef eşleşmesi doğrulanır doğrulanmaz `success` çalar.
-- Bölüm konfetisi başladığında `levelComplete` çalar (`game-treasure.wav`, ses `%35`).
+- Bölüm konfetisi başladığında `levelComplete` çalar (`game-treasure.wav`).
 - Eğitim kapanışında da aynı ayrım vardır: son pratik hedef `success`, kutlama `levelComplete`.
 
-### 2. Puan tiki hazine değildir
+### 2. Puan uçuşu rising coin’dir; hazine değildir
 
-- Puan uçuşu `points.wav` kullanır (`0.24 sn` kısa tik, ses `0.38`).
-- `game-treasure.wav` yalnız `levelComplete` içindir.
-- Android SoundPool eşlemesi: `points.wav` → `points`, `game-treasure.wav` → `levelComplete`. İkisi aynı oyuncuyu paylaşmaz.
+- Rozetler HUD’a uçmaya başlayınca `pointsRising` bir kez çalar (`points-rising-coin.wav`, ~`0.82 sn`). Her rozette tekrar yok.
+- Sayaç varışta artar; rezerv/varış defteri değişmedi.
+- Kısa tik `points.wav` ayrı durur (`points` anahtarı). Daily hazine paketi yokken kapanış tiki bunu kullanır.
+- `game-treasure.wav` yalnız `levelComplete` içindir; puan uçuşu anına girmez.
+- Android SoundPool: `points-rising-coin.wav` → `pointsRising`, `points.wav` → `points`, `game-treasure.wav` → `levelComplete`. Native rebuild ister.
 
 ### 3. Tam tören zamanlaması
 
-Sıra: son `success` → sonuç uçuşu bitsin (`LEVEL_CELEBRATION_DELAY` = uçuş + `100 ms`) → konfeti + `levelComplete` → `SCORE_FLIGHT_START_DELAY` (`320 ms`) → puan uçuşları (`points`).
+Sıra: son `success` → sonuç uçuşu bitsin (`LEVEL_CELEBRATION_DELAY` = uçuş + `100 ms`) → konfeti + `levelComplete` → `SCORE_FLIGHT_START_DELAY` (`320 ms`) → puan uçuşları + bir kez `pointsRising`.
 
-Hazine ~`0.73 sn` stereo; puan tiki ondan sonra başlar, üst üste binmez.
+Daily’de aynı an `launchHudFollowUps` içinde, rozet delay’i kadar bekleyip bir kez `pointsRising` çalar; varışta tekrar yok.
 
-Bu tam tören yalnız destinasyon bitişi, Country Challenge girişi ve ülke bitişinde çalışır.
+Bu tam tören yalnız destinasyon bitişi, Country Challenge girişi ve ülke bitişinde `levelComplete` kullanır. Kompakt bölüm kutlamasında rising coin yine uçuş başında bir kez çalar.
 
-### 4. Müzik duck
+### 4. Müzik duck ve bed
 
-Arka plan müziği kutlama, ülke tamamlama modalı ve destinasyon kartı açıkken `0.4` çarpanıyla kısılır.
+Arka plan müziği kutlama, ülke tamamlama modalı ve destinasyon kartı açıkken `0.4` duck alır (puan uçuşu `celebrating` boyunca bu duck’ın içindedir). Bed gain `0.64`: müzik efekt bandının bir tık altındadır.
 
 ```text
 ducked = celebrating || countryCompletionLevel !== null || destinationTransition !== null
+music = userVolume * 0.64 * (ducked ? 0.4 : 1)
 ```
+
+### 4b. Efekt loudness bandı
+
+Kısa efekt çarpanları RMS’e göre eşitlendi; implicit `1.0` ve `0.30` sınıfı kısıklar kalktı. Master ≤ 0 tam mute; aksi halde efektif volume ≥ `0.12` (JS `resolveEffectVolume` + SoundPool `AUDIBLE_VOLUME_FLOOR`).
+
+| Anahtar | Eski | Yeni |
+| --- | --- | --- |
+| select1–7 | 1.00 (implicit) | 0.56 |
+| hint / shuffle | 1.00 (implicit) | 0.90 |
+| success | 1.00 (implicit) | 0.82 |
+| bonus | 0.55 | 0.90 |
+| diamond | 0.30 | 0.78 |
+| points | 0.38 | 0.68 |
+| pointsRising | — | 0.64 |
+| levelComplete | 0.35 | 0.58 |
 
 ### 5. Müzik fade
 

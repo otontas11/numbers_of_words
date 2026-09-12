@@ -131,7 +131,7 @@ class AndroidGameSoundPoolModule(
   }
 
   private fun enqueuePlay(soundName: String, rawVolume: Double, promise: Promise) {
-    val request = PendingPlay(soundName, rawVolume.coerceIn(0.0, 1.0).toFloat(), promise)
+    val request = PendingPlay(soundName, audiblePlaybackVolume(rawVolume), promise)
     var poolToPlay: SoundPool? = null
     var generationToPlay = 0
     var sampleIdToPlay = 0
@@ -166,6 +166,11 @@ class AndroidGameSoundPoolModule(
     } else if (poolToPlay != null) {
       playLoadedRequest(request, poolToPlay!!, generationToPlay, sampleIdToPlay, true)
     }
+  }
+
+  private fun audiblePlaybackVolume(rawVolume: Double): Float {
+    if (rawVolume <= 0.0) return 0f
+    return rawVolume.coerceIn(AUDIBLE_VOLUME_FLOOR.toDouble(), 1.0).toFloat()
   }
 
   private fun ensureSoundPoolLocked() {
@@ -456,6 +461,7 @@ class AndroidGameSoundPoolModule(
     private const val NORMAL_RATE = 1.0f
     private const val PLAY_RETRY_DELAY_MS = 16L
     private const val SILENT_VOLUME = 0.0f
+    private const val AUDIBLE_VOLUME_FLOOR = 0.12f
     private const val WARMUP_RETRY_COUNT = 3
     private const val WARMUP_RETRY_DELAY_MS = 16L
 
@@ -480,6 +486,7 @@ class AndroidGameSoundPoolModule(
         SoundAsset("dimaond.mp3", listOf("diamond")),
         SoundAsset("game-treasure.wav", listOf("levelComplete")),
         SoundAsset("points.wav", listOf("points")),
+        SoundAsset("points-rising-coin.wav", listOf("pointsRising")),
         SoundAsset("shuffle.wav", listOf("shuffle")),
       )
 

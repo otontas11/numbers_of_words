@@ -25,6 +25,7 @@ const SOUND_FILES = [
   'dimaond.mp3',
   'game-treasure.wav',
   'points.wav',
+  'points-rising-coin.wav',
   'shuffle.wav',
 ];
 

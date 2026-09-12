@@ -1450,7 +1450,7 @@ export default function HomeScreen() {
         // titreşim verilmez; haptic yalnızca sonuç/aksiyon geri bildirimidir.
         return playback;
       }
-      if (kind === 'points') return playback;
+      if (kind === 'points' || kind === 'pointsRising') return playback;
       const playHaptic = () => {
         const effect =
           kind === 'levelComplete'
@@ -1572,7 +1572,7 @@ export default function HomeScreen() {
 
       if (!rootRect || !targetRect || !fallbackSource) {
         setScore((currentScore) => currentScore + total);
-        triggerEffect('points');
+        triggerEffect('pointsRising');
         return 0;
       }
 
@@ -1592,6 +1592,7 @@ export default function HomeScreen() {
         return flight;
       });
 
+      triggerEffect('pointsRising');
       setResultFlights((current) => [...current, ...flights]);
       return POINTS_FLIGHT_DURATION + (flights.length - 1) * POINTS_FLIGHT_STAGGER;
     },
@@ -1610,14 +1611,11 @@ export default function HomeScreen() {
       }
       if (flight.kind === 'points') {
         setScore((currentScore) => currentScore + flight.value);
-        // Bir bölümün puan uçuşları için treasure efektini yalnızca
-        // ilk puan ulaştığında çal; üst üste binen tekrarlar oluşmasın.
-        if (flight.delay === 0) triggerEffect('points');
         return;
       }
       revealTarget(flight.targetIndex);
     },
-    [revealTarget, triggerEffect],
+    [revealTarget],
   );
 
   const handleResultFlightComplete = useCallback(

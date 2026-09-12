@@ -28,6 +28,7 @@ export type GameSound =
   | 'bonus'
   | 'diamond'
   | 'points'
+  | 'pointsRising'
   | 'shuffle'
   | 'levelComplete';
 
@@ -56,25 +57,46 @@ const BONUS_SOURCE = require('../../assets/sounds/bonus.wav');
 const DIAMOND_SOURCE = require('../../assets/sounds/dimaond.mp3');
 const GAME_TREASURE_SOURCE = require('../../assets/sounds/game-treasure.wav');
 const POINTS_SOURCE = require('../../assets/sounds/points.wav');
+const POINTS_RISING_SOURCE = require('../../assets/sounds/points-rising-coin.wav');
 const SHUFFLE_SOURCE = require('../../assets/sounds/shuffle.wav');
 const HINT_START_TIME = 0;
 const SHUFFLE_START_TIME = 0;
+const EFFECT_VOLUME_FLOOR = 0.12;
 
 // Expo Audio'nun kendi preload önbelleği, tüm oyun ve eğitim efektlerini
 // component render edilmeden önce native decoder'a hazırlar.
 if (!hasAndroidGameSoundPool) {
   void Promise.all(
     [...SELECT_SOURCES, HINT_SOURCE, SUCCESS_SOURCE, BONUS_SOURCE, DIAMOND_SOURCE,
-      GAME_TREASURE_SOURCE, POINTS_SOURCE, SHUFFLE_SOURCE].map((source) => preload(source)),
+      GAME_TREASURE_SOURCE, POINTS_SOURCE, POINTS_RISING_SOURCE, SHUFFLE_SOURCE].map((source) => preload(source)),
   ).catch(() => undefined);
 }
 
-const SOUND_VOLUMES: Partial<Record<GameSound, number>> = {
-  bonus: 0.55,
-  diamond: 0.30,
-  levelComplete: 0.35,
-  points: 0.38,
+// RMS-informed gains so short SFX share a similar perceived level.
+// Quiet files (bonus/hint ~0.04 RMS) sit high; loud files (select 0.14,
+// treasure 0.16) sit lower. Never leave an implicit 1.0 or a 0.30-class duck.
+const SOUND_VOLUMES: Record<GameSound, number> = {
+  select1: 0.56,
+  select2: 0.56,
+  select3: 0.56,
+  select4: 0.56,
+  select5: 0.56,
+  select6: 0.56,
+  select7: 0.56,
+  hint: 0.9,
+  success: 0.82,
+  bonus: 0.9,
+  diamond: 0.78,
+  points: 0.68,
+  pointsRising: 0.64,
+  shuffle: 0.9,
+  levelComplete: 0.58,
 };
+
+function resolveEffectVolume(sound: GameSound, masterVolume = 1) {
+  if (masterVolume <= 0) return 0;
+  return Math.min(1, Math.max(EFFECT_VOLUME_FLOOR, SOUND_VOLUMES[sound] * masterVolume));
+}
 
 function chooseVoice(
   players: readonly AudioPlayer[],
@@ -232,6 +254,10 @@ function useIosGameSounds(enabled: boolean) {
     POINTS_SOURCE,
     PLAYER_OPTIONS,
   );
+  const pointsRisingPlayer = useAudioPlayer(
+    POINTS_RISING_SOURCE,
+    PLAYER_OPTIONS,
+  );
   const shufflePlayer = useAudioPlayer(
     SHUFFLE_SOURCE,
     PLAYER_OPTIONS,
@@ -271,6 +297,7 @@ function useIosGameSounds(enabled: boolean) {
       { player: diamondPlayer, startTime: 0 },
       { player: levelCompletePlayer, startTime: 0 },
       { player: pointsPlayer, startTime: 0 },
+      { player: pointsRisingPlayer, startTime: 0 },
       { player: shufflePlayer, startTime: SHUFFLE_START_TIME },
       { player: shuffleAlternatePlayer, startTime: SHUFFLE_START_TIME },
       { player: shuffleThirdPlayer, startTime: SHUFFLE_START_TIME },
@@ -338,6 +365,7 @@ function useIosGameSounds(enabled: boolean) {
     hintThirdPlayer,
     levelCompletePlayer,
     pointsPlayer,
+    pointsRisingPlayer,
     selectFiveAlternatePlayer,
     selectFivePlayer,
     selectFourAlternatePlayer,
@@ -422,11 +450,13 @@ function useIosGameSounds(enabled: boolean) {
                 ? bonusPlayer
                 : sound === 'diamond'
                   ? diamondPlayer
-                  : sound === 'points'
-                    ? pointsPlayer
-                    : sound === 'levelComplete'
-                      ? levelCompletePlayer
-                      : chooseVoice(
+                  : sound === 'pointsRising'
+                    ? pointsRisingPlayer
+                    : sound === 'points'
+                      ? pointsPlayer
+                      : sound === 'levelComplete'
+                        ? levelCompletePlayer
+                        : chooseVoice(
                           [shufflePlayer, shuffleAlternatePlayer, shuffleThirdPlayer],
                           shuffleVoice,
                           SHUFFLE_START_TIME,
@@ -436,7 +466,7 @@ function useIosGameSounds(enabled: boolean) {
 
       return replayAudioPlayer(
         player,
-        SOUND_VOLUMES[sound] ?? 1,
+        resolveEffectVolume(sound),
         sound === 'shuffle' ? SHUFFLE_START_TIME : sound === 'hint' ? HINT_START_TIME : 0,
       );
     },
@@ -449,6 +479,7 @@ function useIosGameSounds(enabled: boolean) {
       hintThirdPlayer,
       levelCompletePlayer,
       pointsPlayer,
+      pointsRisingPlayer,
       selectFivePlayer,
       selectFiveAlternatePlayer,
       selectFourPlayer,
@@ -476,7 +507,7 @@ function useIosGameSounds(enabled: boolean) {
  * Android ExoPlayer her AudioPlayer için ayrı ve pahalı bir native graph
  * kuruyor. Bu banka, sık kullanılan notaları ayrı tutarken duplicate voice
  * sayısını sınırlı bırakır: 7 select + hint + success + bonus + diamond +
- * treasure + points + 2 shuffle = 15 native player.
+ * treasure + points + pointsRising + 2 shuffle = 16 native player.
  */
 function useAndroidGameSounds(enabled: boolean) {
   const selectOnePlayer = useAudioPlayer(SELECT_SOURCES[0], ANDROID_PLAYER_OPTIONS);
@@ -492,6 +523,7 @@ function useAndroidGameSounds(enabled: boolean) {
   const diamondPlayer = useAudioPlayer(DIAMOND_SOURCE, ANDROID_PLAYER_OPTIONS);
   const treasurePlayer = useAudioPlayer(GAME_TREASURE_SOURCE, ANDROID_PLAYER_OPTIONS);
   const pointsPlayer = useAudioPlayer(POINTS_SOURCE, ANDROID_PLAYER_OPTIONS);
+  const pointsRisingPlayer = useAudioPlayer(POINTS_RISING_SOURCE, ANDROID_PLAYER_OPTIONS);
   const shufflePlayer = useAudioPlayer(SHUFFLE_SOURCE, ANDROID_PLAYER_OPTIONS);
   const shuffleAlternatePlayer = useAudioPlayer(
     SHUFFLE_SOURCE,
@@ -515,6 +547,7 @@ function useAndroidGameSounds(enabled: boolean) {
         { player: diamondPlayer, startTime: 0 },
         { player: treasurePlayer, startTime: 0 },
         { player: pointsPlayer, startTime: 0 },
+        { player: pointsRisingPlayer, startTime: 0 },
         { player: shufflePlayer, startTime: SHUFFLE_START_TIME },
         { player: shuffleAlternatePlayer, startTime: SHUFFLE_START_TIME },
       ]),
@@ -523,6 +556,7 @@ function useAndroidGameSounds(enabled: boolean) {
       diamondPlayer,
       hintPlayer,
       pointsPlayer,
+      pointsRisingPlayer,
       selectFivePlayer,
       selectFourPlayer,
       selectOnePlayer,
@@ -567,20 +601,22 @@ function useAndroidGameSounds(enabled: boolean) {
                 ? bonusPlayer
                 : sound === 'diamond'
                   ? diamondPlayer
-                  : sound === 'points'
-                    ? pointsPlayer
-                    : sound === 'levelComplete'
-                      ? treasurePlayer
-                      : chooseVoice(
-                          [shufflePlayer, shuffleAlternatePlayer],
-                          shuffleVoice,
-                          SHUFFLE_START_TIME,
-                        );
+                  : sound === 'pointsRising'
+                    ? pointsRisingPlayer
+                    : sound === 'points'
+                      ? pointsPlayer
+                      : sound === 'levelComplete'
+                        ? treasurePlayer
+                        : chooseVoice(
+                            [shufflePlayer, shuffleAlternatePlayer],
+                            shuffleVoice,
+                            SHUFFLE_START_TIME,
+                          );
 
       if (!player) return;
       return replayAudioPlayer(
         player,
-        SOUND_VOLUMES[sound] ?? 1,
+        resolveEffectVolume(sound),
         sound === 'shuffle' ? SHUFFLE_START_TIME : sound === 'hint' ? HINT_START_TIME : 0,
       );
     },
@@ -590,6 +626,7 @@ function useAndroidGameSounds(enabled: boolean) {
       enabled,
       hintPlayer,
       pointsPlayer,
+      pointsRisingPlayer,
       selectFivePlayer,
       selectFourPlayer,
       selectOnePlayer,
@@ -609,7 +646,7 @@ function useNativeAndroidGameSounds(enabled: boolean) {
   return useCallback(
     (sound: GameSound, force = false) => {
       if (!enabled && !force) return;
-      return playAndroidGameSound(sound, SOUND_VOLUMES[sound] ?? 1);
+      return playAndroidGameSound(sound, resolveEffectVolume(sound));
     },
     [enabled],
   );

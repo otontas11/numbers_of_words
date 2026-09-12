@@ -1315,6 +1315,18 @@ export function DailyChallengeScreen({
       // Uçuş kurulamadıysa (measure başarısız) ödül varışı bekleyemez: hemen yaz.
       if (pointsFlight) pushFlights([pointsFlight]);
       else settleAward(pointsAwardKey);
+      if (followUpPoints) {
+        const playScoreTally = () => {
+          if (generation !== flightGenerationRef.current) return;
+          onEffect('pointsRising');
+        };
+        const tallyDelay = pointsFlight?.delay ?? 0;
+        if (tallyDelay > 0) {
+          setTimeout(playScoreTally, tallyDelay);
+        } else {
+          playScoreTally();
+        }
+      }
       if (gemLift) {
         setCardGemLifts((current) =>
           current.some((item) => item.id === gemLift.id) ? current : [...current, gemLift],
@@ -1334,7 +1346,6 @@ export function DailyChallengeScreen({
 
       // Rozet hedefine vardı: rezerve edilmiş ödül tam bu anda sayaca yazılır.
       settleAward(flight.awardKey);
-      if (flight.kind === 'points') onEffect('points');
       if (flight.kind === 'gem' || flight.kind === 'points') return;
       if (flight.railSlot != null) {
         const puzzle = challengeRef.current?.puzzles[flight.railSlot];
@@ -1349,7 +1360,7 @@ export function DailyChallengeScreen({
       setTargetFlying(false);
       pulseTarget(DAILY_TARGET_INDEX);
     },
-    [fillRailSlot, onEffect, pulseTarget, settleAward],
+    [fillRailSlot, pulseTarget, settleAward],
   );
 
   const handleCardGemArrive = useCallback(

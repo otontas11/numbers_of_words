@@ -8,6 +8,7 @@ const MUSIC_SOURCE = require('../../assets/sounds/journey.mp3');
 const MUSIC_FADE_MS = 320;
 const MUSIC_FADE_TICK_MS = 32;
 const MUSIC_DUCK_MULTIPLIER = 0.4;
+const MUSIC_BED_GAIN = 0.64;
 const VOLUME_SNAP = 0.008;
 
 function clampVolume(volume: number) {
@@ -103,7 +104,9 @@ export function useBackgroundMusic(
     const targetVolumeFor = (appState: AppStateStatus) => {
       if (!shouldPlayFor(appState)) return 0;
       const { ducked: isDucked, volume: userVolume } = desiredRef.current;
-      return clampVolume(userVolume * (isDucked ? MUSIC_DUCK_MULTIPLIER : 1));
+      return clampVolume(
+        userVolume * MUSIC_BED_GAIN * (isDucked ? MUSIC_DUCK_MULTIPLIER : 1),
+      );
     };
 
     const sync = (appState: AppStateStatus) => {
