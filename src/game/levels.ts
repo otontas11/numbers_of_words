@@ -417,7 +417,7 @@ export type DailyPuzzleBoardSpec = {
   nodeCount: number;
   sourceLevel: number;
   difficultyModifier: -1 | 0 | 1;
-  /** Added on top of main-tour number difficulty. Daily uses 1; division uses 0. */
+  /** Added on top of main-tour number difficulty. Daily uses 1, addition 2; division uses 0. */
   numberDifficultyBump?: number;
   /** Force the small exact-quotient family instead of the late-tour division pool. */
   exactQuotientLite?: boolean;

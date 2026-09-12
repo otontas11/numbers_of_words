@@ -273,5 +273,5 @@ if (dailyErrors.length > 0) {
 }
 
 console.log(
-  `OK: ${TRAVEL_ROUTES.length} rota, ${WORLD_COUNTRIES.length} ülke etabı, ${TOTAL_DESTINATIONS} destinasyon, ${TOTAL_WORLD_LEVELS} ana level, ${checkedLevelCount} prosedürel puzzle ve günlük 5’li setler doğrulandı.`,
+  `OK: ${TRAVEL_ROUTES.length} rota, ${WORLD_COUNTRIES.length} ülke etabı, ${TOTAL_DESTINATIONS} destinasyon, ${TOTAL_WORLD_LEVELS} ana level, ${checkedLevelCount} prosedürel puzzle ve günlük 8’li setler doğrulandı.`,
 );

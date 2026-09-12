@@ -124,24 +124,24 @@ Ana tur puzzle geçişinde çark doğumu **görünür** olmalıdır (`NumberWhee
 ### D1. Günlük meydan okuma ana menüde
 
 - `DailyChallengeScreen` ana menü kartı ve alt `GÖREVLER` ile açılır.
-- Kart: seri, bugün hazır / ödül al / tamamlandı · tekrar oyna.
+- Kart tek satır: dile uygun kısa başlık + 🔥 (`home.dailyCardLabel`); streak sayısı ve hazır/ödül/tamamlandı cümleleri kartta yok. Ana menü kartı ve `Tekrar oyna` doğrudan play tahtasını açar (briefing yok); play HUD’da 8 yuvalı x/8 ray, seri `İŞLEM TÜRÜ` satırının karşısında (ayrı adım HUD’u yok), Işınma/Tempo/Zirve yok. 8/8 hazine ve completed + Tekrar oyna durur.
 - Daily kendi progress storage’sunu kullanır; ana tur level / tahta / mücevher ilerlemesini ezmez.
 - Ödül mücevheri yalnız ilk claim’de ana `gemCount`’a eklenir. Replay streak’i bozmaz ve tekrar ödül basmaz.
 
 ### D2. Günlük kadans
 
-- Ana hedef: paylaşılan `ResultFlight` önce hedef kartına (`720 ms`) kısa iniş/emerald (`300/320 ms`), sonra aynı uçuşla x/5 ray yuvasına (`720 ms`); ara puzzle’da destinasyon kartı yok. Ray yuvasına ✓ oturunca `select1` (`80 ms` sine pop) bir kez tikler; 5/5’te `levelComplete` ray uçuşu bittikten `90 ms` sonra çalar (tik ile üst üste binmez). Sonraki bulmaca `DailyChallengeScreen` / HUD / gökyüzü / ray / banner’ı unmount etmez: çark `key` yalnız `dateKey+wheelSize`, `boardFade` yok; yalnız çember sayıları ve hedef/bonus değerleri değişir. Düğümler sonraki bulmacaya geçerken yörüngeden merkeze toplanır (`220 ms`, scale `1→0.55`, opacity `~0.6`, neredeyse `r=0`); merkezde `90 ms` overlap ile eski set görünür kalır, yeni set aynı noktadan yörüngeye doğar (`460 ms`, shuffle easing, stagger ≤`40 ms`). `levelComplete` / konfeti yalnız 5/5 hazineye geçerken; global müzik duck’ı daily `celebrating` ile tetiklenmez.
-- 5/5: uçuş → kompakt konfeti + `levelComplete` → hazine kartı. Timer ref’te tutulur; unmount, geri, sonraki bulmaca ve faz değişiminde iptal edilir.
+- Ana hedef: paylaşılan `ResultFlight` önce hedef kartına (`720 ms`) kısa iniş/emerald (`300/320 ms`), sonra aynı uçuşla x/8 ray yuvasına (`720 ms`); ara puzzle’da destinasyon kartı yok. Ray yuvasına ✓ oturunca `select1` (`80 ms` sine pop) bir kez tikler; 8/8’te `levelComplete` ray uçuşu bittikten `90 ms` sonra çalar (tik ile üst üste binmez). Sonraki bulmaca `DailyChallengeScreen` / HUD / gökyüzü / ray / banner’ı unmount etmez: çark `key` yalnız `dateKey+wheelSize`, `boardFade` yok; yalnız çember sayıları ve hedef/bonus değerleri değişir. Düğümler sonraki bulmacaya geçerken yörüngeden merkeze toplanır (`220 ms`, scale `1→0.55`, opacity `~0.6`, neredeyse `r=0`); merkezde `90 ms` overlap ile eski set görünür kalır, yeni set aynı noktadan yörüngeye doğar (`460 ms`, shuffle easing, stagger ≤`40 ms`). `levelComplete` / konfeti yalnız 5/5 hazineye geçerken; global müzik duck’ı daily `celebrating` ile tetiklenmez.
+- 8/8: uçuş → kompakt konfeti + `levelComplete` → hazine kartı. Timer ref’te tutulur; unmount, geri, sonraki bulmaca ve faz değişiminde iptal edilir.
 - Hedef + bonus peş peşe: `setProgress(prev => …)` ve persist o next ile; ikinci kayıt birincinin id’sini ezmez.
 - Bonus: paylaşılan `ResultFlight` önce bonus kartına (bulunan item), inişten sonra ★ puan HUD ve ilk koşuda 💎 header mücevhere. Replay’de kart mücevheri tekrar basılmaz.
 - Puan formülü ana turla aynıdır: seçilen sayıların toplamı × adım. Daily ★ / 💎 HUD ana tur `score` / `gemCount` bakiyesini gösterir; hedef ve bonus `onScore` ile bu puana ekler, ayrı `runScore` sayacı basılmaz.
-- Play tahtası ana oyun dilindedir: `getGameLayout`, büyük kontrastlı `ADIM SAYISI`, hedef kartı `●` noktaları, belirgin bonus (mücevher + `4/8/14` + adım), `NumberWheel`. Bırakınca `target.steps === indices.length`. Altta `58 dp` AdMob banner; sahte rewarded yok.
+- Play tahtası ana oyun dilindedir: `getGameLayout`, hedef/bonus kartı `●` noktaları (ayrı `ADIM SAYISI` HUD yok), belirgin bonus (mücevher + `4/8/14` + adım), `NumberWheel`. Play header geri düğmesi ana tur HUD `skyControl` + `BackIcon` kopyasıdır (`‹` değil). Bırakınca `target.steps === indices.length`. Altta `58 dp` AdMob banner; sahte rewarded yok.
 - Claim `points` çalar. İlk claim kilitler; `Tekrar oyna` ve ana menü açıktır.
 
 ### D3. Beş puzzle, zorluk ve replay
 
-- Günlük set 5 yükselen puzzle’dır (Işınma → Tempo → Zirve); aynı gün aynı seed/hedefler.
-- Sayı havuzu ana tur `countryIndex` / `learningScore` / `cityDifficultyModifier` tabanına `+1` sayı zorluğu ekler. Bölme istisnası: hep 2 adım, küçük tam-bölünen çarpan ailesi; × ve zirve zor kalır.
+- Günlük set 8 puzzle’dır: `+ − × ÷` her birinden tam 2, gün seed’iyle karışık sıra. Toplama 3–4 adım ve `+2` havuz; çıkarma/çarpma mevcut günlük kural + `+1` bump; bölme 2 adım küçük tam bölme. Işınma/Tempo/Zirve oyuncuya gösterilmez.
+- Sayı havuzu ana tur `countryIndex` / `learningScore` / `cityDifficultyModifier` tabanına işlem bump’ı ekler. Bölme istisnası: hep 2 adım, küçük tam-bölünen çarpan ailesi.
 - Bonus kartı çözülünce 2/3/4 adım için `4/8/14` mücevher (ilk koşu). Beş bonus da bulununca claim’de ayrı ek paket `+8` (`DAILY_CHALLENGE_ALL_BONUS_REWARD`). Replay ve `claimed` bu ekstra ile kart mücevherlerini tekrar basmaz.
 - `claimed` ilk ödülü kilitler. Replay yeni koşu açar (ana `score` sıfırlanmaz, çözülenler puana eklenmeye devam eder); mücevher ve streak kilitleri kalır.
 

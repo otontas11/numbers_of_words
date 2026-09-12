@@ -11,8 +11,8 @@ import {
 } from './levels.ts';
 import { COUNTRY_LEVEL_COUNT, WORLD_COUNTRIES } from './travel.ts';
 
-/** Five rising puzzles make up a single daily challenge. */
-export const DAILY_CHALLENGE_PUZZLE_COUNT = 5;
+/** Eight puzzles make up a single daily challenge: two of each operation. */
+export const DAILY_CHALLENGE_PUZZLE_COUNT = 8;
 
 /** Mid-tour country used when the player has no main-tour snapshot yet. */
 export const DAILY_CHALLENGE_MID_COUNTRY_INDEX = 8;
@@ -151,7 +151,7 @@ function makePuzzle(
 export const DAILY_CHALLENGE_FALLBACK_PACK: DailyChallengePack = {
   id: 'fallback',
   puzzles: [
-    makePuzzle('fallback-1', [2, 3, 4, 5, 6], '+', [9, 2], [11, 2], 'warmup', {
+    makePuzzle('fallback-1', [2, 3, 4, 5, 6], '+', [9, 3], [11, 2], 'warmup', {
       venueName: 'İstanbul',
       venueEmoji: '🕌',
       countryName: 'Türkiye',
@@ -169,13 +169,31 @@ export const DAILY_CHALLENGE_FALLBACK_PACK: DailyChallengePack = {
       countryName: 'İtalya',
       flag: '🇮🇹',
     }),
-    makePuzzle('fallback-4', [3, 4, 5, 6, 7], '+', [15, 3], [10, 2], 'tempo', {
+    makePuzzle('fallback-4', [2, 3, 4, 6, 8, 12], '/', [4, 2], [3, 2], 'tempo', {
       venueName: 'Paris',
       venueEmoji: '🗼',
       countryName: 'Fransa',
       flag: '🇫🇷',
     }),
-    makePuzzle('fallback-5', [6, 7, 8, 9, 10], '+', [24, 3], [16, 2], 'peak', {
+    makePuzzle('fallback-5', [6, 7, 8, 9, 10], '+', [30, 4], [16, 2], 'tempo', {
+      venueName: 'Kahire',
+      venueEmoji: '🐪',
+      countryName: 'Mısır',
+      flag: '🇪🇬',
+    }),
+    makePuzzle('fallback-6', [18, 10, 8, 6, 4], '-', [10, 2], [6, 2], 'tempo', {
+      venueName: 'Madrid',
+      venueEmoji: '🎸',
+      countryName: 'İspanya',
+      flag: '🇪🇸',
+    }),
+    makePuzzle('fallback-7', [3, 4, 5, 6, 7], '*', [20, 2], [18, 2], 'peak', {
+      venueName: 'Tokyo',
+      venueEmoji: '🏯',
+      countryName: 'Japonya',
+      flag: '🇯🇵',
+    }),
+    makePuzzle('fallback-8', [2, 4, 5, 8, 10, 20], '/', [5, 2], [4, 2], 'peak', {
       miniChallenge: true,
       venueName: 'WORLD TOUR FINAL',
       venueEmoji: '🏆',
@@ -343,15 +361,24 @@ function sourceLevelFor(countryIndex: number, countryLevel: number) {
 
 /** Daily sits one number-difficulty step above the player's main-tour snapshot. */
 export const DAILY_CHALLENGE_NUMBER_DIFFICULTY_BUMP = 1;
+/** Addition gets a harder pool than the shared +1 bump. */
+export const DAILY_CHALLENGE_ADDITION_DIFFICULTY_BUMP = 2;
+
+const DAILY_OPERATION_PAIRS: readonly Operation[] = ['+', '+', '-', '-', '*', '*', '/', '/'];
+
+function additionSteps(additionIndex: number): 2 | 3 | 4 {
+  return additionIndex === 0 ? 3 : 4;
+}
 
 function stepsForCountry(countryIndex: number, op: Operation, want: 2 | 3 | 4): 2 | 3 | 4 {
   // Division is the readability exception: always 2 steps, small exact quotients.
   if (op === '/') return 2;
+  if (op === '+') return want >= 4 ? 4 : 3;
   if (countryIndex < 5) return 2;
   if (want === 2) return 2;
 
   if (countryIndex < 8) {
-    if (op === '+' || op === '*') return 3;
+    if (op === '*') return 3;
     return 2;
   }
 
@@ -367,81 +394,30 @@ function planDailyPuzzles(
   countryIndex: number,
   random: () => number,
 ): DailyPuzzlePlan[] {
-  const ops = availableOperations(countryIndex, random);
-  const tempoSteps = (op: Operation) => stepsForCountry(countryIndex, op, 3);
-  const peakSteps = (op: Operation) =>
-    stepsForCountry(countryIndex, op, countryIndex >= 16 ? 4 : 3);
-  const tempoNodes = countryIndex < 3 ? 5 : 6;
-  const peakNodes = countryIndex < 5 ? 6 : countryIndex < 12 ? 6 : 7;
+  const sequence = shuffleWith(DAILY_OPERATION_PAIRS, random);
+  const midNodes = countryIndex < 3 ? 5 : 6;
+  const lateNodes = countryIndex < 5 ? 6 : countryIndex < 12 ? 6 : 7;
+  let additionIndex = 0;
 
-  return [
-    {
-      op: ops[0],
-      steps: 2,
-      bonusSteps: 2,
-      nodeCount: 5,
-      tier: 'warmup',
-      miniChallenge: false,
-      sourceCountryLevel: 4,
-    },
-    {
-      op: ops[1],
-      steps: 2,
-      bonusSteps: 2,
-      nodeCount: 5,
-      tier: 'warmup',
-      miniChallenge: false,
-      sourceCountryLevel: 8,
-    },
-    {
-      op: ops[2],
-      steps: tempoSteps(ops[2]),
-      bonusSteps: 2,
-      nodeCount: tempoNodes,
-      tier: 'tempo',
-      miniChallenge: false,
-      sourceCountryLevel: 12,
-    },
-    {
-      op: ops[3],
-      steps: tempoSteps(ops[3]),
-      bonusSteps: 2,
-      nodeCount: tempoNodes,
-      tier: 'tempo',
-      miniChallenge: false,
-      sourceCountryLevel: 18,
-    },
-    {
-      op: ops[4],
-      steps: peakSteps(ops[4]),
-      bonusSteps: 2,
-      nodeCount: peakNodes,
-      tier: 'peak',
-      miniChallenge: true,
-      sourceCountryLevel: COUNTRY_LEVEL_COUNT,
-    },
-  ];
-}
+  return sequence.map((op, index) => {
+    const risingWant: 2 | 3 | 4 = index >= 6 ? 4 : index >= 3 ? 3 : 2;
+    const steps =
+      op === '+'
+        ? additionSteps(additionIndex++)
+        : stepsForCountry(countryIndex, op, risingWant);
+    const tier: DailyPuzzleTier = index >= 6 ? 'peak' : index >= 3 ? 'tempo' : 'warmup';
 
-function availableOperations(countryIndex: number, random: () => number): Operation[] {
-  if (countryIndex <= 0) return ['+', '-', '+', '*', '+'];
-  if (countryIndex === 1) return ['+', '-', '*', '+', '-'];
-  if (countryIndex === 2) return ['+', '-', '*', '/', '*'];
-  if (countryIndex === 3) return ['-', '*', '/', '+', '*'];
-  if (countryIndex === 4) return ['/', '*', '-', '+', '/'];
-
-  const rotated = shuffleWith(ALL_OPERATIONS, random);
-  // Peak stays a real finale: prefer multiplication once training cities are done.
-  if (countryIndex >= 8) {
-    const multiplyIndex = rotated.indexOf('*');
-    const last = rotated.length - 1;
-    if (multiplyIndex >= 0 && multiplyIndex !== last) {
-      [rotated[multiplyIndex], rotated[last]] = [rotated[last], rotated[multiplyIndex]];
-    }
-    return [rotated[0], rotated[1], rotated[2], rotated[3], '*'];
-  }
-  const peak = countryIndex >= 12 ? rotated[rotated.length - 1] : rotated[0];
-  return [rotated[0], rotated[1], rotated[2], rotated[3], peak];
+    return {
+      op,
+      steps,
+      bonusSteps: 2,
+      nodeCount: index >= 6 ? lateNodes : index >= 3 ? midNodes : 5,
+      tier,
+      miniChallenge: index >= 6,
+      sourceCountryLevel:
+        index >= 6 ? COUNTRY_LEVEL_COUNT : index >= 3 ? 12 + (index - 3) * 3 : 4 + index * 4,
+    };
+  });
 }
 
 function pickDailyVenues(dateKey: string, countryIndex: number) {
@@ -490,7 +466,12 @@ function buildGeneratedPuzzles(
         nodeCount: isDivision ? Math.min(6, slot.nodeCount) : slot.nodeCount,
         sourceLevel: sourceLevelFor(skill.countryIndex, slot.sourceCountryLevel),
         difficultyModifier: skill.difficultyModifier,
-        numberDifficultyBump: isDivision ? 0 : DAILY_CHALLENGE_NUMBER_DIFFICULTY_BUMP,
+        numberDifficultyBump:
+          slot.op === '/'
+            ? 0
+            : slot.op === '+'
+              ? DAILY_CHALLENGE_ADDITION_DIFFICULTY_BUMP
+              : DAILY_CHALLENGE_NUMBER_DIFFICULTY_BUMP,
         exactQuotientLite: isDivision,
       },
       seed + (index + 1) * 97_411,
@@ -726,6 +707,22 @@ function puzzleErrors(packId: string, puzzles: readonly DailyPuzzle[]): string[]
     }
     if (findSolutionIndices(puzzle.bonusTarget, puzzle.numbers) === null) {
       errors.push(`${puzzle.id}: bonus target is not solvable`);
+    }
+    if (puzzle.op === '/' && puzzle.target.steps !== 2) {
+      errors.push(`${puzzle.id}: division must stay 2 steps`);
+    }
+    if (puzzle.op === '+' && puzzle.target.steps < 3) {
+      errors.push(`${puzzle.id}: addition must use 3 or 4 steps`);
+    }
+  }
+
+  const opCounts = { '+': 0, '-': 0, '*': 0, '/': 0 };
+  for (const puzzle of puzzles) {
+    opCounts[puzzle.op] += 1;
+  }
+  for (const op of ALL_OPERATIONS) {
+    if (opCounts[op] !== 2) {
+      errors.push(`${packId}: expected 2 ${op} puzzles, got ${opCounts[op]}`);
     }
   }
 

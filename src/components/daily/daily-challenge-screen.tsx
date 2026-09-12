@@ -23,7 +23,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdMobBanner, AD_BANNER_SLOT_HEIGHT } from '@/components/ads/admob-banner';
-import { FootprintIcon, GemIcon } from '@/components/common/game-icons';
+import { BackIcon, FootprintIcon, GemIcon } from '@/components/common/game-icons';
 import {
   NumberWheel,
   NODE_OUTRO_DURATION,
@@ -58,7 +58,6 @@ import {
   type DailyChallenge,
   type DailyChallengeProgress,
   type DailyPuzzle,
-  type DailyPuzzleTier,
 } from '@/game/daily-challenge';
 import {
   loadDailyChallengeProgress,
@@ -107,7 +106,7 @@ type DailyChallengeScreenProps = {
   onEffect: (sound: GameSound) => void;
 };
 
-type Phase = 'loading' | 'briefing' | 'play' | 'treasure' | 'completed';
+type Phase = 'loading' | 'play' | 'treasure' | 'completed';
 type Timer = ReturnType<typeof setTimeout>;
 type FeedbackTone = 'live' | 'success' | 'bonus' | 'info';
 type Feedback = { text: string; tone: FeedbackTone };
@@ -122,16 +121,6 @@ const FEEDBACK_COLORS: Record<FeedbackTone, { background: string; border: string
 function selectionSound(selectionCount: number): GameSound {
   const clamped = Math.max(1, Math.min(7, selectionCount));
   return `select${clamped}` as GameSound;
-}
-
-function formatDailyDate(dateKey: string, locale: string) {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  if (!year || !month || !day) return dateKey;
-  return new Intl.DateTimeFormat(locale, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  }).format(new Date(year, month - 1, day));
 }
 
 function GoalCard({
@@ -405,7 +394,7 @@ function DailyBonusRow({
       colors={['rgba(255,247,206,0.98)', 'rgba(236,216,255,0.98)']}
       end={{ x: 1, y: 1 }}
       start={{ x: 0, y: 0 }}
-      style={[styles.boardBonusRow, solved && styles.boardBonusRowSolved]}>
+      style={[styles.boardBonusRow, solved && styles.boardBonusRowSolved, styles.boardBonusRowRaised]}>
       {solved ? (
         <Animated.View
           pointerEvents="none"
@@ -525,11 +514,10 @@ export function DailyChallengeScreen({
   onScore,
   onSpendGems,
 }: DailyChallengeScreenProps) {
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   const { height, width } = useWindowDimensions();
   const layout = getGameLayout(width, Math.max(520, height - AD_BANNER_SLOT_HEIGHT));
   const { compactHeader, contentHorizontalPadding, wheelSize } = layout;
-  const compact = height < 735;
   const [challenge, setChallenge] = useState<DailyChallenge | null>(null);
   const [progress, setProgress] = useState<DailyChallengeProgress | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
@@ -635,15 +623,6 @@ export function DailyChallengeScreen({
     void saveDailyChallengeProgress(next).catch(() => undefined);
   }, []);
 
-  const tierLabel = useCallback(
-    (tier: DailyPuzzleTier) => {
-      if (tier === 'warmup') return t('daily.tierWarmup');
-      if (tier === 'tempo') return t('daily.tierTempo');
-      return t('daily.tierPeak');
-    },
-    [t],
-  );
-
   useEffect(() => {
     return () => {
       clearFeedbackTimer();
@@ -740,7 +719,7 @@ export function DailyChallengeScreen({
         } else if (!loadedProgress.claimed && isDailyChallengeComplete(loadedProgress, nextChallenge)) {
           setPhase('treasure');
         } else {
-          setPhase('briefing');
+          setPhase('play');
         }
       });
 
@@ -770,9 +749,6 @@ export function DailyChallengeScreen({
   const bonusComplete =
     Boolean(currentPuzzle && progress?.completedBonusPuzzleIds.includes(currentPuzzle.id));
   const replayMode = Boolean(progress?.claimed);
-  const goalPuzzlesComplete = replayMode ? true : allPuzzlesComplete;
-  const goalBonusesComplete = replayMode ? Boolean(progress?.claimedAllBonuses) : allBonusesFound;
-  const goalNoHintsComplete = replayMode ? Boolean(progress?.claimedNoHint) : !progress?.usedHint;
   const liveRewardTotal =
     DAILY_CHALLENGE_BASE_REWARD +
     (allBonusesFound ? DAILY_CHALLENGE_ALL_BONUS_REWARD : 0) +
@@ -1274,14 +1250,6 @@ export function DailyChallengeScreen({
     onEffect('shuffle');
   }, [clearHintTimer, onEffect]);
 
-  const handleEnterPlay = useCallback(() => {
-    clearPuzzleVisuals();
-    sequenceLockRef.current = false;
-    setCelebrating(false);
-    setRailFilledIds([...(progressRef.current?.completedPuzzleIds ?? [])]);
-    setPhase('play');
-  }, [clearPuzzleVisuals]);
-
   const handleReplay = useCallback(() => {
     const currentProgress = progressRef.current;
     if (!currentProgress?.claimed) return;
@@ -1323,13 +1291,7 @@ export function DailyChallengeScreen({
   const operationSymbol = currentPuzzle
     ? OPERATION_DETAILS[currentPuzzle.op].symbol
     : undefined;
-  const briefingCta =
-    replayMode && completedPuzzleCount === 0
-      ? t('daily.replay')
-      : completedPuzzleCount > 0 && !allPuzzlesComplete
-        ? t('daily.continueRun')
-        : t('daily.start');
-  const formattedDate = challenge ? formatDailyDate(challenge.dateKey, locale) : '';
+  const streakCount = progress?.streak ?? 0;
 
   return (
     <View style={styles.screen}>
@@ -1361,10 +1323,10 @@ export function DailyChallengeScreen({
           <Pressable
             accessibilityLabel={t('daily.backA11y')}
             accessibilityRole="button"
-            hitSlop={10}
+            hitSlop={5}
             onPress={handleBack}
-            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
-            <Text style={styles.backIcon}>‹</Text>
+            style={({ pressed }) => [styles.skyControl, pressed && styles.buttonPressed]}>
+            <BackIcon />
           </Pressable>
           <DailyScorePill
             compact={compactHeader}
@@ -1395,76 +1357,6 @@ export function DailyChallengeScreen({
           </View>
         ) : null}
 
-        {phase === 'briefing' && challenge && progress ? (
-          <ScrollView
-            contentContainerStyle={[styles.briefingScroll, compact && styles.briefingScrollCompact]}
-            showsVerticalScrollIndicator={false}
-            style={styles.phaseFill}>
-            <View style={styles.poster}>
-              <Text style={styles.dateText}>{formattedDate}</Text>
-              <View style={styles.heroMedallion}>
-                <Text style={styles.heroSun}>🏆</Text>
-                <Text style={styles.heroSparkle}>✦</Text>
-              </View>
-              <Text style={styles.briefingTitle}>{t('daily.title')}</Text>
-              <Text style={styles.briefingSubtitle}>{t('daily.subtitle')}</Text>
-              <View style={styles.streakPill}>
-                <Text style={styles.posterStreakText}>{t('daily.streak', { count: progress.streak })}</Text>
-              </View>
-              {replayMode ? (
-                <View style={styles.trainingBadge}>
-                  <Text style={styles.trainingBadgeText}>{t('daily.trainingBadge')}</Text>
-                </View>
-              ) : null}
-              <View style={styles.posterRail}>
-                <PuzzleRail
-                  accessibilityLabel={t('daily.railA11y', {
-                    completed: completedPuzzleCount,
-                    total: puzzleTotal,
-                  })}
-                  completedIds={progress.completedPuzzleIds}
-                  currentId={currentPuzzle?.id}
-                  puzzles={challenge.puzzles}
-                />
-              </View>
-              <View style={styles.tierLegend}>
-                <Text style={styles.tierLegendText}>{t('daily.tierWarmup')}</Text>
-                <Text style={styles.tierLegendDot}>·</Text>
-                <Text style={styles.tierLegendText}>{t('daily.tierTempo')}</Text>
-                <Text style={styles.tierLegendDot}>·</Text>
-                <Text style={styles.tierLegendText}>{t('daily.tierPeak')}</Text>
-              </View>
-            </View>
-
-            <Text style={styles.goalsEyebrow}>{t('daily.briefingGoals')}</Text>
-            <GoalCard complete={goalPuzzlesComplete} reward={DAILY_CHALLENGE_BASE_REWARD}>
-              {t('daily.goalSolvePuzzles')}
-            </GoalCard>
-            <GoalCard
-              complete={goalBonusesComplete}
-              extra={t('daily.goalBonusExtra', { gems: DAILY_CHALLENGE_ALL_BONUS_REWARD })}
-              reward={DAILY_CHALLENGE_ALL_BONUS_REWARD}>
-              {t('daily.goalBonus')}
-            </GoalCard>
-            <GoalCard complete={goalNoHintsComplete} reward={DAILY_CHALLENGE_NO_HINT_REWARD}>
-              {t('daily.goalNoHints')}
-            </GoalCard>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={handleEnterPlay}
-              style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryPressed]}>
-              <LinearGradient
-                colors={['#F9C85C', '#E99A2E', '#C96D20']}
-                end={{ x: 0.72, y: 1 }}
-                start={{ x: 0.15, y: 0 }}
-                style={styles.primaryButtonSurface}>
-                <Text style={styles.primaryButtonText}>{briefingCta}</Text>
-              </LinearGradient>
-            </Pressable>
-          </ScrollView>
-        ) : null}
-
         {phase === 'play' && currentPuzzle && progress ? (
           <View style={styles.playShell}>
             <LinearGradient
@@ -1472,27 +1364,9 @@ export function DailyChallengeScreen({
               end={{ x: 0, y: 1 }}
               start={{ x: 0, y: 0 }}
               style={styles.challengeStrip}>
-              <View style={styles.challengeStripTop}>
-                <Text numberOfLines={1} style={styles.challengeEyebrow}>
-                  {t('daily.hudTitle')}
-                </Text>
-                <View style={styles.challengeMetaChips}>
-                  <View style={styles.challengeTierChip}>
-                    <Text style={styles.challengeTierText}>{tierLabel(currentPuzzle.tier)}</Text>
-                  </View>
-                  {replayMode ? (
-                    <View style={styles.challengeTrainChip}>
-                      <Text style={styles.challengeTrainText}>{t('daily.trainingBadge')}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
               <View style={styles.challengeStripBottom}>
                 <Text style={styles.challengePuzzleIndex}>
-                  {t('daily.puzzleHud', {
-                    current: puzzleIndex + 1,
-                    total: puzzleTotal,
-                  })}
+                  {completedPuzzleCount}/{puzzleTotal}
                 </Text>
                 <PuzzleRail
                   accessibilityLabel={t('daily.railA11y', {
@@ -1505,9 +1379,6 @@ export function DailyChallengeScreen({
                   puzzles={challenge?.puzzles ?? []}
                   slotRefs={railSlotRefs}
                 />
-                <Text style={styles.challengeStreak}>
-                  {t('daily.streak', { count: progress.streak })}
-                </Text>
               </View>
             </LinearGradient>
 
@@ -1537,22 +1408,13 @@ export function DailyChallengeScreen({
                       </Text>
                     </View>
                   </View>
-                  <View style={styles.operationSide}>
-                    <Text style={styles.operationLabel}>{t('game.stepCount')}</Text>
-                    <View style={styles.requiredBadge}>
-                      <Text style={styles.requiredLabel}>{currentPuzzle.target.steps}</Text>
-                      <View style={styles.requiredDots}>
-                        {Array.from({ length: currentPuzzle.target.steps }, (_, index) => (
-                          <View
-                            key={`daily-step-${index}`}
-                            style={[
-                              styles.requiredDot,
-                              index < selectionCount && styles.requiredDotFilled,
-                            ]}
-                          />
-                        ))}
-                      </View>
-                    </View>
+                  <View
+                    accessible
+                    accessibilityLabel={t('daily.streak', { count: streakCount })}
+                    style={styles.operationStreak}>
+                    <Text numberOfLines={1} style={styles.operationStreakText}>
+                      {t('daily.hudStreak', { count: streakCount })}
+                    </Text>
                   </View>
                 </View>
 
@@ -1700,20 +1562,7 @@ export function DailyChallengeScreen({
 
         {phase === 'completed' && progress ? (
           <View style={styles.completedContent}>
-            <View style={styles.completedBadge}>
-              <Text style={styles.completedBadgeText}>✓</Text>
-            </View>
-            <Text style={styles.completedTitle}>{t('daily.completedTitle')}</Text>
-            <Text style={styles.completedSummary}>
-              {t('daily.completedSummary', { total: puzzleTotal })}
-            </Text>
-            <View style={styles.trainingBadge}>
-              <Text style={styles.trainingBadgeText}>{t('daily.trainingBadge')}</Text>
-            </View>
             <Text style={styles.bodyStreakText}>{t('daily.streak', { count: progress.streak })}</Text>
-            <View style={styles.alreadyCard}>
-              <Text style={styles.alreadyText}>{t('daily.alreadyCompleted')}</Text>
-            </View>
             <Pressable
               accessibilityLabel={t('daily.replayA11y')}
               accessibilityRole="button"
@@ -1818,27 +1667,25 @@ const styles = StyleSheet.create({
     right: -48,
     backgroundColor: '#FFE6A2',
   },
-  backButton: {
-    width: 39,
-    height: 39,
-    borderRadius: 19.5,
+  skyControl: {
+    position: 'relative',
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(42,101,111,0.24)',
-    backgroundColor: 'rgba(255,255,255,0.67)',
-    shadowColor: '#4B8589',
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: 'rgba(216,239,241,0.95)',
+    backgroundColor: 'rgba(41,70,83,0.93)',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
+    shadowOpacity: 0.25,
     shadowRadius: 5,
-    elevation: 3,
+    elevation: 5,
   },
-  backIcon: {
-    marginTop: -4,
-    color: '#236675',
-    fontFamily: FONTS.bold,
-    fontSize: 34,
-    lineHeight: 36,
+  buttonPressed: {
+    opacity: 0.76,
+    transform: [{ scale: 0.94 }],
   },
   headerTitleBlock: {
     flex: 1,
@@ -1952,6 +1799,24 @@ const styles = StyleSheet.create({
     paddingTop: 2,
     paddingBottom: 18,
   },
+  briefingContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    paddingBottom: 44,
+  },
+  briefingContentCompact: {
+    paddingBottom: 28,
+  },
+  briefingStreak: {
+    marginTop: 14,
+    marginBottom: 8,
+    color: '#357378',
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    textAlign: 'center',
+  },
   poster: {
     width: '100%',
     maxWidth: CONTENT_MAX_WIDTH,
@@ -2006,7 +1871,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   briefingTitle: {
-    color: '#FFF6DE',
+    color: '#295E67',
     fontFamily: FONTS.black,
     fontSize: 22,
     letterSpacing: 0.7,
@@ -2073,9 +1938,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   railLine: {
-    width: 14,
+    width: 6,
     height: 2,
-    marginHorizontal: 2,
+    marginHorizontal: 1,
     borderRadius: 1,
     backgroundColor: 'rgba(255,255,255,0.28)',
   },
@@ -2085,12 +1950,12 @@ const styles = StyleSheet.create({
   railDot: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.35)',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
   railDotComplete: {
     borderColor: '#E8C36A',
@@ -2317,11 +2182,13 @@ const styles = StyleSheet.create({
   },
   boardTopSection: {
     width: '100%',
+    zIndex: 2,
     alignItems: 'center',
     paddingHorizontal: 10,
     paddingTop: 7,
     paddingBottom: 8,
-    overflow: 'hidden',
+    overflow: 'visible',
+    flexShrink: 0,
     borderRadius: 28,
     borderWidth: 2,
     borderColor: '#D5EEF2',
@@ -2364,40 +2231,20 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.black,
     fontSize: 14,
   },
-  requiredBadge: {
-    minHeight: 36,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    flexDirection: 'row',
+  operationStreak: {
+    minHeight: 30,
+    paddingHorizontal: 10,
     alignItems: 'center',
-    gap: 5,
+    justifyContent: 'center',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0CB8B',
-    backgroundColor: 'rgba(255,244,202,0.82)',
+    borderColor: 'rgba(201,145,43,0.4)',
+    backgroundColor: 'rgba(255,249,219,0.82)',
   },
-  requiredLabel: {
-    color: '#3A2A0C',
-    fontFamily: FONTS.black,
-    fontSize: 18,
-    lineHeight: 20,
-  },
-  requiredDots: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  requiredDot: {
-    width: 13,
-    height: 13,
-    borderRadius: 7,
-    borderWidth: 1.2,
-    borderColor: '#B98834',
-    backgroundColor: 'rgba(255,255,255,0.54)',
-  },
-  requiredDotFilled: {
-    backgroundColor: '#D9A83E',
-    borderColor: '#A87521',
+  operationStreakText: {
+    color: '#7A4E12',
+    fontFamily: FONTS.extraBold,
+    fontSize: 13,
   },
   boardTargets: {
     width: '100%',
@@ -2502,19 +2349,24 @@ const styles = StyleSheet.create({
   },
   boardBonusRow: {
     width: '100%',
-    minHeight: 60,
+    minHeight: 66,
     marginTop: 8,
     paddingLeft: 12,
     paddingRight: 7,
     paddingVertical: 7,
-    overflow: 'hidden',
+    overflow: 'visible',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
     borderRadius: 16,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: '#D9B95A',
+    backgroundColor: 'rgba(255,247,206,0.98)',
+  },
+  boardBonusRowRaised: {
+    zIndex: 6,
+    elevation: 8,
   },
   boardBonusRowSolved: {
     borderColor: '#3DA27B',
@@ -2541,7 +2393,7 @@ const styles = StyleSheet.create({
   boardBonusStepLabel: {
     color: '#5C3F10',
     fontFamily: FONTS.black,
-    fontSize: 11,
+    fontSize: 12,
   },
   boardBonusDots: {
     flexDirection: 'row',
@@ -2568,9 +2420,9 @@ const styles = StyleSheet.create({
   boardBonusLabel: {
     color: '#5A2F78',
     fontFamily: FONTS.black,
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 0.8,
-    lineHeight: 13,
+    lineHeight: 15,
     marginBottom: 2,
   },
   boardBonusPill: {
@@ -2597,14 +2449,14 @@ const styles = StyleSheet.create({
     color: '#176D58',
   },
   boardBonusCardMeasure: {
-    zIndex: 1,
-    width: 102,
-    height: 48,
+    zIndex: 2,
+    width: 110,
+    height: 62,
     justifyContent: 'center',
   },
   boardBonusCard: {
-    width: 102,
-    height: 48,
+    width: 110,
+    height: 62,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -2635,8 +2487,8 @@ const styles = StyleSheet.create({
   boardBonusValue: {
     color: '#FFFFFF',
     fontFamily: FONTS.black,
-    fontSize: 22,
-    lineHeight: 25,
+    fontSize: 24,
+    lineHeight: 29,
   },
   boardBonusCardDots: {
     color: 'rgba(255,255,255,0.95)',

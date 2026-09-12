@@ -226,7 +226,6 @@ function FlyingBirds({ active }: { active: boolean }) {
 export function MainMenu({
   active,
   currentLevel,
-  dailySummary,
   gemCount,
   levelData,
   score,
@@ -422,7 +421,7 @@ export function MainMenu({
           </View>
 
           <Pressable
-            accessibilityLabel={t('home.dailyCardA11y', { streak: dailySummary?.streak ?? 0 })}
+            accessibilityLabel={t('home.dailyCardA11y')}
             accessibilityRole="button"
             onPress={onOpenDaily}
             style={({ pressed }) => [
@@ -430,15 +429,9 @@ export function MainMenu({
               compact && styles.dailyCardCompact,
               pressed && styles.cardPressed,
             ]}>
-            <Text style={styles.dailyEyebrow}>{t('daily.title')}</Text>
-            <Text numberOfLines={1} style={styles.dailyStatus}>
-              {dailySummary?.claimed
-                ? t('home.dailyDone')
-                : dailySummary?.completed
-                  ? t('home.dailyClaim')
-                  : t('home.dailyReady')}
+            <Text ellipsizeMode="tail" numberOfLines={1} style={styles.dailyCardLine}>
+              {t('home.dailyCardLabel')}
             </Text>
-            <Text style={styles.dailyStreak}>{t('daily.streak', { count: dailySummary?.streak ?? 0 })}</Text>
           </Pressable>
 
           <View
@@ -789,10 +782,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    justifyContent: 'center',
     borderRadius: 18,
     borderWidth: 1.5,
     borderColor: '#E2B65C',
@@ -802,26 +793,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingVertical: 8,
   },
-  dailyEyebrow: {
-    color: '#B97825',
-    fontFamily: FONTS.extraBold,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  dailyStatus: {
-    flex: 1,
+  dailyCardLine: {
+    width: '100%',
     color: '#173E72',
     fontFamily: FONTS.extraBold,
     fontSize: 13,
     fontWeight: '800',
     textAlign: 'center',
-  },
-  dailyStreak: {
-    color: '#234C78',
-    fontFamily: FONTS.bold,
-    fontSize: 11,
-    fontWeight: '700',
   },
   playGlow: { position: 'absolute', width: 148, height: 148, borderRadius: 74, backgroundColor: '#FFF2B2', shadowColor: '#FFFFFF', shadowOpacity: 0.95, shadowRadius: 30, elevation: 4 },
   playGlowCompact: { width: 119, height: 119, borderRadius: 60 },
