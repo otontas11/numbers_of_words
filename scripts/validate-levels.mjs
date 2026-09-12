@@ -272,6 +272,8 @@ if (dailyErrors.length > 0) {
   throw new Error(`Günlük meydan okuma paketleri hatalı: ${dailyErrors.join('; ')}`);
 }
 
+await import('./validate-daily-awards.mjs');
+
 console.log(
   `OK: ${TRAVEL_ROUTES.length} rota, ${WORLD_COUNTRIES.length} ülke etabı, ${TOTAL_DESTINATIONS} destinasyon, ${TOTAL_WORLD_LEVELS} ana level, ${checkedLevelCount} prosedürel puzzle ve günlük 8’li setler doğrulandı.`,
 );

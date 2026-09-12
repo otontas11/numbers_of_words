@@ -30,13 +30,21 @@ import {
   type WheelSelectionOutcome,
 } from '@/components/game/number-wheel';
 import {
+  BONUS_GEM_FLIGHT_DURATION,
   BONUS_GEM_LAUNCH_DELAY,
   BONUS_TARGET_INDEX,
+  CardGemLiftFlight,
+  POINTS_FLIGHT_DURATION,
+  RESULT_FLIGHT_DURATION,
   ResultFlightBadge,
   TARGET_COLOR_REVEAL_DURATION,
   TARGET_LANDING_MS,
+  cardGemLiftEventKey,
+  createCardGemLift,
   createResultFlight,
   measureViewInWindow,
+  resultFlightEventKey,
+  type CardGemLift,
   type ResultFlight,
   type ScreenPoint,
 } from '@/components/game/result-flight';
@@ -48,8 +56,11 @@ import {
   DAILY_CHALLENGE_PUZZLE_COUNT,
   claimDailyChallengeProgress,
   createDailyChallengeProgress,
-  getClaimedDailyChallengeReward,
+  dailyAwardKey,
+  dailyTreasureAwardKey,
+  getDailyBonusGemReward,
   getDailyChallenge,
+  getDailyChallengeReward,
   getLocalDateKey,
   isDailyChallengeComplete,
   resolveDailyChallengeSkill,
@@ -59,6 +70,7 @@ import {
   type DailyChallengeProgress,
   type DailyPuzzle,
 } from '@/game/daily-challenge';
+import { createDailyAwardLedger, type DailyAwardKind } from '@/game/daily-award-ledger';
 import {
   loadDailyChallengeProgress,
   saveDailyChallengeProgress,
@@ -66,21 +78,46 @@ import {
 import {
   computeResult,
   findSolutionIndices,
-  getBonusGemReward,
+  formatLiveExpression,
   getTargetScore,
   OPERATION_DETAILS,
   type Target,
 } from '@/game/levels';
-import { getGameLayout } from '@/game/layout';
+import { DAILY_OPERATION_STRIP_HEIGHT, getGameLayout } from '@/game/layout';
 import type { DifficultyModifier } from '@/game/adaptive-difficulty';
 import type { GameSound } from '@/hooks/use-game-sounds';
-import { useI18n } from '@/i18n';
+import { localizeOperation, useI18n } from '@/i18n';
 
 const HINT_GEM_COST = 10;
 const DAILY_TARGET_INDEX = 0;
 const RAIL_HOP_DELAY_MS = 280;
 const RAIL_TICK_SETTLE_MS = 90;
 const TREASURE_HOLD_MS = 720;
+/**
+ * Rezerve edilmiş bir ödül, rozet hedefine varmasını bildirmezse bu süreden
+ * sonra yine yazılır: uçuşun kendi süresi + küçük bir pay. Hedef ve bonus
+ * puanı ★ hapına, bonus kristali üst 💎 hapına, hazine paketi de sandıktan
+ * aynı 💎 hapına varınca yazılır.
+ */
+const AWARD_SETTLE_GRACE_MS = 400;
+const CLAIM_GEM_LAUNCH_DELAY_MS = 320;
+const TARGET_POINTS_SETTLE_TIMEOUT_MS =
+  RESULT_FLIGHT_DURATION + POINTS_FLIGHT_DURATION + AWARD_SETTLE_GRACE_MS;
+const BONUS_POINTS_SETTLE_TIMEOUT_MS =
+  RESULT_FLIGHT_DURATION +
+  BONUS_GEM_LAUNCH_DELAY +
+  POINTS_FLIGHT_DURATION +
+  AWARD_SETTLE_GRACE_MS;
+const BONUS_GEM_SETTLE_TIMEOUT_MS =
+  RESULT_FLIGHT_DURATION +
+  BONUS_GEM_LAUNCH_DELAY +
+  BONUS_GEM_FLIGHT_DURATION +
+  AWARD_SETTLE_GRACE_MS;
+const CLAIM_GEM_SETTLE_TIMEOUT_MS =
+  CLAIM_GEM_LAUNCH_DELAY_MS + BONUS_GEM_FLIGHT_DURATION + AWARD_SETTLE_GRACE_MS;
+const STEP_HINT_INTRO_DELAY_MS = 520;
+const STEP_DOT_PULSE_MS = 400;
+const STEP_DOT_PULSE_SCALE = 1.15;
 const CONTENT_MAX_WIDTH = 512;
 const GAME_SKY_BACKGROUND = require('../../../assets/images/game-sky-background.png');
 const CONFETTI_COLORS = [
@@ -258,22 +295,120 @@ function useTargetColorReveal(solved: boolean, landed: boolean) {
   return reveal;
 }
 
+function createStepDotPulse(scale: Animated.Value) {
+  const half = STEP_DOT_PULSE_MS / 2;
+  return Animated.sequence([
+    Animated.timing(scale, {
+      toValue: STEP_DOT_PULSE_SCALE,
+      duration: half,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }),
+    Animated.timing(scale, {
+      toValue: 1,
+      duration: half,
+      easing: Easing.in(Easing.quad),
+      useNativeDriver: true,
+    }),
+  ]);
+}
+
+function usePuzzleStepHint(token: string | null) {
+  const [stepScale] = useState(() => new Animated.Value(1));
+
+  useEffect(() => {
+    stepScale.stopAnimation();
+    stepScale.setValue(1);
+    if (!token) return;
+
+    const pulse = Animated.sequence([
+      Animated.delay(STEP_HINT_INTRO_DELAY_MS),
+      createStepDotPulse(stepScale),
+      createStepDotPulse(stepScale),
+    ]);
+    pulse.start();
+    return () => {
+      pulse.stop();
+      stepScale.setValue(1);
+    };
+  }, [stepScale, token]);
+
+  return stepScale;
+}
+
+function DailyStepMeter({
+  pulseScale,
+  selectionCount,
+  solved,
+  steps,
+  tone,
+}: {
+  pulseScale?: Animated.Value;
+  selectionCount: number;
+  solved: boolean;
+  steps: number;
+  tone: 'target' | 'bonus';
+}) {
+  const { t } = useI18n();
+  const footprintColor =
+    tone === 'bonus'
+      ? solved
+        ? '#E8FFF6'
+        : '#F6E3A4'
+      : solved
+        ? '#23785B'
+        : '#A87521';
+
+  return (
+    <Animated.View
+      accessibilityLabel={t('game.stepCount')}
+      accessible
+      pointerEvents="none"
+      style={[
+        styles.stepMeter,
+        pulseScale ? { transform: [{ scale: pulseScale }] } : null,
+      ]}>
+      <FootprintIcon color={footprintColor} filled size={15} />
+      {Array.from({ length: steps }, (_, index) => (
+        <View
+          key={`daily-step-dot-${tone}-${index}`}
+          style={[
+            styles.stepDot,
+            tone === 'bonus' && styles.stepDotBonus,
+            solved && styles.stepDotSolved,
+            solved && tone === 'bonus' && styles.stepDotBonusSolved,
+            index < selectionCount && styles.stepDotFilled,
+            index < selectionCount && tone === 'bonus' && styles.stepDotBonusFilled,
+            index < selectionCount && solved && styles.stepDotSolvedFilled,
+            index < selectionCount && solved && tone === 'bonus' && styles.stepDotBonusSolvedFilled,
+          ]}
+        />
+      ))}
+    </Animated.View>
+  );
+}
+
 function DailyTargetCard({
   landed,
   large,
   measureRef,
+  pulseToken,
+  selectionCount,
   solved,
   target,
 }: {
   landed: boolean;
   large: boolean;
   measureRef?: (view: View | null) => void;
+  pulseToken: string | null;
+  selectionCount: number;
   solved: boolean;
   target: Target;
 }) {
   const { t } = useI18n();
   const operation = OPERATION_DETAILS[target.op];
   const [scale] = useState(() => new Animated.Value(1));
+  const stepScale = usePuzzleStepHint(pulseToken);
   const colorReveal = useTargetColorReveal(solved, landed);
 
   useEffect(() => {
@@ -342,9 +477,13 @@ function DailyTargetCard({
             ]}>
             {target.value}
           </Text>
-          <Text style={[styles.boardTargetDots, solved && styles.boardSolvedText]}>
-            {Array.from({ length: target.steps }, () => '●').join('  ')}
-          </Text>
+          <DailyStepMeter
+            pulseScale={stepScale}
+            selectionCount={selectionCount}
+            solved={solved}
+            steps={target.steps}
+            tone="target"
+          />
           {solved ? <View pointerEvents="none" style={styles.boardTargetSolvedBorder} /> : null}
         </LinearGradient>
       </Animated.View>
@@ -352,22 +491,62 @@ function DailyTargetCard({
   );
 }
 
+function DailyInfoChip({
+  accessibilityLabel,
+  label,
+  value,
+}: {
+  accessibilityLabel: string;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View accessible accessibilityLabel={accessibilityLabel} style={styles.infoChipFrame}>
+      <LinearGradient
+        colors={['#F8FCFB', '#DCECEC']}
+        end={{ x: 1, y: 1 }}
+        start={{ x: 0, y: 0 }}
+        style={styles.infoChip}>
+        <Text
+          adjustsFontSizeToFit
+          minimumFontScale={0.72}
+          numberOfLines={1}
+          style={styles.infoChipLabel}>
+          {label}
+        </Text>
+        <Text
+          allowFontScaling={false}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}
+          numberOfLines={1}
+          style={styles.infoChipValue}>
+          {value}
+        </Text>
+      </LinearGradient>
+    </View>
+  );
+}
+
 function DailyBonusRow({
+  gemLifted = false,
+  gemMeasureRef,
   landed,
   measureRef,
   selectionCount,
   solved,
   target,
 }: {
+  gemLifted?: boolean;
+  gemMeasureRef?: { current: View | null };
   landed: boolean;
-  measureRef?: (view: View | null) => void;
+  measureRef?: { current: View | null };
   selectionCount: number;
   solved: boolean;
   target: Target;
 }) {
   const { t } = useI18n();
   const operation = OPERATION_DETAILS[target.op];
-  const reward = getBonusGemReward(target.steps, false);
+  const reward = getDailyBonusGemReward(target.steps);
   const [scale] = useState(() => new Animated.Value(1));
   const colorReveal = useTargetColorReveal(solved, landed);
 
@@ -388,7 +567,6 @@ function DailyBonusRow({
     <LinearGradient
       accessibilityLabel={t('daily.bonusA11y', {
         value: target.value,
-        steps: target.steps,
         reward,
       })}
       colors={['rgba(255,247,206,0.98)', 'rgba(236,216,255,0.98)']}
@@ -407,21 +585,6 @@ function DailyBonusRow({
           />
         </Animated.View>
       ) : null}
-      <View style={styles.boardBonusStepBadge}>
-        <FootprintIcon color="#A87521" filled size={18} />
-        <Text style={styles.boardBonusStepLabel}>{t('game.stepCount')}</Text>
-        <View style={styles.boardBonusDots}>
-          {Array.from({ length: target.steps }, (_, index) => (
-            <View
-              key={`daily-bonus-step-${index}`}
-              style={[
-                styles.boardBonusDot,
-                index < selectionCount && styles.boardBonusDotFilled,
-              ]}
-            />
-          ))}
-        </View>
-      </View>
       <View style={styles.boardBonusAnchor}>
         <Text style={[styles.boardBonusLabel, solved && styles.boardSolvedText]}>BONUS</Text>
         <View style={[styles.boardBonusPill, solved && styles.boardBonusPillSolved]}>
@@ -455,18 +618,52 @@ function DailyBonusRow({
                 />
               </Animated.View>
             ) : null}
-            <View style={styles.boardBonusOpCorner}>
+            <View
+              collapsable={false}
+              pointerEvents="none"
+              ref={gemMeasureRef}
+              style={[styles.boardBonusGemCorner, gemLifted && styles.boardBonusGemLifted]}>
+              <GemIcon
+                color={solved ? '#66D7FF' : '#BDEFFF'}
+                facetColor={solved ? '#FFFFFF' : '#258AAF'}
+                outlineColor="#0B5875"
+                size={16}
+              />
+            </View>
+            <View style={[styles.boardBonusOpCorner, solved && styles.boardBonusOpCornerSolved]}>
               <Text style={styles.boardBonusOpText}>{operation.symbol}</Text>
             </View>
             <Text style={styles.boardBonusValue}>{target.value}</Text>
-            <Text style={styles.boardBonusCardDots}>
-              {Array.from({ length: target.steps }, () => '●').join('  ')}
-            </Text>
+            <DailyStepMeter
+              selectionCount={selectionCount}
+              solved={solved}
+              steps={target.steps}
+              tone="bonus"
+            />
           </LinearGradient>
         </Animated.View>
       </View>
     </LinearGradient>
   );
+}
+
+function useHudPop(value: number) {
+  const [scale] = useState(() => new Animated.Value(1));
+  const previousRef = useRef(value);
+
+  useEffect(() => {
+    if (previousRef.current === value) return;
+    previousRef.current = value;
+    scale.setValue(1);
+    const animation = Animated.sequence([
+      Animated.timing(scale, { duration: 140, toValue: 1.12, useNativeDriver: true }),
+      Animated.timing(scale, { duration: 140, toValue: 1, useNativeDriver: true }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [scale, value]);
+
+  return scale;
 }
 
 function DailyScorePill({
@@ -479,13 +676,18 @@ function DailyScorePill({
   score: number;
 }) {
   const { locale, t } = useI18n();
+  const popScale = useHudPop(score);
 
   return (
-    <View
+    <Animated.View
       ref={measureRef}
       accessibilityLabel={t('home.pointsA11y', { value: score })}
       collapsable={false}
-      style={[styles.scorePill, compact && styles.scorePillCompact]}>
+      style={[
+        styles.scorePill,
+        compact && styles.scorePillCompact,
+        { transform: [{ scale: popScale }] },
+      ]}>
       <Text style={styles.scoreStar}>★</Text>
       <View style={styles.scoreCopy}>
         <Text style={styles.scoreLabel}>{t('common.score')}</Text>
@@ -497,7 +699,7 @@ function DailyScorePill({
           {score.toLocaleString(locale)}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -516,18 +718,23 @@ export function DailyChallengeScreen({
 }: DailyChallengeScreenProps) {
   const { t } = useI18n();
   const { height, width } = useWindowDimensions();
-  const layout = getGameLayout(width, Math.max(520, height - AD_BANNER_SLOT_HEIGHT));
+  const layout = getGameLayout(
+    width,
+    Math.max(520, height - AD_BANNER_SLOT_HEIGHT + DAILY_OPERATION_STRIP_HEIGHT),
+  );
   const { compactHeader, contentHorizontalPadding, wheelSize } = layout;
   const [challenge, setChallenge] = useState<DailyChallenge | null>(null);
   const [progress, setProgress] = useState<DailyChallengeProgress | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [puzzleIndex, setPuzzleIndex] = useState(0);
   const [hintIndices, setHintIndices] = useState<number[]>([]);
-  const [selectionCount, setSelectionCount] = useState(0);
   const [preview, setPreview] = useState<string | null>(null);
+  const [selectionCount, setSelectionCount] = useState(0);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [flights, setFlights] = useState<ResultFlight[]>([]);
+  const [cardGemLifts, setCardGemLifts] = useState<CardGemLift[]>([]);
+  const [gemLifting, setGemLifting] = useState(false);
   const [railFilledIds, setRailFilledIds] = useState<string[]>([]);
   const [pulsingRailId, setPulsingRailId] = useState<string | null>(null);
   const [targetFlying, setTargetFlying] = useState(false);
@@ -547,14 +754,26 @@ export function DailyChallengeScreen({
   const railPulseTimerRef = useRef<Timer | null>(null);
   const landingTimerRef = useRef<Timer | null>(null);
   const nextFlightId = useRef(1);
+  const flightGenerationRef = useRef(0);
+  const claimCeremonyRef = useRef(false);
+  const awardLedgerRef = useRef(createDailyAwardLedger());
+  const awardTimersRef = useRef(new Map<string, Timer>());
+  const claimedArrivalsRef = useRef(new Set<string>());
+  const launchedFollowUpRef = useRef(new Set<number>());
   const resultLayerRef = useRef<View | null>(null);
   const wheelSourceRef = useRef<View | null>(null);
   const targetCardRef = useRef<View | null>(null);
   const bonusCardRef = useRef<View | null>(null);
+  const bonusGemRef = useRef<View | null>(null);
   const scorePillRef = useRef<View | null>(null);
   const gemPillRef = useRef<View | null>(null);
+  const treasureChestRef = useRef<View | null>(null);
   const railSlotRefs = useRef<Array<View | null>>([]);
   const pendingRailRef = useRef<{ value: number; slotIndex: number } | null>(null);
+  const onRewardRef = useRef(onReward);
+  const onScoreRef = useRef(onScore);
+  onRewardRef.current = onReward;
+  onScoreRef.current = onScore;
 
   skillRef.current = { countryIndex, learningScore, cityDifficultyModifier };
   challengeRef.current = challenge;
@@ -591,19 +810,106 @@ export function DailyChallengeScreen({
     railPulseTimerRef.current = null;
   }, []);
 
+  // Ödül, eşleşme doğrulandığı anda tutarıyla ve anahtarıyla REZERVE edilir;
+  // sayaca yazılması rozetin hedefine varmasına ertelenir, böylece sayı
+  // animasyonun önüne geçmez. Yazma tetikleyicilerinden hangisi önce olursa
+  // ödeme onunla yapılır: varış, sert timeout, measure/uçuş kurulamaması,
+  // tahta değişimi / replay / geri çıkış / unmount. Hepsi aynı anahtardan
+  // geçtiği için ödül ne kaybolur ne iki kez yazılır. Anahtara koşu bileşeni
+  // girdiğinden önceki koşudan kalan bir kayıt bu koşunun ödemesini eleyemez.
+  const clearAwardTimer = useCallback((awardKey: string) => {
+    const timer = awardTimersRef.current.get(awardKey);
+    if (!timer) return;
+    clearTimeout(timer);
+    awardTimersRef.current.delete(awardKey);
+  }, []);
+
+  const settleAward = useCallback(
+    (awardKey: string | undefined) => {
+      if (!awardKey) return;
+      clearAwardTimer(awardKey);
+      const settled = awardLedgerRef.current.settle(awardKey);
+      if (!settled) return;
+      if (settled.kind === 'gem') onRewardRef.current(settled.amount);
+      else onScoreRef.current(settled.amount);
+    },
+    [clearAwardTimer],
+  );
+
+  /** Pays every reserved award at once; used when a flight can no longer land. */
+  const flushAwards = useCallback(() => {
+    for (const timer of awardTimersRef.current.values()) clearTimeout(timer);
+    awardTimersRef.current.clear();
+    const { gems, score } = awardLedgerRef.current.flush();
+    if (gems > 0) onRewardRef.current(gems);
+    if (score > 0) onScoreRef.current(score);
+  }, []);
+
+  const reserveAward = useCallback(
+    (kind: DailyAwardKind, awardKey: string, amount: number, timeoutMs: number) => {
+      if (!awardLedgerRef.current.reserve(kind, awardKey, amount)) return;
+      // Animasyon varışı hiç raporlamazsa ödeme bu sert timeout ile yazılır.
+      awardTimersRef.current.set(
+        awardKey,
+        setTimeout(() => {
+          awardTimersRef.current.delete(awardKey);
+          settleAward(awardKey);
+        }, timeoutMs),
+      );
+    },
+    [settleAward],
+  );
+
+  const reserveBonusGems = useCallback(
+    (puzzleId: string, gems: number) => {
+      const awardKey = dailyAwardKey(progressRef.current?.runSeed ?? 0, 'gem', puzzleId);
+      reserveAward('gem', awardKey, gems, BONUS_GEM_SETTLE_TIMEOUT_MS);
+      return awardKey;
+    },
+    [reserveAward],
+  );
+
+  const reservePuzzlePoints = useCallback(
+    (puzzleId: string, slot: 'target' | 'bonus', points: number) => {
+      const awardKey = dailyAwardKey(progressRef.current?.runSeed ?? 0, slot, puzzleId);
+      reserveAward(
+        'score',
+        awardKey,
+        points,
+        slot === 'bonus' ? BONUS_POINTS_SETTLE_TIMEOUT_MS : TARGET_POINTS_SETTLE_TIMEOUT_MS,
+      );
+      return awardKey;
+    },
+    [reserveAward],
+  );
+
+  const invalidatePendingFlights = useCallback(() => {
+    // Buradan sonra hiçbir uçuş varışını raporlayamaz, o yüzden bekleyen ne
+    // varsa hemen yazılır. Tahta değişimi, replay, faz geçişi, geri çıkış ve
+    // daily'nin yeniden yüklenmesi bu yoldan geçer.
+    flushAwards();
+    flightGenerationRef.current += 1;
+    claimCeremonyRef.current = false;
+    claimedArrivalsRef.current.clear();
+    launchedFollowUpRef.current.clear();
+    setFlights([]);
+    setCardGemLifts([]);
+    setGemLifting(false);
+    setTargetFlying(false);
+    setBonusFlying(false);
+    pendingRailRef.current = null;
+  }, [flushAwards]);
+
   const clearPuzzleVisuals = useCallback(() => {
     clearHintTimer();
     setHintIndices([]);
-    setSelectionCount(0);
     setPreview(null);
+    setSelectionCount(0);
     clearFeedbackTimer();
     setFeedback(null);
-    setFlights([]);
-    setTargetFlying(false);
-    setBonusFlying(false);
+    invalidatePendingFlights();
     setLandedTarget(null);
-    pendingRailRef.current = null;
-  }, [clearFeedbackTimer, clearHintTimer]);
+  }, [clearFeedbackTimer, clearHintTimer, invalidatePendingFlights]);
 
   const showFeedback = useCallback(
     (next: Feedback, duration = 1450) => {
@@ -630,8 +936,18 @@ export function DailyChallengeScreen({
       clearSequenceTimer();
       clearLandingTimer();
       clearRailPulseTimer();
+      // Ekran sökülürken uçuşlar varışı bildiremez; bekleyen ödemeler burada
+      // yazılır, yoksa oyuncu kazandığı puanı/kristali kaybederdi.
+      flushAwards();
     };
-  }, [clearFeedbackTimer, clearHintTimer, clearLandingTimer, clearRailPulseTimer, clearSequenceTimer]);
+  }, [
+    clearFeedbackTimer,
+    clearHintTimer,
+    clearLandingTimer,
+    clearRailPulseTimer,
+    clearSequenceTimer,
+    flushAwards,
+  ]);
 
   useEffect(() => {
     if (active && phase === 'play') return;
@@ -639,13 +955,14 @@ export function DailyChallengeScreen({
     clearLandingTimer();
     clearRailPulseTimer();
     sequenceLockRef.current = false;
-    pendingRailRef.current = null;
-    setCelebrating(false);
-    setFlights([]);
-    setTargetFlying(false);
-    setBonusFlying(false);
     setLandedTarget(null);
-  }, [active, clearLandingTimer, clearRailPulseTimer, clearSequenceTimer, phase]);
+    // Hazine / completed geçişi claim uçuşunu öldürmesin; yalnız çıkış ve
+    // yeniden yükleme bekleyen ödemeleri yazar.
+    if (!active || phase === 'loading') {
+      setCelebrating(false);
+      invalidatePendingFlights();
+    }
+  }, [active, clearLandingTimer, clearRailPulseTimer, clearSequenceTimer, invalidatePendingFlights, phase]);
 
   useEffect(() => {
     sunPulse.stopAnimation();
@@ -684,13 +1001,12 @@ export function DailyChallengeScreen({
     setPhase('loading');
     claimInFlightRef.current = false;
     sequenceLockRef.current = false;
-    pendingRailRef.current = null;
     setCelebrating(false);
-    setFlights([]);
+    // invalidatePendingFlights bekleyenleri yazdı; defter yeni koşu için boşalır.
+    invalidatePendingFlights();
+    awardLedgerRef.current.reset();
     setRailFilledIds([]);
     setPulsingRailId(null);
-    setTargetFlying(false);
-    setBonusFlying(false);
     setLandedTarget(null);
 
     void loadDailyChallengeProgress(dateKey, liveSkill)
@@ -701,6 +1017,7 @@ export function DailyChallengeScreen({
         const nextChallenge = getDailyChallenge(
           dateKey,
           skillFromDailyChallengeProgress(loadedProgress),
+          loadedProgress.runSeed,
         );
         const nextPuzzleIndex = nextChallenge.puzzles.findIndex(
           (puzzle) => !loadedProgress.completedPuzzleIds.includes(puzzle.id),
@@ -714,9 +1031,9 @@ export function DailyChallengeScreen({
             ? nextPuzzleIndex
             : Math.max(0, nextChallenge.puzzles.length - 1),
         );
-        if (loadedProgress.claimed && isDailyChallengeComplete(loadedProgress, nextChallenge)) {
+        if (loadedProgress.runClaimed && isDailyChallengeComplete(loadedProgress, nextChallenge)) {
           setPhase('completed');
-        } else if (!loadedProgress.claimed && isDailyChallengeComplete(loadedProgress, nextChallenge)) {
+        } else if (isDailyChallengeComplete(loadedProgress, nextChallenge)) {
           setPhase('treasure');
         } else {
           setPhase('play');
@@ -726,7 +1043,7 @@ export function DailyChallengeScreen({
     return () => {
       cancelled = true;
     };
-  }, [active, clearPuzzleVisuals]);
+  }, [active, invalidatePendingFlights]);
 
   const currentPuzzle = challenge?.puzzles[puzzleIndex] ?? null;
   const completedPuzzleCount = useMemo(() => {
@@ -748,14 +1065,19 @@ export function DailyChallengeScreen({
     Boolean(currentPuzzle && progress?.completedPuzzleIds.includes(currentPuzzle.id));
   const bonusComplete =
     Boolean(currentPuzzle && progress?.completedBonusPuzzleIds.includes(currentPuzzle.id));
-  const replayMode = Boolean(progress?.claimed);
-  const liveRewardTotal =
-    DAILY_CHALLENGE_BASE_REWARD +
-    (allBonusesFound ? DAILY_CHALLENGE_ALL_BONUS_REWARD : 0) +
-    (progress?.usedHint ? 0 : DAILY_CHALLENGE_NO_HINT_REWARD);
-  const rewardTotal = replayMode
-    ? getClaimedDailyChallengeReward(progress ?? { claimed: false, claimedAllBonuses: false, claimedNoHint: false }).total
-    : liveRewardTotal;
+  // Ödül tablosu her koşuda aynıdır; `claimed` onu küçültmez, koşu sayısı da
+  // sınırlı değildir. Tutar tek kaynaktan, `getDailyChallengeReward`'tan okunur.
+  const rewardTotal = useMemo(
+    () => (progress && challenge ? getDailyChallengeReward(progress, challenge).total : 0),
+    [challenge, progress],
+  );
+  const packGemsForDisplay =
+    rewardTotal > 0
+      ? rewardTotal
+      : DAILY_CHALLENGE_BASE_REWARD +
+        (allBonusesFound ? DAILY_CHALLENGE_ALL_BONUS_REWARD : 0) +
+        (progress?.usedHint ? 0 : DAILY_CHALLENGE_NO_HINT_REWARD);
+  const gemPopScale = useHudPop(gemCount);
   const sunStyle = useMemo(
     () => ({
       opacity: sunPulse.interpolate({ inputRange: [0, 1], outputRange: [0.38, 0.72] }),
@@ -802,7 +1124,15 @@ export function DailyChallengeScreen({
 
   const pushFlights = useCallback((nextFlights: ResultFlight[]) => {
     if (nextFlights.length === 0) return;
-    setFlights((current) => [...current, ...nextFlights]);
+    setFlights((current) => {
+      const seenIds = new Set(current.map((item) => item.id));
+      const unique = nextFlights.filter((flight) => {
+        if (seenIds.has(flight.id)) return false;
+        seenIds.add(flight.id);
+        return true;
+      });
+      return unique.length === 0 ? current : [...current, ...unique];
+    });
   }, []);
 
   const allocateFlight = useCallback(
@@ -817,6 +1147,9 @@ export function DailyChallengeScreen({
       railSlot,
       followUpGemReward,
       followUpPoints,
+      awardKey,
+      followUpPointsAwardKey,
+      followUpGemAwardKey,
     }: {
       kind: ResultFlight['kind'];
       value: number;
@@ -828,6 +1161,9 @@ export function DailyChallengeScreen({
       railSlot?: number;
       followUpGemReward?: number;
       followUpPoints?: number;
+      awardKey?: string;
+      followUpPointsAwardKey?: string;
+      followUpGemAwardKey?: string;
     }): Promise<ResultFlight | null> => {
       const [rootRect, sourceRect, targetRect] = await Promise.all([
         measureViewInWindow(resultLayerRef.current),
@@ -845,6 +1181,9 @@ export function DailyChallengeScreen({
         delay,
         followUpGemReward,
         followUpPoints,
+        awardKey,
+        followUpPointsAwardKey,
+        followUpGemAwardKey,
         rootRect,
         sourceRect: source,
         targetRect,
@@ -874,7 +1213,7 @@ export function DailyChallengeScreen({
         clearPuzzleVisuals();
         if (finale) {
           setCelebrating(false);
-          setPhase(currentProgress.claimed ? 'completed' : 'treasure');
+          setPhase(currentProgress.runClaimed ? 'completed' : 'treasure');
           sequenceLockRef.current = false;
           return;
         }
@@ -907,6 +1246,7 @@ export function DailyChallengeScreen({
 
   const launchRailHop = useCallback(
     async (value: number, slotIndex: number) => {
+      const generation = flightGenerationRef.current;
       const flight = await allocateFlight({
         kind: 'result',
         value,
@@ -915,6 +1255,7 @@ export function DailyChallengeScreen({
         targetIndex: slotIndex,
         railSlot: slotIndex,
       });
+      if (generation !== flightGenerationRef.current) return;
       if (!flight) {
         const puzzle = challengeRef.current?.puzzles[slotIndex];
         if (puzzle) fillRailSlot(puzzle.id);
@@ -927,39 +1268,74 @@ export function DailyChallengeScreen({
   );
 
   const launchHudFollowUps = useCallback(
-    async (followUpPoints?: number, followUpGemReward?: number) => {
-      const [pointsFlight, gemFlight] = await Promise.all([
+    async (
+      followUpPoints?: number,
+      followUpGemReward?: number,
+      pointsAwardKey?: string,
+      gemAwardKey?: string,
+      pointsSourceView?: View | null,
+    ) => {
+      const generation = flightGenerationRef.current;
+      if (followUpGemReward) onEffect('diamond');
+      const hudDelay = followUpGemReward ? BONUS_GEM_LAUNCH_DELAY : 0;
+      const [pointsFlight, gemLift] = await Promise.all([
         followUpPoints
           ? allocateFlight({
               kind: 'points',
               value: followUpPoints,
               toView: scorePillRef.current,
-              sourceView: bonusCardRef.current,
-              delay: BONUS_GEM_LAUNCH_DELAY,
+              sourceView: pointsSourceView ?? bonusCardRef.current,
+              delay: hudDelay,
               targetIndex: BONUS_TARGET_INDEX,
+              awardKey: pointsAwardKey,
             })
           : Promise.resolve(null),
         followUpGemReward
-          ? allocateFlight({
-              kind: 'gem',
-              value: followUpGemReward,
-              toView: gemPillRef.current,
-              sourceView: bonusCardRef.current,
-              delay: BONUS_GEM_LAUNCH_DELAY,
-              targetIndex: BONUS_TARGET_INDEX,
+          ? Promise.all([
+              measureViewInWindow(resultLayerRef.current),
+              measureViewInWindow(bonusGemRef.current ?? bonusCardRef.current),
+              measureViewInWindow(gemPillRef.current),
+            ]).then(([rootRect, sourceRect, targetRect]) => {
+              if (!rootRect || !sourceRect || !targetRect) return null;
+              const id = nextFlightId.current;
+              nextFlightId.current += 1;
+              return createCardGemLift({
+                id,
+                value: followUpGemReward,
+                awardKey: gemAwardKey,
+                delay: BONUS_GEM_LAUNCH_DELAY,
+                rootRect,
+                sourceRect,
+                targetRect,
+              });
             })
           : Promise.resolve(null),
       ]);
-      pushFlights(
-        [pointsFlight, gemFlight].filter((flight): flight is ResultFlight => flight != null),
-      );
+      if (generation !== flightGenerationRef.current) return;
+      // Uçuş kurulamadıysa (measure başarısız) ödül varışı bekleyemez: hemen yaz.
+      if (pointsFlight) pushFlights([pointsFlight]);
+      else settleAward(pointsAwardKey);
+      if (gemLift) {
+        setCardGemLifts((current) =>
+          current.some((item) => item.id === gemLift.id) ? current : [...current, gemLift],
+        );
+      } else {
+        settleAward(gemAwardKey);
+      }
     },
-    [allocateFlight, pushFlights],
+    [allocateFlight, onEffect, pushFlights, settleAward],
   );
 
   const handleFlightArrive = useCallback(
     (flight: ResultFlight) => {
-      if (flight.kind !== 'result') return;
+      const eventKey = resultFlightEventKey(flight);
+      if (claimedArrivalsRef.current.has(eventKey)) return;
+      claimedArrivalsRef.current.add(eventKey);
+
+      // Rozet hedefine vardı: rezerve edilmiş ödül tam bu anda sayaca yazılır.
+      settleAward(flight.awardKey);
+      if (flight.kind === 'points') onEffect('points');
+      if (flight.kind === 'gem' || flight.kind === 'points') return;
       if (flight.railSlot != null) {
         const puzzle = challengeRef.current?.puzzles[flight.railSlot];
         if (puzzle) fillRailSlot(puzzle.id);
@@ -973,16 +1349,55 @@ export function DailyChallengeScreen({
       setTargetFlying(false);
       pulseTarget(DAILY_TARGET_INDEX);
     },
-    [fillRailSlot, pulseTarget],
+    [fillRailSlot, onEffect, pulseTarget, settleAward],
   );
+
+  const handleCardGemArrive = useCallback(
+    (lift: CardGemLift) => {
+      claimedArrivalsRef.current.add(cardGemLiftEventKey(lift));
+      // Kart kristali üstteki toplam 💎 hapına vardı: kristal şimdi artar.
+      settleAward(lift.awardKey);
+    },
+    [settleAward],
+  );
+
+  const handleCardGemComplete = useCallback((lift: CardGemLift) => {
+    setCardGemLifts((current) => current.filter((item) => item.id !== lift.id));
+    setGemLifting(false);
+  }, []);
+
+  const handleCardGemLiftStart = useCallback(() => {
+    setGemLifting(true);
+  }, []);
+
+  const finishClaimCeremony = useCallback(() => {
+    if (!claimCeremonyRef.current) return;
+    claimCeremonyRef.current = false;
+    clearSequenceTimer();
+    setPhase('completed');
+  }, [clearSequenceTimer]);
 
   const handleFlightComplete = useCallback(
     (flight: ResultFlight) => {
       setFlights((current) => current.filter((item) => item.id !== flight.id));
-      if (flight.kind !== 'result') return;
+      if (flight.kind !== 'result') {
+        if (flight.awardKey?.includes(':treasure')) finishClaimCeremony();
+        return;
+      }
 
       if (flight.followUpGemReward !== undefined || flight.followUpPoints !== undefined) {
-        void launchHudFollowUps(flight.followUpPoints, flight.followUpGemReward);
+        if (!launchedFollowUpRef.current.has(flight.id)) {
+          launchedFollowUpRef.current.add(flight.id);
+          void launchHudFollowUps(
+            flight.followUpPoints,
+            flight.followUpGemReward,
+            flight.followUpPointsAwardKey,
+            flight.followUpGemAwardKey,
+            flight.targetIndex === BONUS_TARGET_INDEX
+              ? bonusCardRef.current
+              : targetCardRef.current,
+          );
+        }
       }
 
       if (flight.railSlot != null) {
@@ -1004,26 +1419,19 @@ export function DailyChallengeScreen({
         void launchRailHop(pending.value, pending.slotIndex);
       }, RAIL_HOP_DELAY_MS);
     },
-    [clearSequenceTimer, finishPuzzleAfterRail, launchHudFollowUps, launchRailHop],
+    [clearSequenceTimer, finishClaimCeremony, finishPuzzleAfterRail, launchHudFollowUps, launchRailHop],
   );
 
   const handlePreview = useCallback(
     (indices: number[]) => {
-      if (!currentPuzzle || indices.length < 2) {
+      if (!currentPuzzle || indices.length === 0) {
         setPreview(null);
         return;
       }
-      const calculation = computeResult(
-        indices.map((index) => currentPuzzle.numbers[index]),
-        currentPuzzle.op,
-      );
-      setPreview(
-        calculation
-          ? `${calculation.expression} = ${calculation.result}`
-          : t('feedback.tryAnother'),
-      );
+      const values = indices.map((index) => currentPuzzle.numbers[index]);
+      setPreview(formatLiveExpression(values, currentPuzzle.op));
     },
-    [currentPuzzle, t],
+    [currentPuzzle],
   );
 
   const handleComplete = useCallback(
@@ -1073,7 +1481,8 @@ export function DailyChallengeScreen({
           };
         });
         void saveDailyChallengeProgress(next).catch(() => undefined);
-        onScore(earnedPoints);
+        // Puan şimdi rezerve edilir, ★ rozeti puan hapına varınca yazılır.
+        const targetPointsAwardKey = reservePuzzlePoints(puzzleId, 'target', earnedPoints);
         clearHintTimer();
         setHintIndices([]);
         onEffect('success');
@@ -1084,6 +1493,7 @@ export function DailyChallengeScreen({
         sequenceLockRef.current = true;
         setTargetFlying(true);
         pendingRailRef.current = { value: calculation.result, slotIndex: puzzleIndex };
+        const generation = flightGenerationRef.current;
         void allocateFlight({
           kind: 'result',
           value: calculation.result,
@@ -1091,8 +1501,13 @@ export function DailyChallengeScreen({
           origin: resultOrigin,
           sourceView: wheelSourceRef.current,
           targetIndex: DAILY_TARGET_INDEX,
+          followUpPoints: earnedPoints > 0 ? earnedPoints : undefined,
+          followUpPointsAwardKey: targetPointsAwardKey,
         }).then((flight) => {
+          if (generation !== flightGenerationRef.current) return;
           if (!flight) {
+            // Uçuş hiç kurulamadı: varış beklemeden puanı yaz.
+            settleAward(targetPointsAwardKey);
             setTargetFlying(false);
             pulseTarget(DAILY_TARGET_INDEX);
             fillRailSlot(puzzleId);
@@ -1105,12 +1520,17 @@ export function DailyChallengeScreen({
       }
 
       if (isBonusMatch) {
+        // `progressRef` senkron güncellendiği için tekrar eşleşmeyi tek başına
+        // engeller; uçuş durumuna bakan ek bir kilit ödülü düşürebilirdi.
         if (currentProgress.completedBonusPuzzleIds.includes(puzzleId)) {
           showFeedback({ text: t('feedback.alreadyFound'), tone: 'info' }, 1250);
           return 'invalid';
         }
-        const bonusReward = getBonusGemReward(currentPuzzle.bonusTarget.steps, false);
-        const paysGems = !currentProgress.claimed;
+        const bonusReward = getDailyBonusGemReward(currentPuzzle.bonusTarget.steps);
+        // Kart ödülü her koşuda (replay dahil) eşleşme anında rezerve edilir;
+        // kristal üstteki toplam hapına, puan da puan hapına varınca yazılır.
+        const bonusGemAwardKey = reserveBonusGems(puzzleId, bonusReward);
+        const bonusPointsAwardKey = reservePuzzlePoints(puzzleId, 'bonus', earnedPoints);
         const next = {
           ...currentProgress,
           completedBonusPuzzleIds: [...currentProgress.completedBonusPuzzleIds, puzzleId],
@@ -1128,9 +1548,7 @@ export function DailyChallengeScreen({
           };
         });
         void saveDailyChallengeProgress(next).catch(() => undefined);
-        onScore(earnedPoints);
-        if (paysGems) onReward(bonusReward);
-        onEffect('bonus');
+        onEffect('diamond');
         showFeedback(
           {
             text: t('daily.bonusFound', { reward: bonusReward, points: earnedPoints }),
@@ -1139,6 +1557,7 @@ export function DailyChallengeScreen({
           1850,
         );
         setBonusFlying(true);
+        const generation = flightGenerationRef.current;
         void allocateFlight({
           kind: 'result',
           value: calculation.result,
@@ -1146,13 +1565,18 @@ export function DailyChallengeScreen({
           origin: resultOrigin,
           sourceView: wheelSourceRef.current,
           targetIndex: BONUS_TARGET_INDEX,
-          followUpGemReward: paysGems ? bonusReward : undefined,
-          followUpPoints: earnedPoints,
+          followUpGemReward: bonusReward,
+          followUpPoints: earnedPoints > 0 ? earnedPoints : undefined,
+          followUpGemAwardKey: bonusGemAwardKey,
+          followUpPointsAwardKey: bonusPointsAwardKey,
         }).then((flight) => {
+          if (generation !== flightGenerationRef.current) return;
           if (!flight) {
+            // Sonuç uçuşu kurulamadı, HUD uçuşları hiç kalkmayacak: hemen yaz.
+            settleAward(bonusGemAwardKey);
+            settleAward(bonusPointsAwardKey);
             setBonusFlying(false);
             pulseTarget(BONUS_TARGET_INDEX);
-            void launchHudFollowUps(earnedPoints, paysGems ? bonusReward : undefined);
             return;
           }
           pushFlights([flight]);
@@ -1175,13 +1599,13 @@ export function DailyChallengeScreen({
       currentPuzzle,
       fillRailSlot,
       finishPuzzleAfterRail,
-      launchHudFollowUps,
       onEffect,
-      onReward,
-      onScore,
       pulseTarget,
       puzzleIndex,
       pushFlights,
+      reserveBonusGems,
+      reservePuzzlePoints,
+      settleAward,
       showFeedback,
       t,
     ],
@@ -1190,14 +1614,11 @@ export function DailyChallengeScreen({
   const handleBack = useCallback(() => {
     clearSequenceTimer();
     sequenceLockRef.current = false;
-    pendingRailRef.current = null;
     setCelebrating(false);
-    setFlights([]);
-    setTargetFlying(false);
-    setBonusFlying(false);
+    invalidatePendingFlights();
     setLandedTarget(null);
     onBack();
-  }, [clearSequenceTimer, onBack]);
+  }, [clearSequenceTimer, invalidatePendingFlights, onBack]);
 
   const handleHint = useCallback(() => {
     const currentProgress = progressRef.current;
@@ -1217,10 +1638,11 @@ export function DailyChallengeScreen({
       return;
     }
 
-    const next =
-      currentProgress.claimed || currentProgress.usedHint
-        ? currentProgress
-        : { ...currentProgress, usedHint: true };
+    // İpucusuz ödülü her koşuda yeniden kazanılır, bu yüzden ipucu kullanımı
+    // koşu bazında işaretlenir; `claimed` bunu artık atlamaz.
+    const next = currentProgress.usedHint
+      ? currentProgress
+      : { ...currentProgress, usedHint: true };
     persistProgress(next);
     onSpendGems(HINT_GEM_COST);
     hintActiveRef.current = true;
@@ -1242,6 +1664,29 @@ export function DailyChallengeScreen({
     targetComplete,
   ]);
 
+  const handleWheelNodeAdded = useCallback(
+    (count: number) => {
+      setSelectionCount(count);
+      onEffect(selectionSound(count));
+    },
+    [onEffect],
+  );
+
+  const handleWheelNodeRemoved = useCallback(
+    (count: number) => {
+      setSelectionCount(count);
+      onEffect(selectionSound(count));
+    },
+    [onEffect],
+  );
+
+  const handleWheelDraggingChange = useCallback((dragging: boolean) => {
+    if (!dragging) {
+      setPreview(null);
+      setSelectionCount(0);
+    }
+  }, []);
+
   const handleShuffle = useCallback(() => {
     clearHintTimer();
     setHintIndices([]);
@@ -1251,12 +1696,23 @@ export function DailyChallengeScreen({
   }, [clearHintTimer, onEffect]);
 
   const handleReplay = useCallback(() => {
+    // Faz yalnız hazine toplandıktan sonra 'completed' olur; burada `runClaimed`
+    // kontrolü yapmıyoruz, yoksa tutarsız bir kayıtta buton sessizce ölür.
     const currentProgress = progressRef.current;
-    if (!currentProgress?.claimed) return;
+    if (!currentProgress) return;
     const next = startDailyChallengeReplay(currentProgress);
     persistProgress(next);
+    // Yeni koşu yeni bir soru seti üretir; `runSeed` tohumun parçasıdır.
+    setChallenge(
+      getDailyChallenge(next.dateKey, skillFromDailyChallengeProgress(next), next.runSeed),
+    );
     setPuzzleIndex(0);
+    // clearPuzzleVisuals bekleyen ödemeleri yazar; defter sıfırlanınca yeni
+    // koşu tüm ödülleri yeniden kazanılabilir hale gelir.
     clearPuzzleVisuals();
+    awardLedgerRef.current.reset();
+    claimInFlightRef.current = false;
+    claimCeremonyRef.current = false;
     sequenceLockRef.current = false;
     setCelebrating(false);
     setRailFilledIds([]);
@@ -1265,23 +1721,68 @@ export function DailyChallengeScreen({
   }, [clearPuzzleVisuals, persistProgress]);
 
   const handleClaim = useCallback(() => {
-    if (!challenge || !progress || !allPuzzlesComplete || progress.claimed || claimInFlightRef.current) {
+    if (
+      !challenge ||
+      !progress ||
+      !allPuzzlesComplete ||
+      progress.runClaimed ||
+      claimInFlightRef.current
+    ) {
       return;
     }
     claimInFlightRef.current = true;
+    const packGems = rewardTotal;
     const claimedProgress = claimDailyChallengeProgress(progress, challenge);
     persistProgress(claimedProgress);
-    onReward(liveRewardTotal);
-    onEffect('points');
-    setPhase('completed');
+    if (packGems <= 0) {
+      onEffect('points');
+      setPhase('completed');
+      return;
+    }
+
+    const awardKey = dailyTreasureAwardKey(claimedProgress.runSeed, claimedProgress.dateKey);
+    reserveAward('gem', awardKey, packGems, CLAIM_GEM_SETTLE_TIMEOUT_MS);
+    claimCeremonyRef.current = true;
+    setCelebrating(true);
+    onEffect('levelComplete');
+    clearSequenceTimer();
+    sequenceTimerRef.current = setTimeout(() => {
+      sequenceTimerRef.current = null;
+      settleAward(awardKey);
+      finishClaimCeremony();
+    }, CLAIM_GEM_SETTLE_TIMEOUT_MS);
+
+    const generation = flightGenerationRef.current;
+    void allocateFlight({
+      kind: 'gem',
+      value: packGems,
+      toView: gemPillRef.current,
+      sourceView: treasureChestRef.current,
+      targetIndex: BONUS_TARGET_INDEX,
+      delay: CLAIM_GEM_LAUNCH_DELAY_MS,
+      awardKey,
+    }).then((flight) => {
+      if (generation !== flightGenerationRef.current) return;
+      if (!flight) {
+        settleAward(awardKey);
+        finishClaimCeremony();
+        return;
+      }
+      pushFlights([flight]);
+    });
   }, [
+    allocateFlight,
     allPuzzlesComplete,
     challenge,
-    liveRewardTotal,
+    clearSequenceTimer,
+    finishClaimCeremony,
     onEffect,
-    onReward,
     persistProgress,
     progress,
+    pushFlights,
+    reserveAward,
+    rewardTotal,
+    settleAward,
   ]);
 
   if (!active) return null;
@@ -1338,14 +1839,14 @@ export function DailyChallengeScreen({
               {t('daily.hudTitle')}
             </Text>
           </View>
-          <View
+          <Animated.View
             ref={gemPillRef}
             accessible
             accessibilityLabel={`${gemCount} 💎`}
             collapsable={false}
-            style={styles.gemPill}>
+            style={[styles.gemPill, { transform: [{ scale: gemPopScale }] }]}>
             <Text style={styles.gemPillText}>💎 {gemCount}</Text>
-          </View>
+          </Animated.View>
         </View>
 
         {phase === 'loading' || !challenge || !progress ? (
@@ -1395,46 +1896,39 @@ export function DailyChallengeScreen({
                   styles.boardTopSection,
                   currentPuzzle.miniChallenge && styles.boardTopSectionChallenge,
                 ]}>
-                <View style={styles.operationRow}>
-                  <View style={styles.operationSide}>
-                    <Text style={styles.operationLabel}>{t('game.operationType')}</Text>
-                    <View
-                      style={[
-                        styles.operationBadge,
-                        { backgroundColor: OPERATION_DETAILS[currentPuzzle.op].color },
-                      ]}>
-                      <Text style={styles.operationSymbol}>
-                        {OPERATION_DETAILS[currentPuzzle.op].symbol}
-                      </Text>
-                    </View>
-                  </View>
-                  <View
-                    accessible
-                    accessibilityLabel={t('daily.streak', { count: streakCount })}
-                    style={styles.operationStreak}>
-                    <Text numberOfLines={1} style={styles.operationStreakText}>
-                      {t('daily.hudStreak', { count: streakCount })}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.boardTargets}>
+                <View style={styles.boardQuestionRow}>
                   <DailyTargetCard
                     landed={landedTarget === DAILY_TARGET_INDEX}
                     large={!layout.compact}
                     measureRef={(view) => {
                       targetCardRef.current = view;
                     }}
+                    pulseToken={currentPuzzle.id}
+                    selectionCount={selectionCount}
                     solved={targetComplete && !targetFlying}
                     target={currentPuzzle.target}
                   />
+                  <View style={styles.boardQuestionMeta}>
+                    <DailyInfoChip
+                      accessibilityLabel={localizeOperation(
+                        OPERATION_DETAILS[currentPuzzle.op].symbol,
+                      )}
+                      label={t('daily.hudOpLabel')}
+                      value={OPERATION_DETAILS[currentPuzzle.op].symbol}
+                    />
+                    <DailyInfoChip
+                      accessibilityLabel={t('daily.streak', { count: streakCount })}
+                      label={t('daily.hudStreakLabel')}
+                      value={t('daily.hudStreak', { count: streakCount })}
+                    />
+                  </View>
                 </View>
 
                 <DailyBonusRow
+                  gemLifted={gemLifting}
+                  gemMeasureRef={bonusGemRef}
                   landed={landedTarget === BONUS_TARGET_INDEX}
-                  measureRef={(view) => {
-                    bonusCardRef.current = view;
-                  }}
+                  measureRef={bonusCardRef}
                   selectionCount={selectionCount}
                   solved={bonusComplete && !bonusFlying}
                   target={currentPuzzle.bonusTarget}
@@ -1472,21 +1966,10 @@ export function DailyChallengeScreen({
                   numbers={currentPuzzle.numbers}
                   operationGuideSymbol={operationSymbol}
                   onComplete={handleComplete}
-                  onDraggingChange={(dragging) => {
-                    if (!dragging) {
-                      setSelectionCount(0);
-                      setPreview(null);
-                    }
-                  }}
+                  onDraggingChange={handleWheelDraggingChange}
                   onHint={handleHint}
-                  onNodeAdded={(count) => {
-                    setSelectionCount(count);
-                    onEffect(selectionSound(count));
-                  }}
-                  onNodeRemoved={(count) => {
-                    setSelectionCount(count);
-                    onEffect(selectionSound(count));
-                  }}
+                  onNodeAdded={handleWheelNodeAdded}
+                  onNodeRemoved={handleWheelNodeRemoved}
                   onPreview={handlePreview}
                   onShuffle={handleShuffle}
                   outroToken={wheelOutroToken}
@@ -1495,22 +1978,6 @@ export function DailyChallengeScreen({
               </View>
             </View>
 
-            <CompactConfetti visible={celebrating} />
-
-            <View
-              ref={resultLayerRef}
-              collapsable={false}
-              pointerEvents="none"
-              style={styles.resultFlightLayer}>
-              {flights.map((flight) => (
-                <ResultFlightBadge
-                  flight={flight}
-                  key={flight.id}
-                  onArrive={handleFlightArrive}
-                  onComplete={handleFlightComplete}
-                />
-              ))}
-            </View>
           </View>
         ) : null}
 
@@ -1519,7 +1986,7 @@ export function DailyChallengeScreen({
             contentContainerStyle={styles.treasureScroll}
             showsVerticalScrollIndicator={false}
             style={styles.phaseFill}>
-            <View style={styles.treasureChest}>
+            <View ref={treasureChestRef} collapsable={false} style={styles.treasureChest}>
               <Text style={styles.treasureSparkleLeft}>✦</Text>
               <Text style={styles.treasureEmoji}>🎁</Text>
               <Text style={styles.treasureSparkleRight}>✦</Text>
@@ -1528,8 +1995,8 @@ export function DailyChallengeScreen({
             <Text style={styles.treasureSubtitle}>{t('daily.treasureSubtitle')}</Text>
 
             <View style={styles.rewardCard}>
-              <Text style={styles.rewardBig}>💎 +{rewardTotal}</Text>
-              <Text style={styles.rewardLabel}>{t('daily.reward', { gems: rewardTotal })}</Text>
+              <Text style={styles.rewardBig}>💎 +{packGemsForDisplay}</Text>
+              <Text style={styles.rewardLabel}>{t('daily.reward', { gems: packGemsForDisplay })}</Text>
               <View style={styles.rewardDivider} />
               <GoalCard complete={true} reward={DAILY_CHALLENGE_BASE_REWARD}>
                 {t('daily.goalSolvePuzzles')}
@@ -1545,24 +2012,37 @@ export function DailyChallengeScreen({
               </GoalCard>
             </View>
             <Text style={styles.bodyStreakText}>{t('daily.streak', { count: progress.streak })}</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={handleClaim}
-              style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryPressed]}>
-              <LinearGradient
-                colors={['#F9C85C', '#E99A2E', '#C96D20']}
-                end={{ x: 0.72, y: 1 }}
-                start={{ x: 0.15, y: 0 }}
-                style={styles.primaryButtonSurface}>
-                <Text style={styles.primaryButtonText}>{t('daily.claimReward')}</Text>
-              </LinearGradient>
-            </Pressable>
+            {progress.runClaimed ? null : (
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleClaim}
+                style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryPressed]}>
+                <LinearGradient
+                  colors={['#F9C85C', '#E99A2E', '#C96D20']}
+                  end={{ x: 0.72, y: 1 }}
+                  start={{ x: 0.15, y: 0 }}
+                  style={styles.primaryButtonSurface}>
+                  <Text style={styles.primaryButtonText}>{t('daily.claimReward')}</Text>
+                </LinearGradient>
+              </Pressable>
+            )}
           </ScrollView>
         ) : null}
 
         {phase === 'completed' && progress ? (
           <View style={styles.completedContent}>
+            <View style={styles.completedBadge}>
+              <Text style={styles.completedBadgeText}>✓</Text>
+            </View>
+            <Text style={styles.completedTitle}>{t('daily.completedTitle')}</Text>
+            <Text style={styles.completedHaul}>
+              {t('daily.completedHaul', {
+                points: progress.runScore,
+                gems: packGemsForDisplay,
+              })}
+            </Text>
             <Text style={styles.bodyStreakText}>{t('daily.streak', { count: progress.streak })}</Text>
+            <Text style={styles.runRewardNote}>{t('daily.replayRewards')}</Text>
             <Pressable
               accessibilityLabel={t('daily.replayA11y')}
               accessibilityRole="button"
@@ -1589,6 +2069,31 @@ export function DailyChallengeScreen({
           <AdMobBanner />
         </View>
       </SafeAreaView>
+
+      <CompactConfetti visible={celebrating} />
+      <View
+        ref={resultLayerRef}
+        collapsable={false}
+        pointerEvents="none"
+        style={styles.resultFlightLayer}>
+        {flights.map((flight) => (
+          <ResultFlightBadge
+            flight={flight}
+            key={flight.id}
+            onArrive={handleFlightArrive}
+            onComplete={handleFlightComplete}
+          />
+        ))}
+        {cardGemLifts.map((lift) => (
+          <CardGemLiftFlight
+            key={lift.id}
+            lift={lift}
+            onArrive={handleCardGemArrive}
+            onComplete={handleCardGemComplete}
+            onLiftStart={handleCardGemLiftStart}
+          />
+        ))}
+      </View>
     </View>
   );
 }
@@ -1908,6 +2413,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
+  runRewardNote: {
+    maxWidth: 330,
+    marginTop: 8,
+    color: '#5C7A6E',
+    fontFamily: FONTS.semibold,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
+  },
   trainingBadge: {
     marginTop: 10,
     paddingHorizontal: 12,
@@ -2185,7 +2699,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingTop: 7,
+    paddingTop: 16,
     paddingBottom: 8,
     overflow: 'visible',
     flexShrink: 0,
@@ -2196,69 +2710,68 @@ const styles = StyleSheet.create({
   boardTopSectionChallenge: {
     borderColor: '#E2BA5C',
   },
-  operationRow: {
+  boardQuestionRow: {
     width: '100%',
-    minHeight: 30,
+    minHeight: 62,
+    overflow: 'visible',
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 7,
+    alignItems: 'stretch',
+    gap: 10,
+  },
+  boardQuestionMeta: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'stretch',
     gap: 8,
   },
-  operationSide: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
-  operationLabel: {
-    color: '#1F3F4A',
-    fontFamily: FONTS.black,
-    fontSize: 12,
-    letterSpacing: 0.6,
-  },
-  operationBadge: {
-    minHeight: 30,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(232,247,247,0.9)',
-  },
-  operationSymbol: {
-    color: '#FFFFFF',
-    fontFamily: FONTS.black,
-    fontSize: 14,
-  },
-  operationStreak: {
-    minHeight: 30,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(201,145,43,0.4)',
-    backgroundColor: 'rgba(255,249,219,0.82)',
-  },
-  operationStreakText: {
-    color: '#7A4E12',
-    fontFamily: FONTS.extraBold,
-    fontSize: 13,
-  },
-  boardTargets: {
-    width: '100%',
+  infoChipFrame: {
+    flex: 1,
+    minWidth: 0,
     minHeight: 62,
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
+    borderRadius: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  infoChip: {
+    flex: 1,
+    minHeight: 62,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#C6DEE2',
+  },
+  infoChipLabel: {
+    color: '#557782',
+    fontFamily: FONTS.extraBold,
+    fontSize: 9,
+    letterSpacing: 0.7,
+    lineHeight: 11,
+    marginBottom: 2,
+  },
+  infoChipValue: {
+    color: '#233540',
+    fontFamily: FONTS.black,
+    fontSize: 22,
+    lineHeight: 26,
   },
   boardTargetFrame: {
-    width: '31.6%',
+    position: 'relative',
+    width: '40%',
     minHeight: 62,
+    overflow: 'visible',
     borderRadius: 16,
   },
   boardTargetPulse: {
     width: '100%',
+    flex: 1,
     minHeight: 62,
     borderRadius: 16,
     shadowColor: '#000000',
@@ -2273,14 +2786,59 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
   },
   boardTargetCard: {
+    flex: 1,
     minHeight: 62,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#C6DEE2',
-    padding: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  stepMeter: {
+    zIndex: 1,
+    minHeight: 16,
+    marginTop: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  stepDot: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    borderWidth: 1.2,
+    borderColor: '#B98834',
+    backgroundColor: 'rgba(255,255,255,0.54)',
+  },
+  stepDotFilled: {
+    borderColor: '#A87521',
+    backgroundColor: '#D9A83E',
+  },
+  stepDotSolved: {
+    borderColor: '#23785B',
+  },
+  stepDotSolvedFilled: {
+    borderColor: '#23785B',
+    backgroundColor: '#3DA27B',
+  },
+  stepDotBonus: {
+    borderColor: 'rgba(255,255,255,0.78)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  stepDotBonusFilled: {
+    borderColor: '#F6E3A4',
+    backgroundColor: '#F4D37B',
+  },
+  stepDotBonusSolved: {
+    borderColor: '#E8FFF6',
+  },
+  stepDotBonusSolvedFilled: {
+    borderColor: '#E8FFF6',
+    backgroundColor: '#8EE0BF',
   },
   boardTargetColorReveal: {
     position: 'absolute',
@@ -2318,6 +2876,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   boardTargetValue: {
+    zIndex: 1,
     color: '#233540',
     fontFamily: FONTS.black,
     fontSize: 24,
@@ -2326,12 +2885,6 @@ const styles = StyleSheet.create({
   boardTargetValueLarge: {
     fontSize: 30,
     lineHeight: 36,
-  },
-  boardTargetDots: {
-    color: '#1F3F4A',
-    fontFamily: FONTS.black,
-    fontSize: 15,
-    letterSpacing: 1.2,
   },
   boardSolvedText: {
     color: '#23785B',
@@ -2349,11 +2902,11 @@ const styles = StyleSheet.create({
   },
   boardBonusRow: {
     width: '100%',
-    minHeight: 66,
+    minHeight: 62,
     marginTop: 8,
     paddingLeft: 12,
     paddingRight: 7,
-    paddingVertical: 7,
+    paddingVertical: 6,
     overflow: 'visible',
     flexDirection: 'row',
     alignItems: 'center',
@@ -2378,44 +2931,12 @@ const styles = StyleSheet.create({
     left: 0,
     width: '200%',
   },
-  boardBonusStepBadge: {
-    zIndex: 1,
-    minHeight: 34,
-    paddingHorizontal: 7,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(201,145,43,0.55)',
-    backgroundColor: 'rgba(255,249,219,0.68)',
-  },
-  boardBonusStepLabel: {
-    color: '#5C3F10',
-    fontFamily: FONTS.black,
-    fontSize: 12,
-  },
-  boardBonusDots: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  boardBonusDot: {
-    width: 13,
-    height: 13,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#B98834',
-    backgroundColor: 'rgba(255,255,255,0.54)',
-  },
-  boardBonusDotFilled: {
-    borderColor: '#A87521',
-    backgroundColor: '#D9A83E',
-  },
   boardBonusAnchor: {
     zIndex: 1,
-    alignItems: 'center',
-    marginLeft: 'auto',
+    flex: 1,
+    flexShrink: 0,
+    minWidth: 72,
+    alignItems: 'flex-start',
   },
   boardBonusLabel: {
     color: '#5A2F78',
@@ -2450,19 +2971,35 @@ const styles = StyleSheet.create({
   },
   boardBonusCardMeasure: {
     zIndex: 2,
-    width: 110,
+    width: 94,
     height: 62,
     justifyContent: 'center',
   },
   boardBonusCard: {
-    width: 110,
+    width: 94,
     height: 62,
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.92)',
+    paddingTop: 4,
+    paddingBottom: 5,
+  },
+  boardBonusGemCorner: {
+    position: 'absolute',
+    zIndex: 3,
+    top: 4,
+    left: 5,
+    width: 19,
+    height: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boardBonusGemLifted: {
+    opacity: 0.22,
   },
   boardBonusOpCorner: {
     position: 'absolute',
@@ -2478,6 +3015,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.72)',
     backgroundColor: 'rgba(80,49,108,0.62)',
   },
+  boardBonusOpCornerSolved: {
+    borderColor: 'rgba(255,255,255,0.8)',
+    backgroundColor: 'rgba(28,119,91,0.55)',
+  },
   boardBonusOpText: {
     color: '#FFFFFF',
     fontFamily: FONTS.black,
@@ -2485,17 +3026,11 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   boardBonusValue: {
+    zIndex: 1,
     color: '#FFFFFF',
     fontFamily: FONTS.black,
-    fontSize: 24,
-    lineHeight: 29,
-  },
-  boardBonusCardDots: {
-    color: 'rgba(255,255,255,0.95)',
-    fontFamily: FONTS.black,
-    fontSize: 13,
-    lineHeight: 15,
-    letterSpacing: 1,
+    fontSize: 22,
+    lineHeight: 26,
   },
   feedbackSlot: {
     width: '100%',
@@ -2660,6 +3195,14 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.black,
     fontSize: 21,
     lineHeight: 27,
+    textAlign: 'center',
+  },
+  completedHaul: {
+    marginTop: 10,
+    color: '#B47719',
+    fontFamily: FONTS.black,
+    fontSize: 22,
+    lineHeight: 28,
     textAlign: 'center',
   },
   completedSummary: {

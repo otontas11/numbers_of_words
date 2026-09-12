@@ -34,13 +34,18 @@ import {
 import {
   BONUS_GEM_LAUNCH_DELAY,
   BONUS_TARGET_INDEX,
+  CardGemLiftFlight,
   POINTS_FLIGHT_DURATION,
   RESULT_FLIGHT_DURATION,
   ResultFlightBadge,
   TARGET_COLOR_REVEAL_DURATION,
   TARGET_LANDING_MS,
+  cardGemLiftEventKey,
+  createCardGemLift,
   createResultFlight,
   measureViewInWindow,
+  resultFlightEventKey,
+  type CardGemLift,
   type MeasuredRect,
   type ResultFlight,
   type ScreenPoint,
@@ -66,6 +71,7 @@ import {
 import {
   computeResult,
   findSolutionIndices,
+  formatLiveExpression,
   getBonusGemReward,
   generateLevelData,
   getCombinationKey,
@@ -485,6 +491,8 @@ function TargetCard({
 
 function BonusTargetCard({
   countryChallenge,
+  gemLifted = false,
+  gemMeasureRef,
   landed,
   measureRef,
   selectionCount,
@@ -492,6 +500,8 @@ function BonusTargetCard({
   target,
 }: {
   countryChallenge: boolean;
+  gemLifted?: boolean;
+  gemMeasureRef?: (view: View | null) => void;
   landed: boolean;
   measureRef: (view: View | null) => void;
   selectionCount: number;
@@ -587,6 +597,18 @@ function BonusTargetCard({
                 />
               </Animated.View>
             ) : null}
+            <View
+              collapsable={false}
+              pointerEvents="none"
+              ref={gemMeasureRef}
+              style={[styles.bonusGemCorner, gemLifted && styles.bonusGemLifted]}>
+              <GemIcon
+                color={solved ? '#66D7FF' : '#BDEFFF'}
+                facetColor={solved ? '#FFFFFF' : '#258AAF'}
+                outlineColor="#0B5875"
+                size={14}
+              />
+            </View>
             <View style={styles.bonusOperationCorner}>
               <Text style={styles.bonusOperationCornerText}>{operation.symbol}</Text>
             </View>
@@ -1066,6 +1088,8 @@ export default function HomeScreen() {
   const [wheelOutroToken, setWheelOutroToken] = useState(0);
   const [wheelIntroToken, setWheelIntroToken] = useState<number | undefined>();
   const [resultFlights, setResultFlights] = useState<ResultFlight[]>([]);
+  const [cardGemLift, setCardGemLift] = useState<CardGemLift | null>(null);
+  const [gemLifting, setGemLifting] = useState(false);
   const [flyingTargets, setFlyingTargets] = useState<Set<number>>(() => new Set());
   const [bonusFlying, setBonusFlying] = useState(false);
   const [selectionCount, setSelectionCount] = useState(0);
@@ -1098,6 +1122,7 @@ export default function HomeScreen() {
   const resultSourceRef = useRef<View>(null);
   const targetCardRefs = useRef<(View | null)[]>([]);
   const bonusCardRef = useRef<View>(null);
+  const bonusGemRef = useRef<View | null>(null);
   const gemTargetRef = useRef<View>(null);
   const scoreTargetRef = useRef<View>(null);
   const levelScorePending = useRef(0);
@@ -1115,6 +1140,9 @@ export default function HomeScreen() {
     lastInteractionAt: null,
   });
   const nextFlightId = useRef(1);
+  const claimedFlightEventsRef = useRef(new Set<string>());
+  const scheduledFollowUpIdsRef = useRef(new Set<number>());
+  const gemFlightActiveRef = useRef(false);
   const discoveredBonuses = useRef(new Set<string>());
   const feedbackTimer = useRef<Timer | null>(null);
   const hintTimer = useRef<Timer | null>(null);
@@ -1488,28 +1516,29 @@ export default function HomeScreen() {
   );
 
   const launchGemFlight = useCallback(async (reward: number) => {
+    if (gemFlightActiveRef.current) return;
+    gemFlightActiveRef.current = true;
     const [rootRect, sourceRect, targetRect] = await Promise.all([
       measureViewInWindow(resultLayerRef.current),
-      measureViewInWindow(bonusCardRef.current),
+      measureViewInWindow(bonusGemRef.current ?? bonusCardRef.current),
       measureViewInWindow(gemTargetRef.current),
     ]);
 
     if (!rootRect || !sourceRect || !targetRect) {
+      gemFlightActiveRef.current = false;
       setGemCount((count) => count + reward);
       return;
     }
 
-    const flight = createResultFlight({
+    const lift = createCardGemLift({
       id: nextFlightId.current,
-      kind: 'gem',
       value: reward,
       rootRect,
       sourceRect,
       targetRect,
-      targetIndex: BONUS_TARGET_INDEX,
     });
     nextFlightId.current += 1;
-    setResultFlights((current) => [...current, flight]);
+    setCardGemLift((current) => current ?? lift);
   }, []);
 
   const scheduleBonusGemFlight = useCallback(
@@ -1571,6 +1600,10 @@ export default function HomeScreen() {
 
   const handleResultFlightArrive = useCallback(
     (flight: ResultFlight) => {
+      const eventKey = resultFlightEventKey(flight);
+      if (claimedFlightEventsRef.current.has(eventKey)) return;
+      claimedFlightEventsRef.current.add(eventKey);
+
       if (flight.kind === 'gem') {
         setGemCount((count) => count + flight.value);
         return;
@@ -1590,12 +1623,33 @@ export default function HomeScreen() {
   const handleResultFlightComplete = useCallback(
     (flight: ResultFlight) => {
       setResultFlights((current) => current.filter((item) => item.id !== flight.id));
-      if (flight.followUpGemReward !== undefined) {
-        scheduleBonusGemFlight(flight.followUpGemReward);
+      if (flight.kind === 'gem') {
+        gemFlightActiveRef.current = false;
       }
+      if (flight.followUpGemReward === undefined) return;
+      if (scheduledFollowUpIdsRef.current.has(flight.id)) return;
+      scheduledFollowUpIdsRef.current.add(flight.id);
+      scheduleBonusGemFlight(flight.followUpGemReward);
     },
     [scheduleBonusGemFlight],
   );
+
+  const handleCardGemArrive = useCallback((lift: CardGemLift) => {
+    const eventKey = cardGemLiftEventKey(lift);
+    if (claimedFlightEventsRef.current.has(eventKey)) return;
+    claimedFlightEventsRef.current.add(eventKey);
+    setGemCount((count) => count + lift.value);
+  }, []);
+
+  const handleCardGemComplete = useCallback((lift: CardGemLift) => {
+    setCardGemLift((current) => (current?.id === lift.id ? null : current));
+    gemFlightActiveRef.current = false;
+    setGemLifting(false);
+  }, []);
+
+  const handleCardGemLiftStart = useCallback(() => {
+    setGemLifting(true);
+  }, []);
 
   const launchResultFlight = useCallback(
     async (
@@ -1643,6 +1697,11 @@ export default function HomeScreen() {
     hintActiveRef.current = false;
     clearTimer(bonusGemTimer);
     clearTimer(landingTimer);
+    claimedFlightEventsRef.current.clear();
+    scheduledFollowUpIdsRef.current.clear();
+    gemFlightActiveRef.current = false;
+    setCardGemLift(null);
+    setGemLifting(false);
     const nextDestination = resolveTravelLevel(nextLevel);
     const globalCountryIndex = Math.floor((nextLevel - 1) / COUNTRY_LEVEL_COUNT);
     let nextDifficultyModifier = cityDifficultyModifierRef.current;
@@ -1694,6 +1753,8 @@ export default function HomeScreen() {
     setHintIndices([]);
     setHintedTarget(null);
     setResultFlights([]);
+    setCardGemLift(null);
+    setGemLifting(false);
     setFlyingTargets(new Set());
     setLandedTarget(null);
     setCelebrating(false);
@@ -1724,19 +1785,14 @@ export default function HomeScreen() {
   const handlePreview = useCallback(
     (indices: number[]) => {
       clearTimer(feedbackTimer);
-      if (indices.length < 2) {
+      if (indices.length === 0) {
         setFeedback(null);
         return;
       }
       const values = indices.map((index) => levelData.numbers[index]);
-      const calculation = computeResult(values, levelData.op);
-      setFeedback(
-        calculation
-          ? { text: `${calculation.expression} = ${calculation.result}`, tone: 'live' }
-          : { text: t('feedback.tryAnother'), tone: 'info' },
-      );
+      setFeedback({ text: formatLiveExpression(values, levelData.op), tone: 'live' });
     },
-    [levelData, t],
+    [levelData],
   );
 
   const handleComplete = useCallback(
@@ -2159,13 +2215,40 @@ export default function HomeScreen() {
       learningScore,
       cityDifficultyModifier,
     });
-    const challenge = getDailyChallenge(dateKey, skillFromDailyChallengeProgress(progress));
+    const challenge = getDailyChallenge(
+      dateKey,
+      skillFromDailyChallengeProgress(progress),
+      progress.runSeed,
+    );
     setDailySummary({
       claimed: progress.claimed,
       completed: isDailyChallengeComplete(progress, challenge) || progress.claimed,
       streak: progress.streak,
     });
   }, [cityDifficultyModifier, learningScore, levelData.countryIndex]);
+
+  const handleDailyEffect = useCallback(
+    (sound: GameSound) => {
+      void triggerEffect(sound);
+    },
+    [triggerEffect],
+  );
+
+  const handleDailyReward = useCallback(
+    (gems: number) => {
+      setGemCount((count) => count + gems);
+      void refreshDailySummary();
+    },
+    [refreshDailySummary],
+  );
+
+  const handleDailyScore = useCallback((points: number) => {
+    setScore((current) => current + points);
+  }, []);
+
+  const handleDailySpendGems = useCallback((cost: number) => {
+    setGemCount((count) => Math.max(0, count - cost));
+  }, []);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -2252,19 +2335,10 @@ export default function HomeScreen() {
                 gemCount={gemCount}
                 learningScore={learningScore}
                 onBack={navigateHome}
-                onEffect={(sound) => {
-                  void triggerEffect(sound);
-                }}
-                onReward={(gems) => {
-                  setGemCount((count) => count + gems);
-                  void refreshDailySummary();
-                }}
-                onScore={(points) => {
-                  setScore((current) => current + points);
-                }}
-                onSpendGems={(cost) => {
-                  setGemCount((count) => Math.max(0, count - cost));
-                }}
+                onEffect={handleDailyEffect}
+                onReward={handleDailyReward}
+                onScore={handleDailyScore}
+                onSpendGems={handleDailySpendGems}
                 score={score}
               />
             </View>
@@ -2283,7 +2357,6 @@ export default function HomeScreen() {
                 levelData={contentLevelData}
                 onHome={navigateHome}
                 onMap={navigateTravel}
-                onOpenDaily={navigateDaily}
                 onOpenPassport={navigateCollection}
                 performanceHistory={performanceHistory}
                 learningScore={learningScore}
@@ -2451,6 +2524,10 @@ export default function HomeScreen() {
 
                 <BonusTargetCard
                   countryChallenge={levelData.countryChallenge}
+                  gemLifted={gemLifting}
+                  gemMeasureRef={(view) => {
+                    bonusGemRef.current = view;
+                  }}
                   landed={landedTarget === BONUS_TARGET_INDEX}
                   measureRef={(view) => {
                     bonusCardRef.current = view;
@@ -2525,6 +2602,15 @@ export default function HomeScreen() {
               onComplete={handleResultFlightComplete}
             />
           ))}
+          {cardGemLift ? (
+            <CardGemLiftFlight
+              key={cardGemLift.id}
+              lift={cardGemLift}
+              onArrive={handleCardGemArrive}
+              onComplete={handleCardGemComplete}
+              onLiftStart={handleCardGemLiftStart}
+            />
+          ) : null}
         </View>
         <Celebration compact={!celebrationFull} visible={celebrating} />
         {routeRewardToast ? (
@@ -3337,6 +3423,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 4,
+  },
+  bonusGemCorner: {
+    position: 'absolute',
+    zIndex: 3,
+    top: 3,
+    left: 4,
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bonusGemLifted: {
+    opacity: 0.22,
   },
   bonusOperationCorner: {
     position: 'absolute',

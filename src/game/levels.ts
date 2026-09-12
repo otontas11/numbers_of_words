@@ -588,6 +588,14 @@ export function normalizeLevelData(levelData: LegacyLevelData): LevelData {
   };
 }
 
+/** Sürükleme sırasına göre canlı ifade: `7+`, sonra `7+3`. Sonuç yok. */
+export function formatLiveExpression(values: readonly number[], op: Operation): string {
+  const symbol = OPERATION_DETAILS[op].symbol;
+  if (values.length === 0) return '';
+  if (values.length === 1) return `${values[0]}${symbol}`;
+  return values.join(symbol);
+}
+
 export function computeResult(values: number[], op: Operation): Calculation | null {
   const symbol = OPERATION_DETAILS[op].symbol;
 

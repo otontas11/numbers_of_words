@@ -226,6 +226,7 @@ function FlyingBirds({ active }: { active: boolean }) {
 export function MainMenu({
   active,
   currentLevel,
+  dailySummary,
   gemCount,
   levelData,
   score,
@@ -252,6 +253,12 @@ export function MainMenu({
   // global level remains internal so the home screen never exposes 4-digit IDs.
   const countryLevel = Math.min(TOTAL_COUNTRIES, completedCountries + 1);
   const routeProgress = route ? getRouteProgress(currentLevel, route) : 0;
+  const dailyCta = dailySummary?.claimed
+    ? t('home.dailyDone')
+    : dailySummary?.completed
+      ? t('home.dailyClaim')
+      : t('home.dailyReady');
+  const dailyStreak = dailySummary?.streak ?? 0;
   const playGlowOpacity = useMemo(
     () => pulse.interpolate({ inputRange: [0, 1], outputRange: [0.28, 0.58] }),
     [pulse],
@@ -421,7 +428,7 @@ export function MainMenu({
           </View>
 
           <Pressable
-            accessibilityLabel={t('home.dailyCardA11y')}
+            accessibilityLabel={`${t('home.dailyCardA11y')}. ${dailyCta}. ${t('daily.hudStreak', { count: dailyStreak })}`}
             accessibilityRole="button"
             onPress={onOpenDaily}
             style={({ pressed }) => [
@@ -429,15 +436,33 @@ export function MainMenu({
               compact && styles.dailyCardCompact,
               pressed && styles.cardPressed,
             ]}>
-            <Text ellipsizeMode="tail" numberOfLines={1} style={styles.dailyCardLine}>
-              {t('home.dailyCardLabel')}
-            </Text>
+            <View style={[styles.dailyEmblem, compact && styles.dailyEmblemCompact]}>
+              <Text style={[styles.dailyEmblemFire, compact && styles.dailyEmblemFireCompact]}>🔥</Text>
+            </View>
+            <View style={styles.dailyCopy}>
+              <Text ellipsizeMode="tail" numberOfLines={1} style={styles.dailyTitle}>
+                {t('daily.title')}
+              </Text>
+              <Text ellipsizeMode="tail" numberOfLines={1} style={styles.dailyCtaText}>
+                {dailyCta}
+              </Text>
+            </View>
+            <View style={styles.dailyStreakChip}>
+              <Text style={styles.dailyStreakText}>{t('daily.hudStreak', { count: dailyStreak })}</Text>
+            </View>
+            <Text style={styles.dailyArrow}>›</Text>
           </Pressable>
 
-          <View
-            accessible
-            accessibilityLabel={t('home.routeProgress', { route: routeName, progress: routeProgress, total: route?.countryIds.length ?? 0 })}
-            style={[styles.countryCard, compact && styles.countryCardCompact]}>
+          <Pressable
+            accessibilityHint={t('home.playHint')}
+            accessibilityLabel={`${t('home.playA11y', { level: countryLevel })}. ${t('home.routeProgress', { route: routeName, progress: routeProgress, total: route?.countryIds.length ?? 0 })}`}
+            accessibilityRole="button"
+            onPress={onPlay}
+            style={({ pressed }) => [
+              styles.countryCard,
+              compact && styles.countryCardCompact,
+              pressed && styles.cardPressed,
+            ]}>
             <View style={styles.countryCopy}>
               <Text numberOfLines={1} style={[styles.countryTitle, compact && styles.countryTitleCompact]}>
                 {currentCountryName.toLocaleUpperCase(locale)}
@@ -505,7 +530,7 @@ export function MainMenu({
                 style={[StyleSheet.absoluteFill, styles.countryImage]}
               />
             </View>
-          </View>
+          </Pressable>
         </View>
 
       </SafeAreaView>
@@ -514,7 +539,7 @@ export function MainMenu({
         onCollection={onOpenCollection}
         onHome={() => {}}
         onMap={onOpenTravel}
-        onTasks={onOpenDaily}
+        onTasks={onOpenProfile}
       />
     </View>
   );
@@ -527,7 +552,6 @@ export function ProfileScreen({
   levelData,
   onHome,
   onMap,
-  onOpenDaily,
   onOpenPassport,
   performanceHistory,
   learningScore,
@@ -540,7 +564,6 @@ export function ProfileScreen({
   levelData: LevelData;
   onHome: () => void;
   onMap: () => void;
-  onOpenDaily: () => void;
   onOpenPassport: () => void;
   performanceHistory: PuzzlePerformance[];
   learningScore: number;
@@ -680,10 +703,11 @@ export function ProfileScreen({
         </ScrollView>
       </SafeAreaView>
       <AppFooter
+        activeItem="tasks"
         onCollection={onOpenPassport}
         onHome={onHome}
         onMap={onMap}
-        onTasks={onOpenDaily}
+        onTasks={() => {}}
       />
     </LinearGradient>
   );
@@ -780,26 +804,77 @@ const styles = StyleSheet.create({
     width: '94%',
     maxWidth: 500,
     marginBottom: 10,
-    paddingHorizontal: 16,
+    paddingLeft: 12,
+    paddingRight: 12,
     paddingVertical: 10,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 18,
-    borderWidth: 1.5,
+    borderRadius: 22,
+    borderWidth: 2,
     borderColor: '#E2B65C',
-    backgroundColor: 'rgba(255,251,246,0.94)',
+    backgroundColor: 'rgba(255,251,246,0.95)',
+    shadowColor: '#456E80',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   dailyCardCompact: {
     marginBottom: 8,
     paddingVertical: 8,
+    borderRadius: 20,
   },
-  dailyCardLine: {
-    width: '100%',
+  dailyEmblem: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#DBA643',
+    backgroundColor: '#FFF4D6',
+  },
+  dailyEmblemCompact: { width: 38, height: 38, borderRadius: 19 },
+  dailyEmblemFire: { fontSize: 22, lineHeight: 26 },
+  dailyEmblemFireCompact: { fontSize: 19, lineHeight: 22 },
+  dailyCopy: { flex: 1, minWidth: 0, marginHorizontal: 10 },
+  dailyTitle: {
     color: '#173E72',
     fontFamily: FONTS.extraBold,
     fontSize: 13,
     fontWeight: '800',
-    textAlign: 'center',
+  },
+  dailyCtaText: {
+    marginTop: 3,
+    color: '#B97825',
+    fontFamily: FONTS.bold,
+    fontSize: 10,
+    letterSpacing: 0.3,
+    fontWeight: '700',
+  },
+  dailyStreakChip: {
+    height: 28,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#E2B65C',
+    backgroundColor: '#FFF9EA',
+  },
+  dailyStreakText: {
+    color: '#173E72',
+    fontFamily: FONTS.extraBold,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  dailyArrow: {
+    marginLeft: 2,
+    color: '#B68122',
+    fontFamily: FONTS.bold,
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: '700',
   },
   playGlow: { position: 'absolute', width: 148, height: 148, borderRadius: 74, backgroundColor: '#FFF2B2', shadowColor: '#FFFFFF', shadowOpacity: 0.95, shadowRadius: 30, elevation: 4 },
   playGlowCompact: { width: 119, height: 119, borderRadius: 60 },

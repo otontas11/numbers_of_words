@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createDailyChallengeProgress,
   getDailyChallenge,
+  normalizeDailyChallengeRunSeed,
   getLocalDateKey,
   getPreviousDailyChallengeDateKey,
   isDailyChallengeDateKey,
@@ -12,7 +13,7 @@ import {
   skillFromDailyChallengeProgress,
   type DailyChallengeProgress,
   type DailyChallengeSkillInput,
-} from '@/game/daily-challenge';
+} from './daily-challenge.ts';
 
 export const DAILY_CHALLENGE_STORAGE_KEY = '@number-of-wonders/daily-challenge-v1';
 const STORAGE_VERSION = 1;
@@ -84,7 +85,8 @@ export function normalizeDailyChallengeProgress(
     countryIndex: sourceCountryIndex,
     cityDifficultyModifier: sourceDifficultyModifier,
   });
-  const challenge = getDailyChallenge(dateKey, storedSkill);
+  const runSeed = normalizeDailyChallengeRunSeed(value.runSeed);
+  const challenge = getDailyChallenge(dateKey, storedSkill, runSeed);
   const allowedIds = new Set(challenge.puzzles.map((puzzle) => puzzle.id));
   const completedPuzzleIds = normalizeIds(value.completedPuzzleIds, allowedIds);
   const completedBonusPuzzleIds = normalizeIds(value.completedBonusPuzzleIds, allowedIds);
@@ -94,10 +96,18 @@ export function normalizeDailyChallengeProgress(
     ? value.lastCompletedDate
     : null;
   const claimed = value.claimed === true && lastCompletedDate === dateKey;
-  const hasClaimFlags = 'claimedAllBonuses' in value || 'claimedNoHint' in value;
-  const claimedAllBonuses = claimed && value.claimedAllBonuses === true;
-  const claimedNoHint =
-    claimed && (hasClaimFlags ? value.claimedNoHint === true : value.usedHint !== true);
+  // Values written before per-run rewards existed only carry the day-level
+  // flag, so a day that was already collected starts as a collected run.
+  const storedRunClaimed = 'runClaimed' in value ? value.runClaimed === true : claimed;
+  // A collected-run flag only means something for a run that is actually
+  // finished. Keeping a stale `true` on an unfinished run would make the
+  // finish pack unclaimable for that run, so it is dropped here. Rebuilding
+  // the whole record also retires obsolete fields (the old `runIndex` rewarded
+  // -run counter, `claimedAllBonuses`, `claimedNoHint`) on the next save.
+  const runComplete = challenge.puzzles.every((puzzle) =>
+    completedPuzzleIds.includes(puzzle.id),
+  );
+  const runClaimed = storedRunClaimed && runComplete;
 
   return {
     dateKey,
@@ -105,13 +115,13 @@ export function normalizeDailyChallengeProgress(
     completedBonusPuzzleIds,
     usedHint,
     claimed,
-    claimedAllBonuses,
-    claimedNoHint,
     streak,
     lastCompletedDate,
     sourceCountryIndex: storedSkill.countryIndex,
     sourceDifficultyModifier: storedSkill.difficultyModifier,
     runScore: normalizeRunScore(value.runScore),
+    runClaimed,
+    runSeed,
   };
 }
 

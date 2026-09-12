@@ -5,6 +5,9 @@ export type GameLayout = {
   wheelSize: number;
 };
 
+/** Former daily İŞLEM TÜRÜ strip: minHeight 30 + marginBottom 7. Reclaimed into wheel height. */
+export const DAILY_OPERATION_STRIP_HEIGHT = 37;
+
 export function getGameLayout(windowWidth: number, windowHeight: number): GameLayout {
   const compact = windowWidth < 640;
   const compactHeader = windowWidth < 430;

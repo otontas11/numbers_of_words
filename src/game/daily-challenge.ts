@@ -6,6 +6,7 @@ import {
 import {
   findSolutionIndices,
   generateDailyPuzzleBoard,
+  getBonusGemReward,
   type Operation,
   type Target,
 } from './levels.ts';
@@ -19,8 +20,8 @@ export const DAILY_CHALLENGE_MID_COUNTRY_INDEX = 8;
 
 /** Rewards are intentionally small and independent from the regular level economy. */
 export const DAILY_CHALLENGE_BASE_REWARD = 15;
-/** Extra gem pack when every bonus card is solved. First claim only. */
-export const DAILY_CHALLENGE_ALL_BONUS_REWARD = 8;
+/** Extra gem pack when every bonus card is solved. Half of the former +8 pack. */
+export const DAILY_CHALLENGE_ALL_BONUS_REWARD = 4;
 export const DAILY_CHALLENGE_NO_HINT_REWARD = 2;
 
 export const DAILY_CHALLENGE_REWARDS = {
@@ -28,6 +29,48 @@ export const DAILY_CHALLENGE_REWARDS = {
   allBonuses: DAILY_CHALLENGE_ALL_BONUS_REWARD,
   noHint: DAILY_CHALLENGE_NO_HINT_REWARD,
 } as const;
+
+/**
+ * Daily bonus-card gems are half the main-tour bonus (floored), with no
+ * Country Challenge multiplier. 2/3/4 steps → 2/4/7.
+ */
+export function getDailyBonusGemReward(steps: Target['steps']) {
+  return Math.floor(getBonusGemReward(steps, false) / 2);
+}
+
+/**
+ * Idempotent pay helper. The amount is reserved at match time; this function
+ * only records that a key has been written. The first call returns the amount,
+ * every later call returns 0 — arrival, timeout and flush can all call it.
+ */
+export function claimDailyRunAward(
+  awardedKeys: Set<string>,
+  awardKey: string,
+  amount: number,
+): number {
+  if (amount <= 0 || awardedKeys.has(awardKey)) return 0;
+  awardedKeys.add(awardKey);
+  return amount;
+}
+
+/**
+ * Builds an award key. Puzzle ids are positional (`<date>-<n>`) and therefore
+ * repeat across runs, so the run counter is mixed in: a leftover key from an
+ * earlier run can never swallow this run's payment. `target` and `bonus` are
+ * separate slots because one puzzle pays points for both.
+ */
+export function dailyAwardKey(
+  runSeed: number,
+  slot: 'gem' | 'target' | 'bonus',
+  puzzleId: string,
+): string {
+  return `run${normalizeDailyChallengeRunSeed(runSeed)}:${slot}:${puzzleId}`;
+}
+
+/** Finish-pack gems for one run. Distinct from per-card bonus gem keys. */
+export function dailyTreasureAwardKey(runSeed: number, dateKey: string) {
+  return dailyAwardKey(runSeed, 'gem', `${dateKey}:treasure`);
+}
 
 export type DailyPuzzleTier = 'warmup' | 'tempo' | 'peak';
 
@@ -70,15 +113,26 @@ export type DailyChallengeProgress = {
   completedPuzzleIds: string[];
   completedBonusPuzzleIds: string[];
   usedHint: boolean;
+  /**
+   * Today's challenge has been finished at least once. Drives the streak (which
+   * may only rise once per local day) and the "completed today" badge. It never
+   * blocks a reward: every run of the day pays in full.
+   */
   claimed: boolean;
-  claimedAllBonuses: boolean;
-  claimedNoHint: boolean;
   streak: number;
   lastCompletedDate: string | null;
   sourceCountryIndex: number;
   sourceDifficultyModifier: DifficultyModifier;
   /** Session/run score for the daily HUD. Replay resets it. */
   runScore: number;
+  /** The current run's finish reward has been collected. Replay clears it. */
+  runClaimed: boolean;
+  /**
+   * Counts the runs played on this date so each one generates its own puzzle
+   * set. **Generation only.** No reward path may read this: rewards never
+   * depend on how many times the day has been played.
+   */
+  runSeed: number;
 };
 
 export type DailyChallengeReward = {
@@ -250,6 +304,16 @@ export function getLocalDateKey(date: Date = new Date()) {
 }
 
 export const getDailyChallengeDateKey = getLocalDateKey;
+
+/** Hard ceiling for the persisted run counter; only keeps the value sane. */
+export const DAILY_CHALLENGE_MAX_RUN_SEED = 1_000_000;
+
+/** Untrusted or missing run counters fall back to the day's first run. */
+export function normalizeDailyChallengeRunSeed(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+    ? Math.min(value, DAILY_CHALLENGE_MAX_RUN_SEED)
+    : 0;
+}
 
 export function isDailyChallengeDateKey(value: unknown): value is string {
   return typeof value === 'string' && getUtcDateFromKey(value) !== null;
@@ -448,9 +512,13 @@ function pickDailyVenues(dateKey: string, countryIndex: number) {
 function buildGeneratedPuzzles(
   dateKey: string,
   skill: DailyChallengeSkill,
+  runSeed: number,
 ): DailyPuzzle[] {
+  // The run component is what makes every replay a different set of numbers and
+  // targets. Structure stays fixed: 8 puzzles, exactly 2 per operation, the
+  // harder addition pools and the 2-step division rule all come from the plan.
   const seed = hashString(
-    `${dateKey}:${skill.countryIndex}:${skill.difficultyModifier}`,
+    `${dateKey}:${skill.countryIndex}:${skill.difficultyModifier}:run${runSeed}`,
   );
   const random = mulberry32(seed);
   const plan = planDailyPuzzles(skill.countryIndex, random);
@@ -497,18 +565,25 @@ function buildFallbackPuzzles(dateKey: string): DailyPuzzle[] {
   }));
 }
 
-/** Selects a deterministically generated 5-puzzle set from a local calendar date. */
+/**
+ * Selects a deterministically generated puzzle set for a local calendar date.
+ * `runSeed` picks which run's set to build: the same date and run always
+ * rebuild the identical set, so closing the app mid-run brings the same
+ * questions back, while a new run produces different ones.
+ */
 export function getDailyChallenge(
   dateKey: string = getLocalDateKey(),
   skillInput: DailyChallengeSkill | DailyChallengeSkillInput = {},
+  runSeed = 0,
 ): DailyChallenge {
   const normalizedDateKey = normalizeDailyChallengeDateKey(dateKey);
   const skill = resolveDailyChallengeSkill(skillInput);
+  const normalizedRunSeed = normalizeDailyChallengeRunSeed(runSeed);
 
   let puzzles: DailyPuzzle[];
-  let packId = `tour-${normalizedDateKey}-c${skill.countryIndex}-m${skill.difficultyModifier}`;
+  let packId = `tour-${normalizedDateKey}-c${skill.countryIndex}-m${skill.difficultyModifier}-r${normalizedRunSeed}`;
   try {
-    puzzles = buildGeneratedPuzzles(normalizedDateKey, skill);
+    puzzles = buildGeneratedPuzzles(normalizedDateKey, skill, normalizedRunSeed);
   } catch {
     puzzles = buildFallbackPuzzles(normalizedDateKey);
     packId = `fallback-${normalizedDateKey}`;
@@ -546,13 +621,13 @@ export function createDailyChallengeProgress(
     completedBonusPuzzleIds: [],
     usedHint: false,
     claimed: false,
-    claimedAllBonuses: false,
-    claimedNoHint: false,
     streak: 0,
     lastCompletedDate: null,
     sourceCountryIndex: skill.countryIndex,
     sourceDifficultyModifier: skill.difficultyModifier,
     runScore: 0,
+    runClaimed: false,
+    runSeed: 0,
   };
 }
 
@@ -573,18 +648,22 @@ export function areAllDailyChallengeBonusesCompleted(
 }
 
 /**
- * Returns the reward that can be claimed now. Incomplete challenges have no
- * claimable reward, which prevents a partially completed card from showing an
- * accidental payout.
+ * Returns the treasure-pack reward this run can collect. Incomplete challenges
+ * have no claimable reward, which prevents a partially completed card from
+ * showing an accidental payout. A finished-and-claimed day does not reduce it:
+ * the day can be replayed as often as the player likes and every fresh run
+ * pays the full pack again. Per-card bonus gems are separate
+ * (`getDailyBonusGemReward`) and credit during play via `onReward`.
  */
 export function getDailyChallengeReward(
   progress: DailyChallengeProgress,
   challenge: DailyChallenge = getDailyChallenge(
     progress.dateKey,
     skillFromDailyChallengeProgress(progress),
+    progress.runSeed,
   ),
 ): DailyChallengeReward {
-  if (progress.claimed || !isDailyChallengeComplete(progress, challenge)) {
+  if (progress.runClaimed || !isDailyChallengeComplete(progress, challenge)) {
     return { baseReward: 0, allBonusesReward: 0, noHintReward: 0, total: 0 };
   }
 
@@ -602,38 +681,22 @@ export function getDailyChallengeReward(
   };
 }
 
-export function getClaimedDailyChallengeReward(
-  progress: Pick<DailyChallengeProgress, 'claimed' | 'claimedAllBonuses' | 'claimedNoHint'>,
-) {
-  if (!progress.claimed) {
-    return { baseReward: 0, allBonusesReward: 0, noHintReward: 0, total: 0 };
-  }
-
-  const allBonusesReward = progress.claimedAllBonuses ? DAILY_CHALLENGE_ALL_BONUS_REWARD : 0;
-  const noHintReward = progress.claimedNoHint ? DAILY_CHALLENGE_NO_HINT_REWARD : 0;
-  const baseReward = DAILY_CHALLENGE_BASE_REWARD;
-  return {
-    baseReward,
-    allBonusesReward,
-    noHintReward,
-    total: baseReward + allBonusesReward + noHintReward,
-  };
-}
-
 /**
- * Marks a fully completed challenge as claimed and advances its local-date
- * streak. Callers should persist the returned progress with
- * `saveDailyChallengeProgress`.
+ * Marks the current run as collected and advances the local-date streak. The
+ * streak may only rise once per day, so a second run on the same date keeps it
+ * where it is while still paying its rewards. Callers should persist the
+ * returned progress with `saveDailyChallengeProgress`.
  */
 export function claimDailyChallengeProgress(
   progress: DailyChallengeProgress,
   challenge: DailyChallenge = getDailyChallenge(
     progress.dateKey,
     skillFromDailyChallengeProgress(progress),
+    progress.runSeed,
   ),
 ): DailyChallengeProgress {
   if (
-    progress.claimed ||
+    progress.runClaimed ||
     progress.dateKey !== challenge.dateKey ||
     !isDailyChallengeComplete(progress, challenge)
   ) {
@@ -658,32 +721,32 @@ export function claimDailyChallengeProgress(
     completedPuzzleIds: [...progress.completedPuzzleIds],
     completedBonusPuzzleIds: [...progress.completedBonusPuzzleIds],
     claimed: true,
-    claimedAllBonuses: areAllDailyChallengeBonusesCompleted(progress, challenge),
-    claimedNoHint: !progress.usedHint,
     streak,
     lastCompletedDate: progress.dateKey,
     runScore: progress.runScore,
+    runClaimed: true,
   };
 }
 
-/** Opens a practice run after the first claim. Streak, claim, and snapshot stay. */
+/**
+ * Opens a fresh run. Puzzle, bonus and hint state reset unconditionally so the
+ * whole reward set is earnable again no matter what the previous record looked
+ * like; the streak, the "completed today" flag and the skill snapshot stay.
+ * `runSeed` advances so the new run generates a different puzzle set — it is a
+ * generation input only and never gates a reward. There is no cap on how many
+ * runs a day can hold, and every one of them pays the same.
+ */
 export function startDailyChallengeReplay(
   progress: DailyChallengeProgress,
 ): DailyChallengeProgress {
-  if (!progress.claimed) {
-    return {
-      ...progress,
-      completedPuzzleIds: [...progress.completedPuzzleIds],
-      completedBonusPuzzleIds: [...progress.completedBonusPuzzleIds],
-    };
-  }
-
   return {
     ...progress,
     completedPuzzleIds: [],
     completedBonusPuzzleIds: [],
     usedHint: false,
     runScore: 0,
+    runClaimed: false,
+    runSeed: progress.runSeed + 1,
   };
 }
 
