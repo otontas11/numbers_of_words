@@ -21,10 +21,14 @@ import {
 } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import Reanimated, {
+  cancelAnimation,
+  ReduceMotion,
   runOnJS,
-  type SharedValue,
+  runOnUI,
   useAnimatedProps,
+  useAnimatedReaction,
   useSharedValue,
+  withSpring,
 } from 'react-native-reanimated';
 import Svg, {
   Circle,
@@ -89,6 +93,18 @@ const SELECTION_HOLD_DURATION: Record<WheelSelectionOutcome, number> = {
   bonus: 440,
   invalid: 180,
 };
+// Lastik dönüşü, m=1 piksel-kütle: F = −k·x − c·v (Hooke + sönüm).
+// ζ=0.86 ≈ kritik; lastik gibi minik overshoot, sonsuz salınım yok.
+// k,c gerilmeye göre: kısa ~180ms (k≈384, c≈34), uzun ~420ms (k≈196, c≈24).
+// Sabit k ile süre neredeyse genlikten bağımsız kalırdı; ω=ln(A/ε)/(ζT)
+// T’yi parmak ucu mesafesine bağlar. v0 çekmenin tersi, uzun çekmede daha sıkı.
+const RUBBER_ZETA = 0.86;
+const RUBBER_MIN_MS = 180;
+const RUBBER_MAX_MS = 420;
+const RUBBER_SHORT_PX = 28;
+const RUBBER_LONG_PX = 210;
+const RUBBER_SETTLE_POS = 1.35;
+const RUBBER_UNLOCK_TIMEOUT_MS = 500;
 const CONNECTION_COLORS: Record<
   ConnectionTone,
   { core: string; end: string; glow: string; start: string }
@@ -171,6 +187,25 @@ function findNodeAtPoint(
   return -1;
 }
 
+function rubberPhysicsForStretch(stretch: number) {
+  'worklet';
+  const t = Math.max(
+    0,
+    Math.min(1, (stretch - RUBBER_SHORT_PX) / (RUBBER_LONG_PX - RUBBER_SHORT_PX)),
+  );
+  const eased = t * t * (3 - 2 * t);
+  const durationMs = RUBBER_MIN_MS + (RUBBER_MAX_MS - RUBBER_MIN_MS) * eased;
+  const durationS = durationMs / 1000;
+  const lnTerm = Math.log(Math.max(stretch, RUBBER_SETTLE_POS) / RUBBER_SETTLE_POS);
+  const omega = Math.max(10, lnTerm / (RUBBER_ZETA * durationS));
+  return {
+    durationMs,
+    stiffness: omega * omega,
+    damping: 2 * RUBBER_ZETA * omega,
+    velocity: (-stretch * (0.85 + 1.25 * eased)) / durationS,
+  };
+}
+
 function updateSelectionOnUI(
   currentSelection: number[],
   traversedNodeIndices: number[],
@@ -245,50 +280,13 @@ function restPointTowardCenter(slot: Point, center: number, restRadius: number):
 }
 
 function ActiveSelectionPath({
-  active,
-  pointerX,
-  pointerY,
-  positions,
-  selection,
+  animatedProps,
   tone,
 }: {
-  active: SharedValue<boolean>;
-  pointerX: SharedValue<number>;
-  pointerY: SharedValue<number>;
-  positions: Point[];
-  selection: SharedValue<number[]>;
+  animatedProps: ReturnType<typeof useAnimatedProps>;
   tone: ConnectionTone;
 }) {
   const colors = CONNECTION_COLORS[tone];
-  const animatedProps = useAnimatedProps(() => {
-    const currentSelection = selection.value;
-    if (!active.value || currentSelection.length === 0) {
-      return { d: '', opacity: 0 };
-    }
-
-    const firstPosition = positions[currentSelection[0]];
-    if (!firstPosition) return { d: '', opacity: 0 };
-    let path = '';
-
-    // Android WordWheelView ile aynı merkezden merkeze tek path kullanılır.
-    // Düğümler path üzerine çizildiği için hat düğüm yüzeylerinin
-    // altında kaybolur; ayrı ayrı M komutları arada ikinci bir çizgi hissi vermez.
-    path += `M ${firstPosition.x} ${firstPosition.y} `;
-    for (let index = 1; index < currentSelection.length; index += 1) {
-      const to = positions[currentSelection[index]];
-      path += `L ${to.x} ${to.y} `;
-    }
-
-    const lastPosition = positions[currentSelection[currentSelection.length - 1]];
-    const pointerDeltaX = pointerX.value - lastPosition.x;
-    const pointerDeltaY = pointerY.value - lastPosition.y;
-    const pointerDistance = Math.hypot(pointerDeltaX, pointerDeltaY);
-    if (pointerDistance > 1) {
-      path += `L ${pointerX.value} ${pointerY.value}`;
-    }
-
-    return { d: path, opacity: 1 };
-  }, [positions]);
 
   return (
     <Svg height="100%" pointerEvents="none" style={StyleSheet.absoluteFill} width="100%">
@@ -367,6 +365,13 @@ export const NumberWheel = memo(function NumberWheel({
   const pointerY = useSharedValue(0);
   const lastPointerX = useSharedValue(0);
   const lastPointerY = useSharedValue(0);
+  const rubberActive = useSharedValue(false);
+  const rubberT = useSharedValue(0);
+  const rubberRestX = useSharedValue(0);
+  const rubberRestY = useSharedValue(0);
+  const rubberDirX = useSharedValue(1);
+  const rubberDirY = useSharedValue(0);
+  const rubberToken = useSharedValue(0);
   const gestureAccepted = useSharedValue(false);
   const selectionOnUI = useSharedValue<number[]>([]);
   const shufflingOnUI = useSharedValue(false);
@@ -440,12 +445,24 @@ export const NumberWheel = memo(function NumberWheel({
     callbacksRef.current.onDraggingChange(false);
     // SharedValues are intentionally released from JS after the result hold.
     // eslint-disable-next-line react-hooks/immutability
+    rubberToken.value += 1;
+    cancelAnimation(rubberT);
+    // eslint-disable-next-line react-hooks/immutability
+    rubberActive.value = false;
+    // eslint-disable-next-line react-hooks/immutability
     activePointer.value = false;
     // eslint-disable-next-line react-hooks/immutability
     selectionOnUI.value = [];
     // eslint-disable-next-line react-hooks/immutability
     holdingOnUI.value = false;
-  }, [activePointer, holdingOnUI, selectionOnUI]);
+  }, [
+    activePointer,
+    holdingOnUI,
+    rubberActive,
+    rubberT,
+    rubberToken,
+    selectionOnUI,
+  ]);
 
   useEffect(() => {
     callbacksRef.current = {
@@ -460,6 +477,47 @@ export const NumberWheel = memo(function NumberWheel({
   useEffect(() => {
     positionsRef.current = positions;
   }, [positions]);
+
+  // Path worklet NumberWheel ile aynı hook scope'ta; child prop SharedValue
+  // worklet'te undefined oluyordu (313 crash). Uç her zaman pointer.
+  const selectionPathProps = useAnimatedProps(() => {
+    const currentSelection = selectionOnUI.value;
+    const returning = rubberActive?.value === true;
+    if ((!activePointer.value && !returning) || currentSelection.length === 0) {
+      return { d: '', opacity: 0 };
+    }
+
+    const firstPosition = positions[currentSelection[0]];
+    if (!firstPosition) return { d: '', opacity: 0 };
+    let path = '';
+
+    // Android WordWheelView ile aynı merkezden merkeze tek path kullanılır.
+    // Düğümler path üzerine çizildiği için hat düğüm yüzeylerinin
+    // altında kaybolur; ayrı ayrı M komutları arada ikinci bir çizgi hissi vermez.
+    path += `M ${firstPosition.x} ${firstPosition.y} `;
+    for (let index = 1; index < currentSelection.length; index += 1) {
+      const to = positions[currentSelection[index]];
+      path += `L ${to.x} ${to.y} `;
+    }
+
+    const lastPosition = positions[currentSelection[currentSelection.length - 1]];
+    const tipX = pointerX.value;
+    const tipY = pointerY.value;
+    if (Math.hypot(tipX - lastPosition.x, tipY - lastPosition.y) > 1) {
+      path += `L ${tipX} ${tipY}`;
+    }
+
+    return { d: path, opacity: 1 };
+  }, [positions]);
+
+  useAnimatedReaction(
+    () => (rubberActive.value ? rubberT.value : -1),
+    (travel) => {
+      if (travel < 0) return;
+      pointerX.value = rubberRestX.value + rubberDirX.value * travel;
+      pointerY.value = rubberRestY.value + rubberDirY.value * travel;
+    },
+  );
 
   const stopOrbitMotion = useCallback(() => {
     shuffleRunRef.current += 1;
@@ -665,8 +723,9 @@ export const NumberWheel = memo(function NumberWheel({
       if (selectionReleaseTimerRef.current) {
         clearTimeout(selectionReleaseTimerRef.current);
       }
+      cancelAnimation(rubberT);
     },
-    [],
+    [rubberT],
   );
 
   useLayoutEffect(() => {
@@ -731,10 +790,113 @@ export const NumberWheel = memo(function NumberWheel({
     [],
   );
 
+  /*
+   * Web responder and RNGH worklet callbacks intentionally update Reanimated
+   * SharedValues. React's generic ref/immutability rules cannot model them.
+   */
+  /* eslint-disable react-hooks/immutability, react-hooks/refs */
+  const finishRubberReturn = useCallback(() => {
+    rubberActive.value = false;
+    clearSelectionVisuals();
+  }, [clearSelectionVisuals, rubberActive]);
+
+  const startRubberReturn = useCallback(
+    (completedSelection: number[]) => {
+      const lastIndex = completedSelection[completedSelection.length - 1];
+      const rest =
+        lastIndex != null
+          ? positionsRef.current[lastIndex]
+          : positionsRef.current[0];
+      if (!rest || completedSelection.length === 0) {
+        clearSelectionVisuals();
+        return;
+      }
+
+      if (selectionReleaseTimerRef.current) {
+        clearTimeout(selectionReleaseTimerRef.current);
+        selectionReleaseTimerRef.current = null;
+      }
+
+      const token = rubberToken.value + 1;
+      rubberToken.value = token;
+      const restX = rest.x;
+      const restY = rest.y;
+
+      selectionReleaseTimerRef.current = setTimeout(() => {
+        if (rubberToken.value !== token) return;
+        finishRubberReturn();
+      }, RUBBER_UNLOCK_TIMEOUT_MS);
+
+      // Stretch + withSpring aynı UI karesinde; cancelAnimation bu karede yok —
+      // Reanimated yeni spring'i bir önceki cancel ile öldürüyordu.
+      runOnUI((nextRestX: number, nextRestY: number, nextToken: number) => {
+        'worklet';
+        if (rubberToken.value !== nextToken) return;
+
+        const deltaX = pointerX.value - nextRestX;
+        const deltaY = pointerY.value - nextRestY;
+        const stretch = Math.hypot(deltaX, deltaY);
+
+        if (stretch < 2) {
+          pointerX.value = nextRestX;
+          pointerY.value = nextRestY;
+          rubberActive.value = false;
+          runOnJS(finishRubberReturn)();
+          return;
+        }
+
+        const physics = rubberPhysicsForStretch(stretch);
+        rubberRestX.value = nextRestX;
+        rubberRestY.value = nextRestY;
+        rubberDirX.value = deltaX / stretch;
+        rubberDirY.value = deltaY / stretch;
+        rubberT.value = stretch;
+        rubberActive.value = true;
+        rubberT.value = withSpring(
+          0,
+          {
+            mass: 1,
+            stiffness: physics.stiffness,
+            damping: physics.damping,
+            velocity: physics.velocity,
+            overshootClamping: false,
+            reduceMotion: ReduceMotion.Never,
+          },
+          (finished) => {
+            'worklet';
+            if (finished && rubberToken.value === nextToken) {
+              runOnJS(finishRubberReturn)();
+            }
+          },
+        );
+      })(restX, restY, token);
+    },
+    [
+      clearSelectionVisuals,
+      finishRubberReturn,
+      pointerX,
+      pointerY,
+      rubberActive,
+      rubberDirX,
+      rubberDirY,
+      rubberRestX,
+      rubberRestY,
+      rubberT,
+      rubberToken,
+    ],
+  );
+
   const finishSelection = useCallback(
     (completedSelection: number[], shouldComplete: boolean) => {
-      if (!shouldComplete || completedSelection.length === 0) {
+      if (completedSelection.length === 0) {
         clearSelectionVisuals();
+        return;
+      }
+
+      // 1 düğüm / iptal: onComplete yok. JS setState spring'in ilk karelerini
+      // geciktirip holding kilidini açık bırakıyordu.
+      if (!shouldComplete || completedSelection.length < 2) {
+        startRubberReturn(completedSelection);
         return;
       }
 
@@ -750,19 +912,29 @@ export const NumberWheel = memo(function NumberWheel({
       // Yanlış sonuçta düğümler kırmızıya boyanmaz; bağlantı
       // mevcut nötr turkuaz tonunda kısa süre görünür.
       setConnectionTone(outcome === 'invalid' ? 'active' : outcome);
-      selectionReleaseTimerRef.current = setTimeout(
-        clearSelectionVisuals,
-        SELECTION_HOLD_DURATION[outcome],
-      );
+
+      if (outcome === 'success' || outcome === 'bonus') {
+        if (lastPosition) {
+          pointerX.value = lastPosition.x;
+          pointerY.value = lastPosition.y;
+        }
+        selectionReleaseTimerRef.current = setTimeout(
+          clearSelectionVisuals,
+          SELECTION_HOLD_DURATION[outcome],
+        );
+        return;
+      }
+
+      startRubberReturn(completedSelection);
     },
-    [clearSelectionVisuals],
+    [
+      clearSelectionVisuals,
+      pointerX,
+      pointerY,
+      startRubberReturn,
+    ],
   );
 
-  /*
-   * Web responder and RNGH worklet callbacks intentionally update Reanimated
-   * SharedValues. React's generic ref/immutability rules cannot model them.
-   */
-  /* eslint-disable react-hooks/immutability, react-hooks/refs */
   const getResponderTouchPoint = useCallback((event: GestureResponderEvent): Point => {
     const { pageX, pageY } = event.nativeEvent;
     // locationX/locationY may be relative to the changing child under a fast
@@ -772,22 +944,8 @@ export const NumberWheel = memo(function NumberWheel({
       x: pageX - originRef.current.x,
       y: pageY - originRef.current.y,
     };
-    // Once the finger leaves the circular board, keep the visual endpoint on
-    // its rim. This prevents an out-of-bounds pointer from making the SVG path
-    // appear to bounce or reflect back into the wheel on Android.
-    const deltaX = point.x - center;
-    const deltaY = point.y - center;
-    const distance = Math.hypot(deltaX, deltaY);
-    const maxDistance = center - 2;
-    if (distance > maxDistance && distance > 0) {
-      const scale = maxDistance / distance;
-      return {
-        x: center + deltaX * scale,
-        y: center + deltaY * scale,
-      };
-    }
     return point;
-  }, [center]);
+  }, []);
 
   const canStartResponderSelection = useCallback(
     (event: GestureResponderEvent) => {
@@ -815,6 +973,9 @@ export const NumberWheel = memo(function NumberWheel({
       responderGestureAcceptedRef.current = true;
       responderSelectionRef.current = [nodeIndex];
       selectionOnUI.value = [nodeIndex];
+      rubberToken.value += 1;
+      cancelAnimation(rubberT);
+      rubberActive.value = false;
       pointerX.value = point.x;
       pointerY.value = point.y;
       lastPointerX.value = point.x;
@@ -831,6 +992,9 @@ export const NumberWheel = memo(function NumberWheel({
       lastPointerY,
       pointerX,
       pointerY,
+      rubberActive,
+      rubberT,
+      rubberToken,
       selectionOnUI,
     ],
   );
@@ -854,15 +1018,15 @@ export const NumberWheel = memo(function NumberWheel({
         findNodesAlongSegment(previousPoint, point, positionsRef.current, hitRadius),
         numbers.length,
       );
-      if (!update.changed) return;
-
-      responderSelectionRef.current = update.selection;
-      selectionOnUI.value = update.selection;
-      syncSelection(
-        update.selection,
-        update.addedSelectionCounts,
-        update.removedSelectionCounts,
-      );
+      if (update.changed) {
+        responderSelectionRef.current = update.selection;
+        selectionOnUI.value = update.selection;
+        syncSelection(
+          update.selection,
+          update.addedSelectionCounts,
+          update.removedSelectionCounts,
+        );
+      }
     },
     [
       getResponderTouchPoint,
@@ -893,10 +1057,9 @@ export const NumberWheel = memo(function NumberWheel({
     const cancelledSelection = [...responderSelectionRef.current];
     responderGestureAcceptedRef.current = false;
     responderSelectionRef.current = [];
-    activePointer.value = false;
-    selectionOnUI.value = [];
+    holdingOnUI.value = true;
     finishSelection(cancelledSelection, false);
-  }, [activePointer, finishSelection, selectionOnUI]);
+  }, [finishSelection, holdingOnUI]);
 
   const gesture = useMemo(
     () =>
@@ -927,6 +1090,9 @@ export const NumberWheel = memo(function NumberWheel({
 
           gestureAccepted.value = true;
           selectionOnUI.value = [nodeIndex];
+          rubberToken.value += 1;
+          cancelAnimation(rubberT);
+          rubberActive.value = false;
           pointerX.value = point.x;
           pointerY.value = point.y;
           lastPointerX.value = point.x;
@@ -943,8 +1109,6 @@ export const NumberWheel = memo(function NumberWheel({
           const touch = event.changedTouches[0] ?? event.allTouches[0];
           if (!touch) return;
           const point = { x: touch.x, y: touch.y };
-          // Path, Android referansındaki gibi gerçek pointer noktasını
-          // gecikmeden takip eder; hit-test ve görsel hat aynı koordinatı kullanır.
           pointerX.value = point.x;
           pointerY.value = point.y;
           const previousPoint = {
@@ -959,14 +1123,14 @@ export const NumberWheel = memo(function NumberWheel({
             findNodesAlongSegment(previousPoint, point, positions, hitRadius),
             numbers.length,
           );
-          if (!update.changed) return;
-
-          selectionOnUI.value = update.selection;
-          runOnJS(syncSelection)(
-            update.selection,
-            update.addedSelectionCounts,
-            update.removedSelectionCounts,
-          );
+          if (update.changed) {
+            selectionOnUI.value = update.selection;
+            runOnJS(syncSelection)(
+              update.selection,
+              update.addedSelectionCounts,
+              update.removedSelectionCounts,
+            );
+          }
         })
         .onTouchesUp((event, stateManager) => {
           'worklet';
@@ -1008,8 +1172,7 @@ export const NumberWheel = memo(function NumberWheel({
           if (!gestureAccepted.value) return;
           const cancelledSelection = [...selectionOnUI.value];
           gestureAccepted.value = false;
-          activePointer.value = false;
-          selectionOnUI.value = [];
+          holdingOnUI.value = true;
           runOnJS(finishSelection)(cancelledSelection, false);
           stateManager.fail();
         }),
@@ -1026,6 +1189,9 @@ export const NumberWheel = memo(function NumberWheel({
       pointerX,
       pointerY,
       positions,
+      rubberActive,
+      rubberT,
+      rubberToken,
       selectionOnUI,
       shufflingOnUI,
       syncSelection,
@@ -1156,11 +1322,7 @@ export const NumberWheel = memo(function NumberWheel({
 
           <View pointerEvents="none" style={StyleSheet.absoluteFill}>
             <ActiveSelectionPath
-              active={activePointer}
-              pointerX={pointerX}
-              pointerY={pointerY}
-              positions={positions}
-              selection={selectionOnUI}
+              animatedProps={selectionPathProps}
               tone={connectionTone}
             />
           </View>

@@ -153,6 +153,10 @@ Ana tur puzzle geçişinde çark doğumu **görünür** olmalıdır (`NumberWhee
 - `diamond` sesi çalar.
 - `feedback.routeGemToast` ~`2.2 sn` görünür.
 
+## E. Çark lastik ipi
+
+Kilitli segmentler düğüm merkezi kirişidir; sürüklemede uç gerçek parmağı gecikmesiz izler (sticky A–B projeksiyon yok), lastik fiziği yalnız bırakınca çalışır. Geçerli hedef/bonus’ta lastik geri sarılmaz (520/440 ms hold + ResultFlight). Geçersiz / tek düğüm / yarım yolda uç Hooke `F=−kx−cv` (`ζ≈0.86`, k/c mesafeye göre ~384/34 kısa ve ~196/24 uzun) ile 180–420 ms A’ya döner, sonra zincir temizlenir; 0 ms snap yoktur. Daily aynı `NumberWheel`’i kullanır. Path worklet uç için `pointer` SharedValue kullanır (`rubberActive` yoksa false); tek düğüm bırakışta spring A’ya döner, 500 ms timeout kilit açar.
+
 ## Çelişen dokümanlar
 
 `DESIGN_RULES.md` ve `ADAPTIVE_DIFFICULTY.md` bu dosyadaki mücevher ekonomisi, şehir içi rahatlama, kutlama süreleri, eğitim Atla / bölme, duck/fade ve günlük menü kurallarına çekildi.
