@@ -7,6 +7,7 @@
     "@expo/ui": "~57.0.14",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/slider": "^5.2.0",
+    "@react-native-firebase/analytics": "^26.3.3",
     "@react-native-firebase/app": "^26.3.3",
     "@shopify/react-native-skia": "^2.11.1",
     "expo": "~57.0.18",

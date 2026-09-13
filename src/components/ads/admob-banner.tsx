@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { logAdImpression } from '@/analytics/app-analytics';
+
 type GoogleMobileAds = typeof import('react-native-google-mobile-ads');
 
 /**
@@ -39,7 +41,15 @@ function initializeMobileAds() {
   if (!googleMobileAds) return Promise.resolve(null);
 
   if (!initializationPromise) {
-    initializationPromise = googleMobileAds.MobileAds().initialize().catch((error: unknown) => {
+    initializationPromise = (async () => {
+      try {
+        // Google UMP system form when required (EEA). No custom permission UI.
+        await googleMobileAds.AdsConsent.gatherConsent();
+      } catch {
+        // Consent request failed; still initialize ads.
+      }
+      return googleMobileAds.MobileAds().initialize();
+    })().catch((error: unknown) => {
       initializationPromise = null;
       throw error;
     });
@@ -72,6 +82,7 @@ export function AdMobBanner() {
   if (!googleMobileAds) return null;
 
   const { BannerAd, BannerAdSize, TestIds } = googleMobileAds;
+  const unitId = __DEV__ ? TestIds.BANNER : PRODUCTION_BANNER_UNIT_ID || TestIds.BANNER;
 
   return (
     <SafeAreaView edges={['bottom']} style={styles.safeArea}>
@@ -79,7 +90,16 @@ export function AdMobBanner() {
         {initialized ? (
           <BannerAd
             size={BannerAdSize.BANNER}
-            unitId={__DEV__ ? TestIds.BANNER : PRODUCTION_BANNER_UNIT_ID ?? TestIds.BANNER}
+            unitId={unitId}
+            onPaid={(event) => {
+              logAdImpression({
+                adPlatform: 'AdMob',
+                adFormat: 'banner',
+                value: event.value,
+                currency: event.currency || 'USD',
+                adUnitName: unitId,
+              });
+            }}
           />
         ) : null}
       </View>

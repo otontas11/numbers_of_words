@@ -42,6 +42,7 @@
           }
         }
       ],
+      "@react-native-firebase/analytics",
       [
         "react-native-google-mobile-ads",
         {

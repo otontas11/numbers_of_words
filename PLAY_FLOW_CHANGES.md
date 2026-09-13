@@ -202,6 +202,28 @@ TV-pencere mesafesi: sürü logo kutusundan çıkarıldı, brand gökyüzü band
 
 Paylaşılan `AppFooter` SF/Material ev–explore–kutu–clipboard yerine oyun SVG seti kullanır: pusula (anasayfa), yerküre (harita), pasaport + kristal mühür (koleksiyon), kâşif madalyası (görevler). Stroke 2, aktifte krem/altın daire + dolgu (`#FFF9D7` / `#E8C45A`, kenar `#D69B2B`). Etiket, ölçü, i18n ve routing aynı; Daily yalnız daily kartından.
 
+## F. Google Ads ROAS ölçümü (görünmez)
+
+Kullanıcı Google Ads ile indirme alacak; bütçe / indirme / gelir (ROAS) için Analytics + AdMob paid event eklendi. Yeni oyun ekranı / IAP yok.
+
+### Uygulamada ne var
+
+- `@react-native-firebase/app` zaten vardı; `google-services.json` ve `GoogleService-Info.plist` `firebase/android` ve `firebase/ios` altında (paket `platform.tnts.numberofwonders`).
+- `@react-native-firebase/analytics` eklendi. `first_open` SDK otomatik; tekrar icat edilmedi (uygulama kodu `first_open` göndermez).
+- Olay adları Firebase önerilen/reserved isimleri ezmesin diye `now_` (Number of Wonders) prefix’i taşır. Eski reserved isimlerle çift gönderim yok.
+- `now_tutorial_complete`: eğitim bittiğinde veya Atla ile `TUTORIAL_STORAGE_KEY` yazılınca (`handleTutorialDone`). Firebase önerilen `tutorial_complete` kullanılmıyor.
+- `now_daily_start`: daily challenge ekranı açılınca (`activeScreen === 'daily'`).
+- Banner `onPaid` → Firebase `now_ad_impression` (`ad_platform`, `ad_format`, `value`, `currency`, `ad_unit_name`). Parametre adları GA4 Ads şablonuyla aynı (`value`/`currency`); event adı custom. `react-native-google-mobile-ads` değeri zaten para birimi cinsinden (micros değil). Reserved `ad_impression` gönderilmiyor.
+- GDPR: mevcut Ads init içine Google UMP (`AdsConsent.gatherConsent`) eklendi. Özel izin ekranı yok; form yalnız gerekli bölgelerde Google sistem UI’sı. ATT / IDFA prompt’u eklenmedi.
+
+### Konsolda senin yapman gerekenler
+
+1. **Firebase:** Analytics’in Android ve iOS uygulamaları için açık olduğunu doğrula. iOS plist’te `IS_ANALYTICS_ENABLED` şu an `false`; olay gelmezse konsoldan plist’i yeniden indirip `firebase/ios/GoogleService-Info.plist` dosyasını değiştir (sahte config uydurma).
+2. **AdMob ↔ Firebase:** AdMob → Project settings → Linked services → aynı `number-of-wonders` Firebase projesine bağla. Impression-level ad revenue açık olsun.
+3. **UMP:** AdMob → Privacy & messaging → GDPR mesajını yayınla ve gizlilik politikası URL’si ekle. Yayınlanmazsa EEA’da form boş kalır / reklam kısıtlanır.
+4. **Google Ads:** Firebase (ve AdMob) hesabını Google Ads’e bağla. `first_open` SDK olayı olarak içe aktarılabilir. Uygulama olayları custom’dır: `now_tutorial_complete` ve `now_ad_impression`’ı Google Ads’te dönüşüm olarak **elle içe aktar**. Ads ROAS otomatik geliri reserved `ad_impression` bekler; o event artık gönderilmiyor, otomatik Ads ROAS bu custom event’ten dolmayacak. Değer `now_ad_impression` içindeki `value`/`currency` parametrelerindedir — Ads’te bu olayı değerli dönüşüm olarak işaretle.
+5. **Native rebuild gerekir.** Yeni Analytics native modülü + UMP ads init sırası Expo Go’da yok. Dev client veya EAS (`eas build` / prebuild) şart; `expo start --go` olay göndermez.
+
 ## Çelişen dokümanlar
 
 `DESIGN_RULES.md` ve `ADAPTIVE_DIFFICULTY.md` bu dosyadaki mücevher ekonomisi, şehir içi rahatlama, kutlama süreleri, eğitim Atla / bölme, duck/fade ve günlük menü kurallarına çekildi. `DESIGN_RULES.md` hâlâ Android `journey.mp3` byte-byte kopyasını anlatır; oynatma kaynağı artık `bgm-loop.mp3` (aynı bed’in loop master’ı), duck/fade sayıları aynı.

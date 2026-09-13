@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { logDailyStart, logTutorialComplete } from '@/analytics/app-analytics';
 import { FreshGameTutorialModal } from '@/components/game/fresh-game-tutorial-modal';
 import { CountryCompletionModal } from '@/components/game/game-modals';
 import { DailyChallengeScreen } from '@/components/daily/daily-challenge-screen';
@@ -1397,6 +1398,11 @@ export default function HomeScreen() {
     );
   }, [activeScreen, hydrated, levelData, tutorialVisible]);
 
+  useEffect(() => {
+    if (activeScreen !== 'daily') return;
+    logDailyStart();
+  }, [activeScreen]);
+
   useEffect(
     () => () => {
       clearTimer(feedbackTimer);
@@ -2208,6 +2214,7 @@ export default function HomeScreen() {
   const handleTutorialDone = useCallback(() => {
     setTutorialVisible(false);
     void AsyncStorage.setItem(TUTORIAL_STORAGE_KEY, 'done');
+    logTutorialComplete();
   }, []);
 
   const refreshDailySummary = useCallback(async () => {
