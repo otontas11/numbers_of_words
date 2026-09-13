@@ -35,6 +35,8 @@ ducked = celebrating || countryCompletionLevel !== null || destinationTransition
 music = userVolume * 0.64 * (ducked ? 0.4 : 1)
 ```
 
+İlk açılış ve `musicVolume` alanı yokken slider varsayılanı `0.10` (eski `0.50`); kayıtlı seviye korunur, duck `0.4` bed üstüne çarpılmaya devam eder.
+
 ### 4b. Efekt loudness bandı
 
 Kısa efekt çarpanları RMS’e göre eşitlendi; implicit `1.0` ve `0.30` sınıfı kısıklar kalktı. Master ≤ 0 tam mute; aksi halde efektif volume ≥ `0.12` (JS `resolveEffectVolume` + SoundPool `AUDIBLE_VOLUME_FLOOR`).
@@ -54,7 +56,14 @@ Kristal (`diamond`) 0.78 → 0.52: duyulur kalır, bonus (0.90) ve `pointsRising
 
 ### 5. Müzik fade
 
-Fade `320 ms`, `32 ms` tik. Açılış / ön plana dönüşte `0`’dan hedef sese; kapanış / arka planda `0`’a inip pause. `shouldPlayInBackground: false`. İlk play sesi `1` ile patlatılmaz (`audibleRef`).
+Fade `320 ms`, `32 ms` tik. Açılış / ön plana dönüşte `0`’dan hedef sese; kapanış / arka planda `0`’a inip pause. `shouldPlayInBackground: false`. İlk play sesi `1` ile patlatılmaz (`audibleRef`). Duck `0.4` ve bed gain `0.64` loop çapraz geçişinde de bed hacmine uygulanır (player.volume = bed × loopGain).
+
+### 5b. BGM loop çapraz geçiş
+
+- Eski bed: `assets/sounds/journey.mp3` (~`107.1 sn`, stereo 256 kbps, F majör, ~`108 BPM`). Native `loop=true` ile başa sarınca kesiliyordu: son ~`4 sn` fade-to-silence / kadans, ilk `200 ms` tam enerjide.
+- Yeni bed: `assets/sounds/bgm-loop.mp3` (aynı kayıt, kadans/fade kesildi, orta gerilimde biter; `journey.mp3` yedek kalır). Üretici: `tools/generate_bgm_loop.py`. Yeni beste / müzik API’si değil — env’de Suno/Replicate/ElevenLabs müzik anahtarı yoktu.
+- Oynatma: iki `AudioPlayer`, native loop kapalı. Bitmeden `1600 ms` kala ikinci player equal-power fade-in (`sin`/`cos`), birincisi fade-out, sonra swap. Kaçırılan bitişte en az `240 ms`. Status poll `80 ms`.
+- Native SoundPool değişmedi; JS asset. Dev’de Metro yeter. Mağaza ikilisine yeni mp3’ün girmesi için uygulama paketinin yeniden üretilmesi gerekir, native modül rebuild’i gerekmez.
 
 ### 6. İpucu / karıştır sine-pop ailesi
 
@@ -187,4 +196,4 @@ Canlı işlem önizlemesi sürükleme sırasını gösterir: ilk düğümde `7+`
 
 ## Çelişen dokümanlar
 
-`DESIGN_RULES.md` ve `ADAPTIVE_DIFFICULTY.md` bu dosyadaki mücevher ekonomisi, şehir içi rahatlama, kutlama süreleri, eğitim Atla / bölme, duck/fade ve günlük menü kurallarına çekildi.
+`DESIGN_RULES.md` ve `ADAPTIVE_DIFFICULTY.md` bu dosyadaki mücevher ekonomisi, şehir içi rahatlama, kutlama süreleri, eğitim Atla / bölme, duck/fade ve günlük menü kurallarına çekildi. `DESIGN_RULES.md` hâlâ Android `journey.mp3` byte-byte kopyasını anlatır; oynatma kaynağı artık `bgm-loop.mp3` (aynı bed’in loop master’ı), duck/fade sayıları aynı.

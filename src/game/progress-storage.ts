@@ -22,6 +22,8 @@ import {
 
 const STORAGE_KEY = '@number-of-wonders/progress-v2';
 const STORAGE_VERSION = 5;
+/** İlk açılış / kayıtta alan yokken BGM slider. Kayıtlı musicVolume ezilmez. */
+export const DEFAULT_MUSIC_VOLUME = 0.1;
 const LEGACY_TRAVEL_STORAGE_VERSION = 2;
 const LEGACY_STORAGE_VERSION = 3;
 const LEGACY_COUNTRY_LEVEL_COUNT = 20;
@@ -235,7 +237,7 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
     const musicVolume =
       typeof value.musicVolume === 'number' && Number.isFinite(value.musicVolume)
         ? Math.max(0, Math.min(1, value.musicVolume))
-        : 0.5;
+        : DEFAULT_MUSIC_VOLUME;
     let normalizedLevelData: LevelData;
     let normalizedSolvedTargets = [...new Set(value.solvedTargets as number[])];
     let normalizedBonusSolved = bonusSolved;

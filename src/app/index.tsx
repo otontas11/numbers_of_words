@@ -82,7 +82,11 @@ import {
   type Target,
 } from '@/game/levels';
 import { getGameLayout } from '@/game/layout';
-import { loadGameProgress, saveGameProgress } from '@/game/progress-storage';
+import {
+  DEFAULT_MUSIC_VOLUME,
+  loadGameProgress,
+  saveGameProgress,
+} from '@/game/progress-storage';
 import {
   getDailyChallenge,
   getLocalDateKey,
@@ -1073,7 +1077,7 @@ export default function HomeScreen() {
   );
   const [effectsEnabled, setEffectsEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(false);
-  const [musicVolume, setMusicVolume] = useState(0.5);
+  const [musicVolume, setMusicVolume] = useState(DEFAULT_MUSIC_VOLUME);
   const [celebrating, setCelebrating] = useState(false);
   const [celebrationFull, setCelebrationFull] = useState(true);
   const [routeRewardToast, setRouteRewardToast] = useState<string | null>(null);
