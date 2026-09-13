@@ -101,14 +101,27 @@ Dokümandaki ayrı ipucu kredisi (3 + reklam + rota) **kaldırıldı**. Kod zate
 | Kural | Değer |
 | --- | --- |
 | Başlangıç | `30` mücevher |
-| İpucu | `10` mücevher |
+| İpucu | `10` mücevher (`HINT_GEM_COST`) |
+| Rewarded izleme | `+30` kristal (yalnız gerçek `EARNED_REWARD`) |
 | Yeni rota mührü | `+10` mücevher (rota başına bir kez) |
 
-`feedback.noHints` mücevher dilindedir (TR mücevher / EN gems / RU алмазов).
+`feedback.noHints` mücevher dilindedir (TR mücevher / EN gems / RU алмазов). Kristal 10’un altına düşünce ipucu basılamaz; hint CTA reklam izletir.
 
 ### B2. Reklam
 
-Sahte ödüllü reklam **yok**. AdMob native build’de banner’dır; rewarded callback hazır değildir. İleride gerçek rewarded bağlanırsa ipucu kredisi değil `+30` mücevher (3 ipucu değeri) verilebilir. Taklit ödül yok.
+Sahte ödüllü reklam **yok** (timer / “izlendi varsay” yok). App ID `ca-app-pub-5659145727748457~8041376159` (`app.json` plugin). Unit ID tek kaynak: `src/components/ads/admob-ids.ts`. Web / Expo Go no-op (`*.web.ts`). Native’de `react-native-google-mobile-ads`.
+
+**Rewarded (NOW-Rewarded `ca-app-pub-5659145727748457/1166461130`)**  
+- Preload eşiği: `gemCount < HINT_GEM_COST` (10). `10+` iken reload yok.  
+- Hint ikonu kalır; yetersiz kristalde overlay `wheel.hintAdCta` — “Reklam izle, 30 kristal kazan” (TR/EN/RU).  
+- Tıklayınca hazırsa `RewardedAd.show`; değilse `feedback.hintAdPreparing` + load. Gösterilemezse kristal yok.  
+- Ödeme yalnız `RewardedAdEventType.EARNED_REWARD` / `onAdEarnedReward` sonrası `setGemCount(c => c + 30)` + mevcut `saveGameProgress`. Kapanışta ödül yoksa 0.  
+- Daily ve ana tur aynı kapı (`use-rewarded-hint.ts`). Eski hint-credit yok.
+
+**Interstitial (NOW_Interstitial `ca-app-pub-5659145727748457/7543780183`)**  
+- İlk ülke (`countryIndex === 0`) ve o ülkenin şehir/ülke geçişlerinde **yok**; orada load da yok.  
+- İkinci ülkeden itibaren şehir/destinasyon veya ülke değişince göster (`locationId` / `countryIndex`). 7’li blok içi ara puzzle (1→2) **yok**. Daily **yok**.  
+- Ready değilse oyunu bloklama; geçişe devam. Bir geçişten sonra sonrakini preload et.
 
 ### B3. Şehir içi zorluk rahatlaması
 
@@ -116,6 +129,19 @@ Sahte ödüllü reklam **yok**. AdMob native build’de banner’dır; rewarded 
 - Yeni şehirde (Challenge değil) öğrenme skorundan `−1/0/+1` uygulanır; işlem türü ve temel adım kuralı değişmez.
 - Aynı şehirde, Challenge değilken, art arda 2 “zorlandı” sonrası **sonraki puzzle** zorluğu en fazla 1 kademe düşer; sayaç sıfırlanır.
 - Challenge puzzle’ı bu düşüşü almaz.
+
+### B3b. Ana sayfa Ustalık (öğrenme seviyesi)
+
+Oyuncuya gösterilen 0–100 metre. Mutfak `learningScore` (varsayılan 50, puzzle EMA) ve şehir `−1/0/+1` ayrı kalır; ana sayfada ve profilde `−1/0/+1` yazılmaz.
+
+- Persist: `learningLevel` (`@number-of-wonders/progress-v2`). Yoksa / ilk açılış **100**. Aralık 0–100, tavan 100.
+- Güncelleme: yeni şehirde adaptif modifier uygulandığı an (`startLevel`, Challenge değil, `locationId` değişti). Sinyal mevcut `difficultyModifierFromLearningScore(learningScore)`:
+  - `+1` (hızlı, az hint): **+2…+5**
+  - `0`: **0 veya +1** (`learningScore >= 50` ise +1)
+  - `−1` (çok hint, yavaş): **−3…−8**
+- İlk 5 öğretici ülkede değişmez (100 kalır); adaptif kapalı olduğu için bu şehirler sayılmaz.
+- Daily bu sayıyı değiştirmez (kendi ekonomisi / mutfak skoru okur, `learningLevel` yazmaz).
+- UI: ülke kartında küçük satır `home.learningLevel` — TR `Ustalık {{level}}` / EN `Skill {{level}}` / RU `Мастерство {{level}}`. Play CTA `X. SEVİYE` seyahat ilerlemesidir, karışmaz. Büyük halka yok.
 
 ## C. Akış ve tempo
 
@@ -165,7 +191,7 @@ Ana tur puzzle geçişinde çark doğumu **görünür** olmalıdır (`NumberWhee
 - Hedef + bonus peş peşe: `setProgress(prev => …)` ve persist o next ile; ikinci kayıt birincinin id’sini ezmez.
 - Bonus: paylaşılan `ResultFlight` önce bonus kartına (bulunan item), inişten sonra ★ puan HUD ve kart kristali header 💎’a. Hedef: sonuç rozeti hedef kartına, sonra ★ hapına puan uçuşu. Sayaç **varışta** artar (mevcut HUD pop); eşleşmede yalnız rezervasyon yapılır.
 - Puan formülü ana turla aynıdır: seçilen sayıların toplamı × adım. Daily ★ / 💎 HUD parent `score` / `gemCount` gösterir; `runScore` persist içindir. Ödül `createDailyAwardLedger` kuyruğundadır: `dailyAwardKey(runSeed, slot, puzzleId)` ile rezerve, `onArrive` / sert timeout (uçuş + ~400 ms) / measure başarısızlığı / tahta-replay-faz-geri-unmount flush ile yazılır. Hepsi `claimDailyRunAward` + `paidKeys` üzerinden geçer; çift ödeme olmaz, kuyruk 8+ bekleyen ödemeyi düşürmez. `handleClaim` hazine paketini `runClaimed` ile kilitler; paket kristali sandıktan 💎 hapına uçar, varışta yazılır (`dailyTreasureAwardKey`).
-- Play tahtası ana oyun dilindedir: `getGameLayout` (üst işlem şeridi `DAILY_OPERATION_STRIP_HEIGHT` kadar incelince yükseklik çarka yansır), hedef kartında sayı altında `FootprintIcon` + dolan adım daireleri (`game.stepCount` a11y; `onNodeAdded` / `onNodeRemoved` `selectionCount`, bırakınca / lastik / shuffle `0`; puzzle pulse daire+Footprint), sağda `daily.hudOpLabel` / sembol ve `daily.hudStreakLabel` / `daily.hudStreak` chip’leri (hedef kartıyla aynı krem-turkuaz aile, `#233540` değer), bonus satırı solda yönerge (BONUS + mücevher `2/4/7`) sağda bonus sayı + sağ üst işlem rozeti + aynı dolan adım sırası, `NumberWheel`. Puzzle değişince çark intro’sundan sonra hedef adım daireleri iki kısa pulse (scale 1.15). Play header geri düğmesi ana tur HUD `skyControl` + `BackIcon` kopyasıdır (`‹` değil). Bırakınca `target.steps === indices.length`. Altta `58 dp` AdMob banner; sahte rewarded yok.
+- Play tahtası ana oyun dilindedir: `getGameLayout` (üst işlem şeridi `DAILY_OPERATION_STRIP_HEIGHT` kadar incelince yükseklik çarka yansır), hedef kartında sayı altında `FootprintIcon` + dolan adım daireleri (`game.stepCount` a11y; `onNodeAdded` / `onNodeRemoved` `selectionCount`, bırakınca / lastik / shuffle `0`; puzzle pulse daire+Footprint), sağda `daily.hudOpLabel` / sembol ve `daily.hudStreakLabel` / `daily.hudStreak` chip’leri (hedef kartıyla aynı krem-turkuaz aile, `#233540` değer), bonus satırı solda yönerge (BONUS + mücevher `2/4/7`) sağda bonus sayı + sağ üst işlem rozeti + aynı dolan adım sırası, `NumberWheel`. Puzzle değişince çark intro’sundan sonra hedef adım daireleri iki kısa pulse (scale 1.15). Play header geri düğmesi ana tur HUD `skyControl` + `BackIcon` kopyasıdır (`‹` değil). Bırakınca `target.steps === indices.length`. Altta `58 dp` AdMob banner. Daily interstitial göstermez; kristal `< 10` olunca rewarded hint CTA ana turla aynıdır.
 - Claim `points` çalar. Claim yalnız **o koşuyu** kapatır (`runClaimed`); `Tekrar oyna` yeni koşu açar ve hazine yeniden kazanılabilir olur. Ana menü her zaman açıktır.
 
 ### D3. Beş puzzle, zorluk ve replay
@@ -223,6 +249,13 @@ Kullanıcı Google Ads ile indirme alacak; bütçe / indirme / gelir (ROAS) içi
 3. **UMP:** AdMob → Privacy & messaging → GDPR mesajını yayınla ve gizlilik politikası URL’si ekle. Yayınlanmazsa EEA’da form boş kalır / reklam kısıtlanır.
 4. **Google Ads:** Firebase (ve AdMob) hesabını Google Ads’e bağla. `first_open` SDK olayı olarak içe aktarılabilir. Uygulama olayları custom’dır: `now_tutorial_complete` ve `now_ad_impression`’ı Google Ads’te dönüşüm olarak **elle içe aktar**. Ads ROAS otomatik geliri reserved `ad_impression` bekler; o event artık gönderilmiyor, otomatik Ads ROAS bu custom event’ten dolmayacak. Değer `now_ad_impression` içindeki `value`/`currency` parametrelerindedir — Ads’te bu olayı değerli dönüşüm olarak işaretle.
 5. **Native rebuild gerekir.** Yeni Analytics native modülü + UMP ads init sırası Expo Go’da yok. Dev client veya EAS (`eas build` / prebuild) şart; `expo start --go` olay göndermez.
+
+## QA düzeltmeleri (13 Eylül 2026)
+
+Yeni özellik yok; sıfır kurulum QA’sinde bulunan gerçek hatalar:
+
+- **Daily yeniden açılış:** Kart her açılışta `loading`’e çekilip storage’dan yeniden kuruluyordu. Aynı `dateKey` bellekteyse loading flaşı yok; `completedPuzzleIds` üzerinden puzzle index yeniden kurulur (geri çıkınca çözülmüş kartta kilitlenmesin). Gün değişince tam yükleme durur.
+- **CardGemLiftFlight:** `markArrived` / `markCompleted` her render’da yeniden oluşuyordu. React Compiler bunları effect bağımlılığı sayınca uçuş sıfırlanıp HUD setState döngüsüne girebiliyordu. Callback’ler `ResultFlightBadge` gibi effect içine alındı; ödeme hâlâ `paidKeys` ile tek sefer.
 
 ## Çelişen dokümanlar
 

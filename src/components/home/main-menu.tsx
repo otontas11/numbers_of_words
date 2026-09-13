@@ -44,11 +44,12 @@ type MainMenuProps = {
     streak: number;
   } | null;
   gemCount: number;
+  learningLevel: number;
   levelData: LevelData;
   score: number;
   onOpenCollection: () => void;
-  onOpenDaily: () => void;
   onOpenProfile: () => void;
+  onOpenDaily: () => void;
   onOpenSettings: () => void;
   onOpenTravel: () => void;
   onPlay: () => void;
@@ -120,6 +121,7 @@ export function MainMenu({
   currentLevel,
   dailySummary,
   gemCount,
+  learningLevel,
   levelData,
   score,
   onOpenCollection,
@@ -343,7 +345,7 @@ export function MainMenu({
 
           <Pressable
             accessibilityHint={t('home.playHint')}
-            accessibilityLabel={`${t('home.playA11y', { level: countryLevel })}. ${t('home.routeProgress', { route: routeName, progress: routeProgress, total: route?.countryIds.length ?? 0 })}`}
+            accessibilityLabel={`${t('home.playA11y', { level: countryLevel })}. ${t('home.routeProgress', { route: routeName, progress: routeProgress, total: route?.countryIds.length ?? 0 })}. ${t('home.learningLevel', { level: learningLevel })}`}
             accessibilityRole="button"
             onPress={onPlay}
             style={({ pressed }) => [
@@ -409,6 +411,9 @@ export function MainMenu({
               <Text style={styles.discoveryText}>
                 {t('home.discovered', { done: completedCountries, total: TOTAL_COUNTRIES })}
               </Text>
+              <Text style={styles.learningLevelText}>
+                {t('home.learningLevel', { level: learningLevel })}
+              </Text>
             </View>
             <View style={[styles.countryImageFrame, compact && styles.countryImageFrameCompact]}>
               <Image
@@ -443,6 +448,7 @@ export function ProfileScreen({
   onOpenPassport,
   performanceHistory,
   learningScore,
+  learningLevel,
   cityDifficultyModifier,
   score,
 }: {
@@ -455,6 +461,7 @@ export function ProfileScreen({
   onOpenPassport: () => void;
   performanceHistory: PuzzlePerformance[];
   learningScore: number;
+  learningLevel: number;
   cityDifficultyModifier: DifficultyModifier;
   score: number;
 }) {
@@ -540,7 +547,7 @@ export function ProfileScreen({
               <View style={styles.difficultyIcon}><Text style={styles.difficultyIconText}>⚙</Text></View>
               <View style={styles.difficultyCopy}>
                 <Text style={styles.difficultyEyebrow}>{t('profile.difficultyEyebrow')}</Text>
-                <Text style={styles.difficultyTitle}>{t('profile.learningLevel', { level: `${learningScore}/100 • ${difficultyLabel}` })}</Text>
+                <Text style={styles.difficultyTitle}>{t('home.learningLevel', { level: learningLevel })} · {difficultyLabel}</Text>
               </View>
             </View>
             <Text style={styles.difficultyDescription}>{difficultyDescription}</Text>
@@ -811,6 +818,7 @@ const styles = StyleSheet.create({
   stepActiveOrbit: { position: 'absolute', top: 0, left: -6, zIndex: 4, width: 29, height: 29, borderRadius: 14.5 },
   stepActiveMarker: { position: 'absolute', top: 0, left: 11.5, width: 6, height: 6, borderRadius: 3, borderWidth: 1, borderColor: '#FFFFFF', backgroundColor: '#F2B62F' },
   discoveryText: { marginTop: 9, color: '#234C78', fontFamily: FONTS.semibold, fontSize: 9.5, fontWeight: '600', textAlign: 'center' },
+  learningLevelText: { marginTop: 4, color: '#6A7F8C', fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.5, fontWeight: '700', textAlign: 'center' },
   countryImageFrame: { width: 112, height: 112, overflow: 'visible', borderRadius: 56, borderWidth: 3, borderColor: '#DBA643', backgroundColor: '#9EDCF4', shadowColor: '#B07B22', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
   countryImageFrameCompact: { width: 92, height: 92, borderRadius: 46 },
   countryImage: { borderRadius: 999 },

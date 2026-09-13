@@ -23,6 +23,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdMobBanner, AD_BANNER_SLOT_HEIGHT } from '@/components/ads/admob-banner';
+import { HINT_AD_GEM_REWARD } from '@/components/ads/admob-ids';
+import { useRewardedHintAd } from '@/components/ads/use-rewarded-hint';
 import { BackIcon, FootprintIcon, GemIcon } from '@/components/common/game-icons';
 import {
   NumberWheel,
@@ -144,6 +146,23 @@ type DailyChallengeScreenProps = {
 };
 
 type Phase = 'loading' | 'play' | 'treasure' | 'completed';
+
+function sessionFromDailyProgress(
+  progress: DailyChallengeProgress,
+  challenge: DailyChallenge,
+): { phase: Exclude<Phase, 'loading'>; puzzleIndex: number; railFilledIds: string[] } {
+  const nextPuzzleIndex = challenge.puzzles.findIndex(
+    (puzzle) => !progress.completedPuzzleIds.includes(puzzle.id),
+  );
+  const complete = isDailyChallengeComplete(progress, challenge);
+  return {
+    phase: progress.runClaimed && complete ? 'completed' : complete ? 'treasure' : 'play',
+    puzzleIndex:
+      nextPuzzleIndex >= 0 ? nextPuzzleIndex : Math.max(0, challenge.puzzles.length - 1),
+    railFilledIds: [...progress.completedPuzzleIds],
+  };
+}
+
 type Timer = ReturnType<typeof setTimeout>;
 type FeedbackTone = 'live' | 'success' | 'bonus' | 'info';
 type Feedback = { text: string; tone: FeedbackTone };
@@ -718,6 +737,14 @@ export function DailyChallengeScreen({
 }: DailyChallengeScreenProps) {
   const { t } = useI18n();
   const { height, width } = useWindowDimensions();
+  const grantHintAdGems = useCallback(() => {
+    onReward(HINT_AD_GEM_REWARD);
+  }, [onReward]);
+  const { requestRewardedHintAd, offerHintAd, hintAdReward } = useRewardedHintAd({
+    gemCount,
+    hintCost: HINT_GEM_COST,
+    onEarned: grantHintAdGems,
+  });
   const layout = getGameLayout(
     width,
     Math.max(520, height - AD_BANNER_SLOT_HEIGHT + DAILY_OPERATION_STRIP_HEIGHT),
@@ -992,8 +1019,21 @@ export function DailyChallengeScreen({
   useEffect(() => {
     if (!active) return;
 
-    let cancelled = false;
     const dateKey = getLocalDateKey();
+    const existingChallenge = challengeRef.current;
+    const existingProgress = progressRef.current;
+    // Aynı günün koşusu bellekteyse loading flaşı yok: doğrudan play/hazine.
+    // Geri çıkınca yarım kalan uçuş flush edilmiş olabilir; puzzle index
+    // completed id'lerden yeniden kurulur ki çözülmüş kartta kilitlenmesin.
+    if (existingChallenge?.dateKey === dateKey && existingProgress?.dateKey === dateKey) {
+      const session = sessionFromDailyProgress(existingProgress, existingChallenge);
+      setPuzzleIndex(session.puzzleIndex);
+      setRailFilledIds(session.railFilledIds);
+      setPhase(session.phase);
+      return;
+    }
+
+    let cancelled = false;
     const liveSkill = resolveDailyChallengeSkill(skillRef.current);
     setChallenge(null);
     setProgress(null);
@@ -1019,25 +1059,13 @@ export function DailyChallengeScreen({
           skillFromDailyChallengeProgress(loadedProgress),
           loadedProgress.runSeed,
         );
-        const nextPuzzleIndex = nextChallenge.puzzles.findIndex(
-          (puzzle) => !loadedProgress.completedPuzzleIds.includes(puzzle.id),
-        );
+        const session = sessionFromDailyProgress(loadedProgress, nextChallenge);
         setChallenge(nextChallenge);
         setProgress(loadedProgress);
         progressRef.current = loadedProgress;
-        setRailFilledIds([...loadedProgress.completedPuzzleIds]);
-        setPuzzleIndex(
-          nextPuzzleIndex >= 0
-            ? nextPuzzleIndex
-            : Math.max(0, nextChallenge.puzzles.length - 1),
-        );
-        if (loadedProgress.runClaimed && isDailyChallengeComplete(loadedProgress, nextChallenge)) {
-          setPhase('completed');
-        } else if (isDailyChallengeComplete(loadedProgress, nextChallenge)) {
-          setPhase('treasure');
-        } else {
-          setPhase('play');
-        }
+        setRailFilledIds(session.railFilledIds);
+        setPuzzleIndex(session.puzzleIndex);
+        setPhase(session.phase);
       });
 
     return () => {
@@ -1636,6 +1664,14 @@ export function DailyChallengeScreen({
     if (!currentPuzzle || !currentProgress || targetComplete || hintActiveRef.current) return;
     onEffect('hint');
     if (gemCount < HINT_GEM_COST) {
+      if (offerHintAd) {
+        void requestRewardedHintAd().then((result) => {
+          if (result === 'unavailable') {
+            showFeedback({ text: t('feedback.hintAdPreparing'), tone: 'info' }, 1800);
+          }
+        });
+        return;
+      }
       showFeedback(
         { text: t('feedback.noHints', { cost: HINT_GEM_COST }), tone: 'info' },
         1800,
@@ -1667,9 +1703,11 @@ export function DailyChallengeScreen({
   }, [
     currentPuzzle,
     gemCount,
+    offerHintAd,
     onEffect,
     onSpendGems,
     persistProgress,
+    requestRewardedHintAd,
     showFeedback,
     t,
     targetComplete,
@@ -1972,6 +2010,8 @@ export function DailyChallengeScreen({
                   key={`${challenge?.dateKey ?? 'daily'}-${wheelSize}`}
                   canUseHint={gemCount >= HINT_GEM_COST && !targetComplete}
                   hintCost={HINT_GEM_COST}
+                  hintAdReward={hintAdReward}
+                  offerHintAd={offerHintAd && !targetComplete}
                   hintIndices={hintIndices}
                   introToken={currentPuzzle.id}
                   numbers={currentPuzzle.numbers}

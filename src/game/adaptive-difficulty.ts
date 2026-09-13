@@ -1,6 +1,7 @@
 export const ACTIVITY_IDLE_TIMEOUT_MS = 15_000;
 export const PERFORMANCE_HISTORY_LIMIT = 5;
 export const INITIAL_LEARNING_SCORE = 50;
+export const INITIAL_LEARNING_LEVEL = 100;
 export const ADAPTIVE_DIFFICULTY_UNLOCK_COUNTRY_INDEX = 5;
 export const CONSECUTIVE_STRUGGLE_RELIEF_THRESHOLD = 2;
 
@@ -72,6 +73,39 @@ export function scorePuzzlePerformance(performance: PuzzlePerformance): number {
 export function updateLearningScore(current: number, performance: PuzzlePerformance): number {
   const next = current * 0.75 + scorePuzzlePerformance(performance) * 0.25;
   return Math.max(1, Math.min(100, Math.round(next)));
+}
+
+export function clampLearningLevel(value: number): number {
+  if (!Number.isFinite(value)) return INITIAL_LEARNING_LEVEL;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+/**
+ * Player-facing 0–100 meter. Uses the same −1/0/+1 band applied at a new city;
+ * intensity comes from the existing kitchen learning score. Not shown as −1/0/+1.
+ */
+export function learningLevelDeltaFromModifier(
+  modifier: DifficultyModifier,
+  learningScore: number,
+): number {
+  const score = Math.max(1, Math.min(100, Math.round(learningScore)));
+  if (modifier > 0) {
+    const t = (score - 66) / 34;
+    return 2 + Math.round(Math.max(0, Math.min(1, t)) * 3);
+  }
+  if (modifier < 0) {
+    const t = (35 - score) / 34;
+    return -3 - Math.round(Math.max(0, Math.min(1, t)) * 5);
+  }
+  return score >= 50 ? 1 : 0;
+}
+
+export function updateLearningLevel(
+  current: number,
+  modifier: DifficultyModifier,
+  learningScore: number,
+): number {
+  return clampLearningLevel(current + learningLevelDeltaFromModifier(modifier, learningScore));
 }
 
 export function isAdaptiveDifficultyEnabled(countryIndex: number) {

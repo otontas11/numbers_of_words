@@ -25,6 +25,9 @@ import { CountryCompletionModal } from '@/components/game/game-modals';
 import { DailyChallengeScreen } from '@/components/daily/daily-challenge-screen';
 import { PassportCollection } from '@/components/collection/passport-collection';
 import { AdMobBanner, AD_BANNER_SLOT_HEIGHT } from '@/components/ads/admob-banner';
+import { HINT_AD_GEM_REWARD } from '@/components/ads/admob-ids';
+import { useInterstitialTransition } from '@/components/ads/use-interstitial-transition';
+import { useRewardedHintAd } from '@/components/ads/use-rewarded-hint';
 import { BackIcon, FootprintIcon, GemIcon, SettingsIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import {
@@ -59,12 +62,14 @@ import { countryContentImageUrl } from '@/constants/content-images';
 import { FONTS } from '@/constants/fonts';
 import {
   ACTIVITY_IDLE_TIMEOUT_MS,
+  INITIAL_LEARNING_LEVEL,
   INITIAL_LEARNING_SCORE,
   appendPerformance,
   applyConsecutiveStruggleRelief,
   isAdaptiveDifficultyEnabled,
   ratePuzzlePerformance,
   difficultyModifierFromLearningScore,
+  updateLearningLevel,
   updateLearningScore,
   type DifficultyModifier,
   type PuzzlePerformance,
@@ -1061,6 +1066,7 @@ export default function HomeScreen() {
   const [rewardedRouteIds, setRewardedRouteIds] = useState<Set<string>>(() => new Set());
   const [performanceHistory, setPerformanceHistory] = useState<PuzzlePerformance[]>([]);
   const [learningScore, setLearningScore] = useState(INITIAL_LEARNING_SCORE);
+  const [learningLevel, setLearningLevel] = useState(INITIAL_LEARNING_LEVEL);
   const [cityDifficultyModifier, setCityDifficultyModifier] =
     useState<DifficultyModifier>(0);
   const [cityDifficultyLocationId, setCityDifficultyLocationId] = useState(
@@ -1134,6 +1140,7 @@ export default function HomeScreen() {
   const targetScoreAwardsRef = useRef(new Map<number, number>());
   const performanceHistoryRef = useRef<PuzzlePerformance[]>([]);
   const learningScoreRef = useRef(INITIAL_LEARNING_SCORE);
+  const learningLevelRef = useRef(INITIAL_LEARNING_LEVEL);
   const cityDifficultyModifierRef = useRef<DifficultyModifier>(0);
   const cityDifficultyLocationIdRef = useRef(levelData.locationId);
   const consecutiveStrugglesRef = useRef(0);
@@ -1165,6 +1172,15 @@ export default function HomeScreen() {
     (activeScreen === 'game' && countryCompletionLevel !== null) ||
     destinationTransition !== null;
   useBackgroundMusic(hydrated && musicEnabled, musicVolume, musicDucked);
+  const grantHintAdGems = useCallback(() => {
+    setGemCount((count) => count + HINT_AD_GEM_REWARD);
+  }, []);
+  const { requestRewardedHintAd, offerHintAd, hintAdReward } = useRewardedHintAd({
+    gemCount,
+    hintCost: HINT_GEM_COST,
+    onEarned: grantHintAdGems,
+  });
+  const { presentTransitionAd } = useInterstitialTransition(levelData.countryIndex);
   const targetWidth = (levelData.targets.length === 3 ? '31.6%' : '23.5%') as `${number}%`;
   const feedbackColors = feedback ? getFeedbackColors(feedback.tone) : null;
   const levelJustCompleted = hasCompletedRequiredTargets(solvedTargets.size, levelData);
@@ -1304,6 +1320,8 @@ export default function HomeScreen() {
         performanceHistoryRef.current = saved.performanceHistory;
         setLearningScore(saved.learningScore);
         learningScoreRef.current = saved.learningScore;
+        setLearningLevel(saved.learningLevel);
+        learningLevelRef.current = saved.learningLevel;
         setCityDifficultyModifier(saved.cityDifficultyModifier);
         cityDifficultyModifierRef.current = saved.cityDifficultyModifier;
         setCityDifficultyLocationId(saved.cityDifficultyLocationId);
@@ -1348,6 +1366,7 @@ export default function HomeScreen() {
       rewardedRouteIds: [...rewardedRouteIds],
       performanceHistory,
       learningScore,
+      learningLevel,
       cityDifficultyModifier,
       cityDifficultyLocationId,
       consecutiveStruggles,
@@ -1371,6 +1390,7 @@ export default function HomeScreen() {
     rewardedRouteIds,
     performanceHistory,
     learningScore,
+    learningLevel,
     cityDifficultyModifier,
     cityDifficultyLocationId,
     consecutiveStruggles,
@@ -1728,6 +1748,16 @@ export default function HomeScreen() {
       nextDifficultyModifier = difficultyModifierFromLearningScore(learningScoreRef.current);
       nextDifficultyLocationId = nextDestination.location.id;
       consecutiveStrugglesRef.current = 0;
+      const previousCountryIndex = Math.floor((nextLevel - 2) / COUNTRY_LEVEL_COUNT);
+      if (isAdaptiveDifficultyEnabled(previousCountryIndex)) {
+        const nextLearningLevel = updateLearningLevel(
+          learningLevelRef.current,
+          nextDifficultyModifier,
+          learningScoreRef.current,
+        );
+        learningLevelRef.current = nextLearningLevel;
+        setLearningLevel(nextLearningLevel);
+      }
     } else if (!nextDestination.countryChallenge) {
       const relief = applyConsecutiveStruggleRelief(
         nextDifficultyModifier,
@@ -1779,15 +1809,31 @@ export default function HomeScreen() {
       // ardından startLevel intro'yu (460 ms) çark açıkken başlatır.
       // Ülke modalı burada kapanmaz; outro modal altında park edebilir, intro
       // modal kapanıp oyun görününce oynar.
+      const beginOutro = () => {
+        setCelebrating(false);
+        setDestinationTransition(null);
+        setWheelOutroToken((token) => token + 1);
+        clearTimer(levelTimer);
+        levelTimer.current = setTimeout(() => {
+          startLevel(nextLevel, previousTargetValues);
+        }, NODE_OUTRO_DURATION);
+      };
+
+      const nextDestination = resolveTravelLevel(nextLevel);
+      const from = {
+        countryIndex: levelData.countryIndex,
+        locationId: levelData.locationId,
+      };
+      const to = {
+        countryIndex: nextDestination.countryIndex,
+        locationId: nextDestination.location.id,
+      };
+
       setCelebrating(false);
       setDestinationTransition(null);
-      setWheelOutroToken((token) => token + 1);
-      clearTimer(levelTimer);
-      levelTimer.current = setTimeout(() => {
-        startLevel(nextLevel, previousTargetValues);
-      }, NODE_OUTRO_DURATION);
+      void presentTransitionAd(from, to).finally(beginOutro);
     },
-    [startLevel],
+    [levelData.countryIndex, levelData.locationId, presentTransitionAd, startLevel],
   );
 
   const handlePreview = useCallback(
@@ -2063,6 +2109,14 @@ export default function HomeScreen() {
     triggerEffect('hint');
     if (hintActiveRef.current) return;
     if (gemCount < HINT_GEM_COST) {
+      if (offerHintAd) {
+        void requestRewardedHintAd().then((result) => {
+          if (result === 'unavailable') {
+            showTimedFeedback({ text: t('feedback.hintAdPreparing'), tone: 'info' }, 1800);
+          }
+        });
+        return;
+      }
       showTimedFeedback(
         { text: t('feedback.noHints', { cost: HINT_GEM_COST }), tone: 'info' },
         1800,
@@ -2090,7 +2144,17 @@ export default function HomeScreen() {
       hintActiveRef.current = false;
       hintTimer.current = null;
     }, 1800);
-  }, [gemCount, levelData, markPuzzleActivity, showTimedFeedback, solvedTargets, t, triggerEffect]);
+  }, [
+    gemCount,
+    levelData,
+    markPuzzleActivity,
+    offerHintAd,
+    requestRewardedHintAd,
+    showTimedFeedback,
+    solvedTargets,
+    t,
+    triggerEffect,
+  ]);
 
   const dismissOperationGuide = useCallback(() => {
     if (!operationGuideVisible) return;
@@ -2319,6 +2383,7 @@ export default function HomeScreen() {
                 currentLevel={displayedProgressLevel}
                 dailySummary={dailySummary}
                 gemCount={gemCount}
+                learningLevel={learningLevel}
                 levelData={contentLevelData}
                 onOpenCollection={navigateCollection}
                 onOpenDaily={navigateDaily}
@@ -2369,6 +2434,7 @@ export default function HomeScreen() {
                 onOpenPassport={navigateCollection}
                 performanceHistory={performanceHistory}
                 learningScore={learningScore}
+                learningLevel={learningLevel}
                 cityDifficultyModifier={cityDifficultyModifier}
                 score={score}
               />
@@ -2574,6 +2640,8 @@ export default function HomeScreen() {
                   key={`tour-${wheelSize}`}
                   canUseHint={gemCount >= HINT_GEM_COST}
                   hintCost={HINT_GEM_COST}
+                  hintAdReward={hintAdReward}
+                  offerHintAd={offerHintAd}
                   hintIndices={hintIndices}
                   introToken={wheelIntroToken}
                   motionEnabled={gameplayVisible}

@@ -38,6 +38,7 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
+import { HINT_AD_GEM_REWARD } from '@/components/ads/admob-ids';
 import { HintIcon, ShuffleIcon } from '@/components/common/game-icons';
 import { FONTS } from '@/constants/fonts';
 import { useI18n } from '@/i18n';
@@ -58,6 +59,8 @@ type NumberWheelProps = {
   numbers: number[];
   canUseHint: boolean;
   hintCost: number;
+  hintAdReward?: number;
+  offerHintAd?: boolean;
   hintIndices: number[];
   operationGuideSymbol?: string;
   onPreview: (indices: number[]) => void;
@@ -327,6 +330,8 @@ export const NumberWheel = memo(function NumberWheel({
   numbers,
   canUseHint,
   hintCost,
+  hintAdReward = HINT_AD_GEM_REWARD,
+  offerHintAd = false,
   hintIndices,
   operationGuideSymbol,
   onPreview,
@@ -1580,27 +1585,48 @@ export const NumberWheel = memo(function NumberWheel({
       </View>
 
       <View style={[styles.actionRow, { width: size }]}> 
-        <Pressable
-          accessibilityLabel={
-            canUseHint
-              ? t('wheel.hintA11y', { cost: hintCost })
-              : t('wheel.noHints')
-          }
-          accessibilityRole="button"
-          hitSlop={8}
-          // Basış anında tetiklemek, özellikle iOS'ta hızlı modal geçişlerinde
-          // onPress'in kaybolmasını önler.
-          onPressIn={onHint}
-          style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}>
-          <ExpoLinearGradient
-            colors={['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']}
-            end={{ x: 0, y: 1 }}
-            start={{ x: 0, y: 0 }}
-            style={styles.controlSurface}>
-            <HintIcon size={27} />
-            <Text style={styles.controlLabel}>{t('wheel.hint', { cost: hintCost })}</Text>
-          </ExpoLinearGradient>
-        </Pressable>
+        <View style={styles.hintControlWrap}>
+          <Pressable
+            accessibilityLabel={
+              offerHintAd
+                ? t('wheel.hintAdA11y', { reward: hintAdReward })
+                : canUseHint
+                  ? t('wheel.hintA11y', { cost: hintCost })
+                  : t('wheel.noHints')
+            }
+            accessibilityRole="button"
+            hitSlop={8}
+            // Basış anında tetiklemek, özellikle iOS'ta hızlı modal geçişlerinde
+            // onPress'in kaybolmasını önler.
+            onPressIn={onHint}
+            style={({ pressed }) => [
+              styles.controlButton,
+              offerHintAd && styles.hintAdButton,
+              pressed && styles.controlPressed,
+            ]}>
+            <ExpoLinearGradient
+              colors={
+                offerHintAd
+                  ? ['rgba(92,74,32,0.82)', 'rgba(48,36,16,0.84)']
+                  : ['rgba(50,58,62,0.73)', 'rgba(28,36,41,0.75)']
+              }
+              end={{ x: 0, y: 1 }}
+              start={{ x: 0, y: 0 }}
+              style={styles.controlSurface}>
+              <HintIcon size={27} />
+              <Text style={styles.controlLabel}>
+                {offerHintAd
+                  ? t('wheel.hintAd', { reward: hintAdReward })
+                  : t('wheel.hint', { cost: hintCost })}
+              </Text>
+            </ExpoLinearGradient>
+          </Pressable>
+          {offerHintAd ? (
+            <Text pointerEvents="none" style={styles.hintAdCta} numberOfLines={2}>
+              {t('wheel.hintAdCta', { reward: hintAdReward })}
+            </Text>
+          ) : null}
+        </View>
 
         <Pressable
           accessibilityLabel={t('wheel.shuffleA11y')}
@@ -1735,6 +1761,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     position: 'relative',
     top: -58,
+  },
+  hintControlWrap: {
+    width: 57,
+    height: 57,
+    overflow: 'visible',
+  },
+  hintAdCta: {
+    position: 'absolute',
+    left: 64,
+    top: 10,
+    width: 118,
+    color: '#FFF3C4',
+    fontFamily: FONTS.black,
+    fontSize: 10,
+    fontWeight: '900',
+    lineHeight: 13,
+    textShadowColor: 'rgba(8, 16, 22, 0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  hintAdButton: {
+    borderColor: 'rgba(249,200,92,0.92)',
   },
   controlButton: {
     width: 57,

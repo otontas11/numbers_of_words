@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  INITIAL_LEARNING_LEVEL,
   INITIAL_LEARNING_SCORE,
+  clampLearningLevel,
   isPuzzlePerformance,
   scorePuzzlePerformance,
   type DifficultyModifier,
@@ -45,6 +47,8 @@ export type StoredGameProgress = {
   rewardedRouteIds: string[];
   performanceHistory: PuzzlePerformance[];
   learningScore: number;
+  /** Player-facing 0–100 meter. Missing on old saves → 100. Kitchen `learningScore` stays separate. */
+  learningLevel: number;
   cityDifficultyModifier: DifficultyModifier;
   cityDifficultyLocationId: string;
   consecutiveStruggles: number;
@@ -279,6 +283,10 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
                 performanceHistory.length,
             )
           : INITIAL_LEARNING_SCORE;
+    const learningLevel =
+      typeof value.learningLevel === 'number' && Number.isFinite(value.learningLevel)
+        ? clampLearningLevel(value.learningLevel)
+        : INITIAL_LEARNING_LEVEL;
     const cityDifficultyModifier: DifficultyModifier =
       value.cityDifficultyModifier === -1 ||
       value.cityDifficultyModifier === 0 ||
@@ -306,6 +314,7 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       rewardedRouteIds,
       performanceHistory,
       learningScore,
+      learningLevel,
       cityDifficultyModifier,
       cityDifficultyLocationId,
       consecutiveStruggles,

@@ -354,19 +354,16 @@ export function CardGemLiftFlight({
   onLiftStartRef.current = onLiftStart;
   liftRef.current = lift;
 
-  const markArrived = () => {
-    if (arrivedRef.current) return;
-    arrivedRef.current = true;
-    onArriveRef.current(liftRef.current);
-  };
-  const markCompleted = () => {
-    if (completedRef.current) return;
-    completedRef.current = true;
-    markArrived();
-    onCompleteRef.current(liftRef.current);
-  };
-
   useEffect(() => {
+    const markCompleted = () => {
+      if (completedRef.current) return;
+      completedRef.current = true;
+      if (!arrivedRef.current) {
+        arrivedRef.current = true;
+        onArriveRef.current(liftRef.current);
+      }
+      onCompleteRef.current(liftRef.current);
+    };
     const launchDelay = liftRef.current.delay ?? 0;
     const failSafeTimer = setTimeout(markCompleted, launchDelay + BONUS_GEM_FLIGHT_DURATION);
     const startTimer =
@@ -385,6 +382,18 @@ export function CardGemLiftFlight({
 
   useEffect(() => {
     if (!visible) return;
+
+    const markArrived = () => {
+      if (arrivedRef.current) return;
+      arrivedRef.current = true;
+      onArriveRef.current(liftRef.current);
+    };
+    const markCompleted = () => {
+      if (completedRef.current) return;
+      completedRef.current = true;
+      markArrived();
+      onCompleteRef.current(liftRef.current);
+    };
 
     progress.setValue(0);
     const duration = BONUS_GEM_FLIGHT_DURATION;

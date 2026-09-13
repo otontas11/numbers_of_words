@@ -7,11 +7,14 @@
     <list default="true" id="1f1286ff-0618-41fb-995e-c5757f0c5d40" name="Changes" comment="ver-1">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/PLAY_FLOW_CHANGES.md" beforeDir="false" afterPath="$PROJECT_DIR$/PLAY_FLOW_CHANGES.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app.json" beforeDir="false" afterPath="$PROJECT_DIR$/app.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/app/index.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/index.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/ads/admob-banner.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/ads/admob-banner.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/daily/daily-challenge-screen.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/daily/daily-challenge-screen.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/game/number-wheel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/game/number-wheel.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/game/result-flight.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/game/result-flight.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/home/main-menu.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/home/main-menu.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/adaptive-difficulty.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/adaptive-difficulty.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/progress-storage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/progress-storage.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/i18n/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/i18n/index.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
