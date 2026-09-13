@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FONTS } from '@/constants/fonts';
 import { AppFooter } from '@/components/common/app-footer';
+import { SettingsIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { FlyingBirds } from '@/components/home/flying-birds';
 import { learningScoreLabel, type DifficultyModifier, type PuzzlePerformance } from '@/game/adaptive-difficulty';
@@ -250,29 +251,18 @@ export function MainMenu({
           <Pressable
             accessibilityLabel={t('settings.openA11y')}
             accessibilityRole="button"
+            hitSlop={5}
             onPress={onOpenSettings}
             style={({ pressed }) => [
               styles.settingsButton,
-              compact && styles.settingsButtonCompact,
-              pressed && styles.pressed,
+              pressed && styles.settingsButtonPressed,
             ]}>
-            <LinearGradient
-              colors={['#4B8194', '#214F68', '#17374E']}
-              end={{ x: 0.75, y: 1 }}
-              start={{ x: 0.2, y: 0 }}
-              style={styles.settingsButtonSurface}>
-              <View style={styles.settingsButtonRing} />
-              <View style={styles.settingsButtonShine} />
-              <Text style={[styles.settingsIcon, compact && styles.settingsIconCompact]}>⚙︎</Text>
-            </LinearGradient>
+            <SettingsIcon />
           </Pressable>
         </View>
 
         <View style={[styles.homeContent, compact && styles.homeContentCompact]}>
           <View pointerEvents="none" style={[styles.brandSky, compact && styles.brandSkyCompact]}>
-            <View pointerEvents="none" style={[styles.skyFlightBand, compact && styles.skyFlightBandCompact]}>
-              <FlyingBirds active={active} />
-            </View>
             <View style={[styles.brandBlock, compact && styles.brandBlockCompact]} pointerEvents="none">
               <Image
                 cachePolicy="memory-disk"
@@ -280,6 +270,9 @@ export function MainMenu({
                 source={HOME_LOGO}
                 style={[styles.brandLogo, compact && styles.brandLogoCompact]}
               />
+            </View>
+            <View pointerEvents="none" style={[styles.skyFlightBand, compact && styles.skyFlightBandCompact]}>
+              <FlyingBirds active={active} />
             </View>
           </View>
 
@@ -669,21 +662,25 @@ const styles = StyleSheet.create({
   resourcePlusCompact: { width: 20, height: 20, borderRadius: 10 },
   resourcePlusText: { marginTop: -2, color: '#18467A', fontFamily: FONTS.extraBold, fontSize: 20, lineHeight: 21, fontWeight: '800' },
   settingsButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    shadowColor: '#76521B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.34,
+    position: 'relative',
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: 'rgba(216,239,241,0.95)',
+    backgroundColor: 'rgba(41,70,83,0.93)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
     shadowRadius: 5,
-    elevation: 7,
+    elevation: 5,
   },
-  settingsButtonCompact: { width: 40, height: 40, borderRadius: 20 },
-  settingsButtonSurface: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 999, borderWidth: 2, borderColor: '#E8B94D' },
-  settingsButtonRing: { position: 'absolute', top: 4, right: 4, bottom: 4, left: 4, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,238,172,0.42)' },
-  settingsButtonShine: { position: 'absolute', top: 6, left: 9, width: 11, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.5)', transform: [{ rotate: '-24deg' }] },
-  settingsIcon: { color: '#FFE27A', fontSize: 26, lineHeight: 30, textAlign: 'center', textShadowColor: '#8C5811', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
-  settingsIconCompact: { fontSize: 22, lineHeight: 25 },
+  settingsButtonPressed: {
+    opacity: 0.76,
+    transform: [{ scale: 0.94 }],
+  },
   homeContent: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 112 },
   homeContentCompact: { paddingBottom: 92 },
   brandSky: { width: '100%', position: 'relative', alignItems: 'center', paddingTop: 48 },
@@ -694,12 +691,12 @@ const styles = StyleSheet.create({
     right: 0,
     left: 0,
     height: 124,
-    zIndex: 1,
+    zIndex: 2,
     overflow: 'hidden',
     pointerEvents: 'none',
   },
   skyFlightBandCompact: { height: 100 },
-  brandBlock: { width: '100%', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  brandBlock: { width: '100%', alignItems: 'center', justifyContent: 'center', zIndex: 1 },
   brandBlockCompact: { marginTop: -4 },
   brandLogo: { width: '78%', maxWidth: 410, aspectRatio: 2.04 },
   brandLogoCompact: { width: '66%', maxWidth: 300 },
