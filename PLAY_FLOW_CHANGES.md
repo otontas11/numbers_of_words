@@ -54,6 +54,8 @@ Kısa efekt çarpanları RMS’e göre eşitlendi; implicit `1.0` ve `0.30` sın
 
 Kristal (`diamond`) 0.78 → 0.52: duyulur kalır, bonus (0.90) ve `pointsRising` (0.64) altındadır; 0.30’a dönülmedi.
 
+`pointsRising` 0.64 → 0.34: bölüm bitişi puan uçuşu iki kez “çok yüksek” denince kısılır (hedef bant 0.32–0.36). Ara 0.50 notu yalnızca dokümandaydı; commit’li JS 0.64 kaldığı için cihaz eski pakette yüksek duyulur. diamond / levelComplete / bonus / kısa `points` tik dokunulmaz. `resolveEffectVolume` tabanı 0.12 bu kazancı yükseltmez. Android SoundPool extra çarpan yok; volume play anında JS’ten gelir — bu gain native rebuild istemez, Metro reload yeter. `points-rising-coin.wav` ilk kez native asset listesine girdiyse o paket için rebuild gerekir; eşleme `pointsRising` → `points-rising-coin.wav` doğrudur, `points`/`levelComplete` ile karışmaz. Ana oyun puan anında yalnız `pointsRising`; `points.wav` tik yığılmaz. Tam törende `levelComplete` zaferde kalır (320 ms sonra coin; hazine ~0.73 sn sürdüğü için ~0.41 sn bindirme olabilir).
+
 ### 5. Müzik fade
 
 Fade `320 ms`, `32 ms` tik. Açılış / ön plana dönüşte `0`’dan hedef sese; kapanış / arka planda `0`’a inip pause. `shouldPlayInBackground: false`. İlk play sesi `1` ile patlatılmaz (`audibleRef`). Duck `0.4` ve bed gain `0.64` loop çapraz geçişinde de bed hacmine uygulanır (player.volume = bed × loopGain).

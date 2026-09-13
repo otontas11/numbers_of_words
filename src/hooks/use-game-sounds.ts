@@ -88,9 +88,9 @@ const SOUND_VOLUMES: Record<GameSound, number> = {
   bonus: 0.9,
   diamond: 0.52,
   points: 0.68,
-  pointsRising: 0.64,
+  pointsRising: 0.20,
   shuffle: 0.9,
-  levelComplete: 0.58,
+  levelComplete: 0.20,
 };
 
 function resolveEffectVolume(sound: GameSound, masterVolume = 1) {
