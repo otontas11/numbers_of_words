@@ -194,6 +194,12 @@ Kilitli segmentler düğüm merkezi kirişidir; sürüklemede uç gerçek parma�
 
 Canlı işlem önizlemesi sürükleme sırasını gösterir: ilk düğümde `7+`, ikinciden sonra `7+3`; geri sarınca sondan düşer (ana tur ve daily aynı). Daily bonus ana tur sırasını izler: sonuç (sayı rozeti) önce bonus kartına uçar, inişte emerald pulse, sonra karttaki GemIcon header 💎’a yükselir (ayrı donuk 💎 uçuşu yok; uçuşta soluk yer tutucu, bitince kristal yerinde kalır; 2/4/7 varışta yazılır; her tekrar oynamada yeniden ödenir).
 
+## Home menü kuş uçuşu ve footer
+
+Ana menü sürüsü RN `Animated` + `setInterval` kare döngüsünden Reanimated worklet’e alındı (`src/components/home/flying-birds.tsx`). Düz çizgi ve sürekli çırpma yerine phugoid irtifa–hız, seyirde birkaç çırpma + süzülme, dönüşte hafif bank, düşük frekanslı rüzgâr ve 90–195 ms faz farkı var. Kenarda ~260 ms fade. Kuş sayısı, boy, renk aynı; daily ve oyun tahtasına dokunulmadı.
+
+Paylaşılan `AppFooter` SF/Material ev–explore–kutu–clipboard yerine oyun SVG seti kullanır: pusula (anasayfa), yerküre (harita), pasaport + kristal mühür (koleksiyon), kâşif madalyası (görevler). Stroke 2, aktifte krem/altın daire + dolgu (`#FFF9D7` / `#E8C45A`, kenar `#D69B2B`). Etiket, ölçü, i18n ve routing aynı; Daily yalnız daily kartından.
+
 ## Çelişen dokümanlar
 
 `DESIGN_RULES.md` ve `ADAPTIVE_DIFFICULTY.md` bu dosyadaki mücevher ekonomisi, şehir içi rahatlama, kutlama süreleri, eğitim Atla / bölme, duck/fade ve günlük menü kurallarına çekildi. `DESIGN_RULES.md` hâlâ Android `journey.mp3` byte-byte kopyasını anlatır; oynatma kaynağı artık `bgm-loop.mp3` (aynı bed’in loop master’ı), duck/fade sayıları aynı.

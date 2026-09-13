@@ -1,4 +1,4 @@
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
 
 type GameIconProps = {
   color?: string;
@@ -13,6 +13,12 @@ type GemIconProps = GameIconProps & {
   facetColor?: string;
   outlineColor?: string;
 };
+
+type FooterGlyphProps = GameIconProps & {
+  filled?: boolean;
+};
+
+const FOOTER_STROKE = 2;
 
 export function BackIcon({ color = '#F2FAFC', size = 27 }: GameIconProps) {
   return (
@@ -122,6 +128,91 @@ export function ShuffleIcon({ color = '#F2FAFC', size = 29 }: GameIconProps) {
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={2.15}
+      />
+    </Svg>
+  );
+}
+
+export function FooterHomeIcon({ color = '#255A8C', filled = false, size = 29 }: FooterGlyphProps) {
+  const ink = filled ? '#FFF4C8' : color;
+  return (
+    <Svg height={size} viewBox="0 0 24 24" width={size}>
+      <Circle cx="12" cy="12" fill="none" r="9" stroke={color} strokeWidth={FOOTER_STROKE} />
+      <Path
+        d="M12 3.55 13.85 10.15 20.45 12 13.85 13.85 12 20.45 10.15 13.85 3.55 12 10.15 10.15Z"
+        fill={filled ? color : 'none'}
+        stroke={color}
+        strokeLinejoin="round"
+        strokeWidth={FOOTER_STROKE}
+      />
+      <Circle cx="12" cy="12" fill={ink} r="1.45" />
+    </Svg>
+  );
+}
+
+export function FooterMapIcon({ color = '#255A8C', filled = false, size = 29 }: FooterGlyphProps) {
+  const ink = filled ? '#FFF4C8' : color;
+  return (
+    <Svg height={size} viewBox="0 0 24 24" width={size}>
+      <Circle cx="12" cy="12" fill={filled ? color : 'none'} r="8.45" stroke={color} strokeWidth={FOOTER_STROKE} />
+      <Ellipse
+        cx="12"
+        cy="12"
+        fill="none"
+        rx="3.45"
+        ry="8.45"
+        stroke={ink}
+        strokeWidth={FOOTER_STROKE}
+      />
+      <Ellipse
+        cx="12"
+        cy="12"
+        fill="none"
+        rx="8.45"
+        ry="3.2"
+        stroke={ink}
+        strokeWidth={FOOTER_STROKE}
+      />
+    </Svg>
+  );
+}
+
+export function FooterCollectionIcon({ color = '#255A8C', filled = false, size = 29 }: FooterGlyphProps) {
+  const ink = filled ? '#FFF4C8' : color;
+  return (
+    <Svg height={size} viewBox="0 0 24 24" width={size}>
+      <Rect
+        fill={filled ? color : 'none'}
+        height="16.2"
+        rx="2.1"
+        stroke={color}
+        strokeWidth={FOOTER_STROKE}
+        width="13.6"
+        x="5.2"
+        y="3.9"
+      />
+      <Path d="M8.85 4.7v14.6" fill="none" stroke={ink} strokeLinecap="round" strokeWidth={FOOTER_STROKE} />
+      <Circle cx="14.15" cy="10.15" fill="none" r="2.55" stroke={ink} strokeWidth={FOOTER_STROKE} />
+      <Path d="M14.15 8.35 15.35 10.15 14.15 11.95 12.95 10.15Z" fill={ink} />
+    </Svg>
+  );
+}
+
+export function FooterTasksIcon({ color = '#255A8C', filled = false, size = 29 }: FooterGlyphProps) {
+  const ink = filled ? '#FFF4C8' : color;
+  return (
+    <Svg height={size} viewBox="0 0 24 24" width={size}>
+      <Circle cx="12" cy="9.7" fill={filled ? color : 'none'} r="6.05" stroke={color} strokeWidth={FOOTER_STROKE} />
+      <Path
+        d="M8.4 15.15 7.15 21.05 12 18.55 16.85 21.05 15.6 15.15"
+        fill={filled ? color : 'none'}
+        stroke={color}
+        strokeLinejoin="round"
+        strokeWidth={FOOTER_STROKE}
+      />
+      <Path
+        d="M12 6.35 12.9 9.15 15.8 9.7 12.9 10.45 12 13.2 11.1 10.45 8.2 9.7 11.1 9.15Z"
+        fill={ink}
       />
     </Svg>
   );

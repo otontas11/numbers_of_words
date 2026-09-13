@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FONTS } from '@/constants/fonts';
 import { AppFooter } from '@/components/common/app-footer';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
+import { FlyingBirds } from '@/components/home/flying-birds';
 import { learningScoreLabel, type DifficultyModifier, type PuzzlePerformance } from '@/game/adaptive-difficulty';
 import type { LevelData } from '@/game/levels';
 import { localizeCountry, localizeRoute, SUPPORTED_LANGUAGES, useI18n } from '@/i18n';
@@ -32,33 +33,6 @@ import {
 
 const HOME_BACKGROUND = require('../../../assets/images/img/bg.png');
 const HOME_LOGO = require('../../../assets/images/img/number_of_wonders.png');
-const BIRD_FRAMES = [
-  require('../../../assets/images/flying-bird/image_0.png'),
-  require('../../../assets/images/flying-bird/image_1.png'),
-  require('../../../assets/images/flying-bird/image_2.png'),
-  require('../../../assets/images/flying-bird/image_3.png'),
-  require('../../../assets/images/flying-bird/image_4.png'),
-  require('../../../assets/images/flying-bird/image_5.png'),
-  require('../../../assets/images/flying-bird/image_6.png'),
-  require('../../../assets/images/flying-bird/image_7.png'),
-  require('../../../assets/images/flying-bird/image_8.png'),
-  require('../../../assets/images/flying-bird/image_9.png'),
-  require('../../../assets/images/flying-bird/image_10.png'),
-  require('../../../assets/images/flying-bird/image_11.png'),
-  require('../../../assets/images/flying-bird/image_12.png'),
-  require('../../../assets/images/flying-bird/image_13.png'),
-  require('../../../assets/images/flying-bird/image_14.png'),
-  require('../../../assets/images/flying-bird/image_15.png'),
-] as const;
-const BIRD_FLIGHT_DURATION = 26000;
-const BIRD_FLIGHT_PAUSE = 14000;
-const BIRD_FORMATION = [
-  { frameOffset: 0, height: 48, horizontalOffset: 0, opacity: 1, top: '29%', width: 70, wave: [0, -6, 4, 0] },
-  { frameOffset: 3, height: 40, horizontalOffset: -42, opacity: 0.95, top: '8%', width: 58, wave: [0, 4, -3, 0] },
-  { frameOffset: 6, height: 33, horizontalOffset: -28, opacity: 0.9, top: '51%', width: 48, wave: [0, -4, 3, 0] },
-  { frameOffset: 9, height: 27, horizontalOffset: -86, opacity: 0.85, top: '24%', width: 39, wave: [0, 3, -2, 0] },
-  { frameOffset: 12, height: 22, horizontalOffset: -68, opacity: 0.8, top: '66%', width: 32, wave: [0, -3, 2, 0] },
-] as const;
 
 type MainMenuProps = {
   active: boolean;
@@ -137,89 +111,6 @@ function ResourcePill({
         <Text style={styles.resourcePlusText}>+</Text>
       </View>
     </Pressable>
-  );
-}
-
-function FlyingBirds({ active }: { active: boolean }) {
-  const [birdFlight] = useState(() => new Animated.Value(0));
-  const [birdFrame, setBirdFrame] = useState(0);
-  const { width } = useWindowDimensions();
-  const flightStyles = useMemo(
-    () =>
-      BIRD_FORMATION.map((bird) => ({
-        width: bird.width,
-        height: bird.height,
-        opacity: bird.opacity,
-        top: bird.top,
-        transform: [
-          {
-            translateX: birdFlight.interpolate({
-              inputRange: [0, 1],
-              outputRange: [
-                -100 + bird.horizontalOffset,
-                width + 180 + bird.horizontalOffset,
-              ],
-            }),
-          },
-          {
-            translateY: birdFlight.interpolate({
-              inputRange: [0, 0.35, 0.7, 1],
-              outputRange: [...bird.wave],
-            }),
-          },
-        ],
-      })),
-    [birdFlight, width],
-  );
-
-  useEffect(() => {
-    birdFlight.stopAnimation();
-    birdFlight.setValue(0);
-    if (!active) return;
-
-    const flightAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(birdFlight, {
-          toValue: 1,
-          duration: BIRD_FLIGHT_DURATION,
-          easing: Easing.linear,
-          isInteraction: false,
-          useNativeDriver: true,
-        }),
-        Animated.timing(birdFlight, {
-          toValue: 0,
-          duration: 0,
-          isInteraction: false,
-          useNativeDriver: true,
-        }),
-        Animated.delay(BIRD_FLIGHT_PAUSE),
-      ]),
-    );
-    const wingTimer = setInterval(() => {
-      setBirdFrame((frame) => (frame + 1) % BIRD_FRAMES.length);
-    }, 155);
-
-    flightAnimation.start();
-    return () => {
-      clearInterval(wingTimer);
-      flightAnimation.stop();
-    };
-  }, [active, birdFlight]);
-
-  return (
-    <View style={styles.birdFlightLayer}>
-      {BIRD_FORMATION.map((bird, index) => (
-        <Animated.View
-          key={bird.horizontalOffset}
-          style={[styles.flyingBird, flightStyles[index]]}>
-          <Image
-            contentFit="contain"
-            source={BIRD_FRAMES[(birdFrame + bird.frameOffset) % BIRD_FRAMES.length]}
-            style={styles.birdImage}
-          />
-        </Animated.View>
-      ))}
-    </View>
   );
 }
 
@@ -795,9 +686,6 @@ const styles = StyleSheet.create({
   brandBlockCompact: { marginTop: -4 },
   brandLogo: { width: '78%', maxWidth: 410, aspectRatio: 2.04 },
   brandLogoCompact: { width: '66%', maxWidth: 300 },
-  birdFlightLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 1, overflow: 'visible' },
-  flyingBird: { position: 'absolute' },
-  birdImage: { width: '100%', height: '100%' },
   playButtonStack: { width: 154, height: 154, alignItems: 'center', justifyContent: 'center' },
   playButtonStackCompact: { width: 124, height: 124 },
   dailyCard: {

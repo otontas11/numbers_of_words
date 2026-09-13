@@ -1,10 +1,15 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { SymbolView } from 'expo-symbols';
-import type { ComponentProps } from 'react';
+import type { ComponentType } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FONTS } from '@/constants/fonts';
+import {
+  FooterCollectionIcon,
+  FooterHomeIcon,
+  FooterMapIcon,
+  FooterTasksIcon,
+} from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { useI18n } from '@/i18n';
 
@@ -16,20 +21,18 @@ type AppFooterProps = {
   onTasks: () => void;
 };
 
-type FooterSymbol = ComponentProps<typeof SymbolView>['name'];
+type FooterGlyph = ComponentType<{ color?: string; filled?: boolean; size?: number }>;
 
 function FooterAction({
   active,
   accessibilityLabel,
-  fallback,
-  symbol,
+  icon: Icon,
   label,
   onPress,
 }: {
   active: boolean;
   accessibilityLabel: string;
-  fallback: string;
-  symbol: FooterSymbol;
+  icon: FooterGlyph;
   label: string;
   onPress: () => void;
 }) {
@@ -40,16 +43,9 @@ function FooterAction({
       onPress={onPress}
       style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
       <LinearGradient
-        colors={active ? ['#FFF9DC', '#F4D989'] : ['#FFFDF9', '#F6EEE3']}
+        colors={active ? ['#FFF9D7', '#E8C45A'] : ['#FFFDF9', '#F6EEE3']}
         style={[styles.iconCircle, active && styles.iconCircleActive]}>
-        <SymbolView
-          fallback={<Text style={[styles.iconFallback, active && styles.iconActive]}>{fallback}</Text>}
-          name={symbol}
-          size={29}
-          style={styles.symbol}
-          tintColor={active ? '#173F72' : '#255A8C'}
-          type="hierarchical"
-        />
+        <Icon color={active ? '#173F72' : '#255A8C'} filled={active} size={29} />
       </LinearGradient>
       <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
       {active ? <LinearGradient colors={['#D7951F', '#F2C353']} style={styles.activeMark} /> : null}
@@ -76,34 +72,30 @@ export function AppFooter({
       <FooterAction
         accessibilityLabel={t('footer.homeA11y')}
         active={activeItem === 'home'}
-        fallback="⌂"
+        icon={FooterHomeIcon}
         label={t('footer.home')}
         onPress={onHome}
-        symbol={{ ios: 'house.fill', android: 'home', web: 'home' }}
       />
       <FooterAction
         accessibilityLabel={t('footer.mapA11y')}
         active={activeItem === 'map'}
-        fallback="✥"
+        icon={FooterMapIcon}
         label={t('footer.map')}
         onPress={onMap}
-        symbol={{ ios: 'map.fill', android: 'explore', web: 'explore' }}
       />
       <FooterAction
         accessibilityLabel={t('footer.collectionA11y')}
         active={activeItem === 'collection'}
-        fallback="▣"
+        icon={FooterCollectionIcon}
         label={t('footer.collection')}
         onPress={onCollection}
-        symbol={{ ios: 'shippingbox.fill', android: 'inventory_2', web: 'inventory_2' }}
       />
       <FooterAction
         accessibilityLabel={t('footer.tasksA11y')}
         active={activeItem === 'tasks'}
-        fallback="▤"
+        icon={FooterTasksIcon}
         label={t('footer.tasks')}
         onPress={onTasks}
-        symbol={{ ios: 'list.clipboard.fill', android: 'assignment', web: 'assignment' }}
       />
     </LinearGradient>
   );
@@ -130,17 +122,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 29,
     borderWidth: 1.8,
-    borderColor: '#E1B55B',
+    borderColor: '#E2B65C',
     shadowColor: '#7A684E',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
     elevation: 4,
   },
-  iconCircleActive: { borderWidth: 2.3, borderColor: '#D99A27' },
-  symbol: { width: 31, height: 31 },
-  iconFallback: { color: '#255A8C', fontFamily: FONTS.extraBold, fontSize: 28, fontWeight: '800' },
-  iconActive: { color: '#173F72' },
+  iconCircleActive: { borderWidth: 2.3, borderColor: '#D69B2B' },
   label: { marginTop: 6, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 9, letterSpacing: 0.2, fontWeight: '800', textAlign: 'center' },
   labelActive: { color: '#A96E17' },
   activeMark: { width: 18, height: 2, marginTop: 5, borderRadius: 1 },
