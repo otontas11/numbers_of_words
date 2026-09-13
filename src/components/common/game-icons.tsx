@@ -35,6 +35,21 @@ export function BackIcon({ color = '#F2FAFC', size = 27 }: GameIconProps) {
   );
 }
 
+export function CloseIcon({ color = '#F2FAFC', size = 22 }: GameIconProps) {
+  return (
+    <Svg height={size} viewBox="0 0 24 24" width={size}>
+      <Path
+        d="M6 6l12 12M18 6 6 18"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2.35}
+      />
+    </Svg>
+  );
+}
+
 export function SettingsIcon({ color = '#EDF8FA', size = 26 }: GameIconProps) {
   return (
     <Svg height={size} viewBox="0 0 24 24" width={size}>

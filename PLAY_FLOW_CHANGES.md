@@ -256,6 +256,7 @@ Yeni özellik yok; sıfır kurulum QA’sinde bulunan gerçek hatalar:
 
 - **Daily yeniden açılış:** Kart her açılışta `loading`’e çekilip storage’dan yeniden kuruluyordu. Aynı `dateKey` bellekteyse loading flaşı yok; `completedPuzzleIds` üzerinden puzzle index yeniden kurulur (geri çıkınca çözülmüş kartta kilitlenmesin). Gün değişince tam yükleme durur.
 - **CardGemLiftFlight:** `markArrived` / `markCompleted` her render’da yeniden oluşuyordu. React Compiler bunları effect bağımlılığı sayınca uçuş sıfırlanıp HUD setState döngüsüne girebiliyordu. Callback’ler `ResultFlightBadge` gibi effect içine alındı; ödeme hâlâ `paidKeys` ile tek sefer.
+- **Ayarlar kapat:** Ses/ayarlar modalının (`SettingsModal`) sağ üstüne oyun HUD cam dairesi + X eklendi; Done, Back ve overlay davranışı aynı.
 
 ## Çelişen dokümanlar
 
