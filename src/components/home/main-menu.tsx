@@ -269,14 +269,18 @@ export function MainMenu({
         </View>
 
         <View style={[styles.homeContent, compact && styles.homeContentCompact]}>
-          <View style={[styles.brandBlock, compact && styles.brandBlockCompact]} pointerEvents="none">
-            <Image
-              cachePolicy="memory-disk"
-              contentFit="contain"
-              source={HOME_LOGO}
-              style={[styles.brandLogo, compact && styles.brandLogoCompact]}
-            />
-            <FlyingBirds active={active} />
+          <View pointerEvents="none" style={[styles.brandSky, compact && styles.brandSkyCompact]}>
+            <View pointerEvents="none" style={[styles.skyFlightBand, compact && styles.skyFlightBandCompact]}>
+              <FlyingBirds active={active} />
+            </View>
+            <View style={[styles.brandBlock, compact && styles.brandBlockCompact]} pointerEvents="none">
+              <Image
+                cachePolicy="memory-disk"
+                contentFit="contain"
+                source={HOME_LOGO}
+                style={[styles.brandLogo, compact && styles.brandLogoCompact]}
+              />
+            </View>
           </View>
 
           <View style={[styles.playButtonStack, compact && styles.playButtonStackCompact]}>
@@ -682,7 +686,20 @@ const styles = StyleSheet.create({
   settingsIconCompact: { fontSize: 22, lineHeight: 25 },
   homeContent: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 112 },
   homeContentCompact: { paddingBottom: 92 },
-  brandBlock: { width: '100%', alignItems: 'center', justifyContent: 'center' },
+  brandSky: { width: '100%', position: 'relative', alignItems: 'center', paddingTop: 48 },
+  brandSkyCompact: { paddingTop: 32 },
+  skyFlightBand: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
+    height: 124,
+    zIndex: 1,
+    overflow: 'hidden',
+    pointerEvents: 'none',
+  },
+  skyFlightBandCompact: { height: 100 },
+  brandBlock: { width: '100%', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   brandBlockCompact: { marginTop: -4 },
   brandLogo: { width: '78%', maxWidth: 410, aspectRatio: 2.04 },
   brandLogoCompact: { width: '66%', maxWidth: 300 },

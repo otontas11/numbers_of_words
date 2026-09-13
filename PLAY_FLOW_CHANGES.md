@@ -196,7 +196,9 @@ Canlı işlem önizlemesi sürükleme sırasını gösterir: ilk düğümde `7+`
 
 ## Home menü kuş uçuşu ve footer
 
-Ana menü sürüsü RN `Animated` + `setInterval` kare döngüsünden Reanimated worklet’e alındı (`src/components/home/flying-birds.tsx`). Düz çizgi ve sürekli çırpma yerine phugoid irtifa–hız, seyirde birkaç çırpma + süzülme, dönüşte hafif bank, düşük frekanslı rüzgâr ve 90–195 ms faz farkı var. Kenarda ~260 ms fade. Kuş sayısı, boy, renk aynı; daily ve oyun tahtasına dokunulmadı.
+Ana menü sürüsü RN `Animated` + `setInterval` kare döngüsünden Reanimated worklet’e alındı (`src/components/home/flying-birds.tsx`). Düz çizgi ve sürekli çırpma yerine phugoid irtifa–hız, seyirde birkaç çırpma + süzülme, dönüşte hafif bank, düşük frekanslı rüzgâr ve 90–195 ms faz farkı var. Kenarda ~260 ms fade. Kuş sayısı, sprite ve renk aynı; daily ve oyun tahtasına dokunulmadı.
+
+TV-pencere mesafesi: sürü logo kutusundan çıkarıldı, brand gökyüzü bandında tam genişlikte yatar (kart/footer üstü, `pointerEvents: none`). Ön plan ~40 px, arka ~18–20 px; yakın:orta:uzak hız 1 : 0.72 : 0.5. V formasyonu, komşu merkez 1.3–1.5 kanat açıklığı; irtifa salınımı derinlikle küçülür.
 
 Paylaşılan `AppFooter` SF/Material ev–explore–kutu–clipboard yerine oyun SVG seti kullanır: pusula (anasayfa), yerküre (harita), pasaport + kristal mühür (koleksiyon), kâşif madalyası (görevler). Stroke 2, aktifte krem/altın daire + dolgu (`#FFF9D7` / `#E8C45A`, kenar `#D69B2B`). Etiket, ölçü, i18n ve routing aynı; Daily yalnız daily kartından.
 
