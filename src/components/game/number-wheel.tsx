@@ -465,6 +465,7 @@ export const NumberWheel = memo(function NumberWheel({
     setSelectedIndices([]);
     setConnectionTone('active');
     callbacksRef.current.onDraggingChange(false);
+    callbacksRef.current.onPreview([]);
     // SharedValues are intentionally released from JS after the result hold.
     // eslint-disable-next-line react-hooks/immutability
     rubberToken.value += 1;
@@ -875,6 +876,9 @@ export const NumberWheel = memo(function NumberWheel({
         selectionReleaseTimerRef.current = null;
       }
 
+      // İfade, düğüm rengi gibi lastiği beklemez: tap-release / iptal / geçersiz
+      // bırakışta HUD hemen boşalır; ip A'ya yaylanmayı sürdürür.
+      callbacksRef.current.onPreview([]);
       releaseNodeHighlight(completedSelection.length);
 
       const token = rubberToken.value + 1;

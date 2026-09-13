@@ -588,12 +588,14 @@ export function normalizeLevelData(levelData: LegacyLevelData): LevelData {
   };
 }
 
-/** Sürükleme sırasına göre canlı ifade: `7+`, sonra `7+3`. Sonuç yok. */
+/** Sürükleme sırasına göre canlı HUD: `7+`, geçerli 2+ zincirde `3+4=7`. */
 export function formatLiveExpression(values: readonly number[], op: Operation): string {
   const symbol = OPERATION_DETAILS[op].symbol;
   if (values.length === 0) return '';
   if (values.length === 1) return `${values[0]}${symbol}`;
-  return values.join(symbol);
+  const chain = values.join(symbol);
+  const calculation = computeResult([...values], op);
+  return calculation ? `${chain}=${calculation.result}` : chain;
 }
 
 export function computeResult(values: number[], op: Operation): Calculation | null {

@@ -1838,11 +1838,11 @@ export default function HomeScreen() {
 
   const handlePreview = useCallback(
     (indices: number[]) => {
-      clearTimer(feedbackTimer);
       if (indices.length === 0) {
-        setFeedback(null);
+        setFeedback((current) => (current?.tone === 'live' ? null : current));
         return;
       }
+      clearTimer(feedbackTimer);
       const values = indices.map((index) => levelData.numbers[index]);
       setFeedback({ text: formatLiveExpression(values, levelData.op), tone: 'live' });
     },
