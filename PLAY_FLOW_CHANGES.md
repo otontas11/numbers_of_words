@@ -228,7 +228,9 @@ Ana menü sürüsü RN `Animated` + `setInterval` kare döngüsünden Reanimated
 
 TV-pencere mesafesi: sürü logo kutusundan çıkarıldı, brand gökyüzü bandında tam genişlikte yatar. Katman: arka plan → Number of Wonders logo (`brandBlock` zIndex 1) → FlyingBirds (`skyFlightBand` zIndex 2, `pointerEvents: none`) → play/kartlar/footer. Logo kuşları örtmez. Ana menü ayarlar düğmesi oyun HUD `skyControl` + `SettingsIcon` ile aynı (44 daire, koyu cam, açık dişli SVG); `onOpenSettings` aynı. Ön plan ~40 px, arka ~18–20 px; yakın:orta:uzak hız 1 : 0.72 : 0.5. V formasyonu, komşu merkez 1.3–1.5 kanat açıklığı; irtifa salınımı derinlikle küçülür.
 
-Paylaşılan `AppFooter` SF/Material ev–explore–kutu–clipboard yerine oyun SVG seti kullanır: pusula (anasayfa), yerküre (harita), pasaport + kristal mühür (koleksiyon), kâşif madalyası (görevler). Stroke 2, aktifte krem/altın daire + dolgu (`#FFF9D7` / `#E8C45A`, kenar `#D69B2B`). Etiket, ölçü, i18n ve routing aynı; Daily yalnız daily kartından.
+Paylaşılan `AppFooter` SF/Material ev–explore–kutu–clipboard yerine oyun SVG seti kullanır: pusula (anasayfa), yerküre (harita), pasaport + kristal mühür (koleksiyon), kâşif madalyası (görevler). Stroke 1.8. İnaktif daire HUD camı (`skyControl` akrabası: koyu cam, açık glif); aktif altın dolgu + yumuşak altın glow/kenar. Pusula dış halkası kaldırıldı (58px daireyle çift halka yok). Etiket, 58px daire, i18n ve routing aynı; Daily yalnız daily kartından.
+
+HUD / daire buton ikonları SVG kutu ölçüsü + optical shift ile ortalanır (`game-icons` `GameSvg`; geri ok +0.8x, ipucu lambası +2.35y). Harita rota geri ve modal kapat `‹`/`✕` text yerine `BackIcon`/`CloseIcon`. Play `✥`, daily `›`, ayarlar ⚙: `includeFontPadding: false`, `lineHeight === fontSize`.
 
 ## F. Google Ads ROAS ölçümü (görünmez)
 

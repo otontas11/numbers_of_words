@@ -1617,7 +1617,9 @@ export const NumberWheel = memo(function NumberWheel({
               end={{ x: 0, y: 1 }}
               start={{ x: 0, y: 0 }}
               style={styles.controlSurface}>
-              <HintIcon size={27} />
+              <View style={styles.hintGlyph}>
+                <HintIcon size={27} />
+              </View>
               <Text style={styles.controlLabel}>
                 {offerHintAd
                   ? t('wheel.hintAd', { reward: hintAdReward })
@@ -1644,7 +1646,7 @@ export const NumberWheel = memo(function NumberWheel({
             end={{ x: 0, y: 1 }}
             start={{ x: 0, y: 0 }}
             style={styles.controlSurface}>
-            <RNAnimated.View style={{ transform: [{ rotate: rotationStyle }] }}>
+            <RNAnimated.View style={[styles.shuffleGlyph, { transform: [{ rotate: rotationStyle }] }]}>
               <ShuffleIcon size={32} />
             </RNAnimated.View>
           </ExpoLinearGradient>
@@ -1813,6 +1815,18 @@ const styles = StyleSheet.create({
     borderRadius: 28.5,
     overflow: 'visible',
     padding: 3,
+  },
+  hintGlyph: {
+    width: 27,
+    height: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shuffleGlyph: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   controlLabel: {
     color: '#FFFFFF',
