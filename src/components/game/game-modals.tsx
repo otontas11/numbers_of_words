@@ -4,6 +4,7 @@ import { useEffect, type ReactNode, type RefObject } from 'react';
 import { BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+import { CloseIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { FONTS } from '@/constants/fonts';
 import { localizeCountry, useI18n } from '@/i18n';
@@ -96,9 +97,7 @@ function GameModal({
               appearance === 'journey' && styles.journeyCloseButton,
               pressed && styles.pressed,
             ]}>
-            <Text style={[styles.closeText, appearance === 'journey' && styles.journeyCloseText]}>
-              ✕
-            </Text>
+            <CloseIcon color={appearance === 'journey' ? '#557782' : '#CBD5E1'} size={16} />
           </Pressable>
         </View>
 
@@ -499,15 +498,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#C7E2E3',
     backgroundColor: '#F7FCFB',
-  },
-  closeText: {
-    color: '#CBD5E1',
-    fontFamily: FONTS.extraBold,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  journeyCloseText: {
-    color: '#557782',
   },
   pressed: {
     opacity: 0.72,

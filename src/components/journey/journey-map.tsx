@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FONTS } from '@/constants/fonts';
 import { AppFooter } from '@/components/common/app-footer';
+import { BackIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import {
   countryContentImageUrl,
@@ -442,7 +443,7 @@ export function JourneyMap({
               hitSlop={8}
               onPress={goBack}
               style={({ pressed }) => [styles.routeBackButton, pressed && styles.pressed]}>
-              <Text style={styles.routeBackIcon}>‹</Text>
+              <BackIcon color="#FFF4C7" size={21} />
             </Pressable>
             <Text style={styles.routeSummaryEyebrow}>{t('map.route', { number: selectedRoute.order })}</Text>
             <Text
@@ -576,7 +577,6 @@ const styles = StyleSheet.create({
   routeCountryList: { width: '100%', maxWidth: 512, alignSelf: 'center', paddingHorizontal: 14 },
   routeSummary: { minHeight: 94, marginBottom: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, borderWidth: 1.8, borderColor: '#D6AD51', backgroundColor: 'rgba(255,253,249,0.96)', shadowColor: '#2D6178', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.24, shadowRadius: 8, elevation: 6 },
   routeBackButton: { position: 'absolute', left: 10, top: 10, zIndex: 2, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, borderWidth: 1.8, borderColor: '#E6BB58', backgroundColor: '#245A90', shadowColor: '#5C3D0E', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 4, elevation: 5 },
-  routeBackIcon: { marginTop: -4, color: '#FFF4C7', fontFamily: FONTS.bold, fontSize: 32, lineHeight: 34, fontWeight: '700' },
   routeSummaryEyebrow: { color: '#B17820', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.2, fontWeight: '700' },
   routeSummaryTitle: { marginTop: 3, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 21, fontWeight: '800', textAlign: 'center' },
   routeSummaryCaption: { marginTop: 3, color: '#66737D', fontFamily: FONTS.semibold, fontSize: 9.5, fontWeight: '600' },

@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ComponentType } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FONTS } from '@/constants/fonts';
@@ -43,9 +43,17 @@ function FooterAction({
       onPress={onPress}
       style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
       <LinearGradient
-        colors={active ? ['#FFF9D7', '#E8C45A'] : ['#FFFDF9', '#F6EEE3']}
-        style={[styles.iconCircle, active && styles.iconCircleActive]}>
-        <Icon color={active ? '#173F72' : '#255A8C'} filled={active} size={29} />
+        colors={
+          active
+            ? ['#FFF9D7', '#E8C45A', '#D7A63C']
+            : ['rgba(58,90,103,0.98)', 'rgba(36,62,74,0.96)']
+        }
+        end={{ x: 0.5, y: 1 }}
+        start={{ x: 0.5, y: 0 }}
+        style={[styles.iconCircle, active ? styles.iconCircleActive : styles.iconCircleIdle]}>
+        <View style={styles.iconSlot}>
+          <Icon color={active ? '#173F72' : '#EAF6F8'} filled={active} size={28} />
+        </View>
       </LinearGradient>
       <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
       {active ? <LinearGradient colors={['#D7951F', '#F2C353']} style={styles.activeMark} /> : null}
@@ -121,15 +129,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 29,
-    borderWidth: 1.8,
-    borderColor: '#E2B65C',
-    shadowColor: '#7A684E',
+  },
+  iconSlot: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconCircleIdle: {
+    borderWidth: 1.5,
+    borderColor: 'rgba(216,239,241,0.92)',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.24,
     shadowRadius: 5,
     elevation: 4,
   },
-  iconCircleActive: { borderWidth: 2.3, borderColor: '#D69B2B' },
+  iconCircleActive: {
+    borderWidth: 2.2,
+    borderColor: '#F4D78A',
+    shadowColor: '#E8C45A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.58,
+    shadowRadius: 9,
+    elevation: 8,
+  },
   label: { marginTop: 6, color: '#173F72', fontFamily: FONTS.extraBold, fontSize: 9, letterSpacing: 0.2, fontWeight: '800', textAlign: 'center' },
   labelActive: { color: '#A96E17' },
   activeMark: { width: 18, height: 2, marginTop: 5, borderRadius: 1 },

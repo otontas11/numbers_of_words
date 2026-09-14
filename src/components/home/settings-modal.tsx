@@ -3,6 +3,7 @@ import { BlurView } from 'expo-blur';
 import { useEffect, type RefObject } from 'react';
 import { BackHandler, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { CloseIcon } from '@/components/common/game-icons';
 import { SoundPressable as Pressable } from '@/components/common/sound-pressable';
 import { FONTS } from '@/constants/fonts';
 import { useI18n } from '@/i18n';
@@ -99,6 +100,14 @@ export function SettingsModal({
       tint="dark">
       <View pointerEvents="none" style={styles.overlayTint} />
       <View style={styles.card}>
+        <Pressable
+          accessibilityLabel={t('settings.closeA11y')}
+          accessibilityRole="button"
+          hitSlop={5}
+          onPress={onClose}
+          style={({ pressed }) => [styles.closeButton, pressed && styles.closePressed]}>
+          <CloseIcon />
+        </Pressable>
         <View style={styles.gearCircle}><Text style={styles.gearIcon}>⚙</Text></View>
         <Text style={styles.modalTitle}>{t('settings.title')}</Text>
         <Text style={styles.modalSubtitle}>{t('settings.subtitle')}</Text>
@@ -170,6 +179,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 20,
     paddingBottom: 22,
+    overflow: 'visible',
     borderRadius: 28,
     borderWidth: 1.5,
     borderColor: '#D7E7E6',
@@ -179,6 +189,29 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.36,
     shadowRadius: 20,
     elevation: 18,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 2,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: 'rgba(216,239,241,0.95)',
+    backgroundColor: 'rgba(41,70,83,0.93)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  closePressed: {
+    opacity: 0.76,
+    transform: [{ scale: 0.94 }],
   },
   gearCircle: {
     width: 52,
@@ -190,12 +223,12 @@ const styles = StyleSheet.create({
     borderColor: '#CDE5E7',
     backgroundColor: '#345D6B',
   },
-  gearIcon: { color: '#FFFFFF', fontSize: 28, lineHeight: 31 },
+  gearIcon: { color: '#FFFFFF', fontSize: 28, lineHeight: 28, textAlign: 'center', includeFontPadding: false },
   modalTitle: { marginTop: 10, color: '#233540', fontFamily: FONTS.extraBold, fontSize: 22, fontWeight: '800', textAlign: 'center' },
   modalSubtitle: { marginTop: 5, color: '#60737A', fontFamily: FONTS.medium, fontSize: 12, lineHeight: 17, textAlign: 'center' },
   settingRow: { width: '100%', height: 68, marginTop: 9, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', borderRadius: 18, borderWidth: 1, borderColor: '#D6E5E4', backgroundColor: '#FFFFFF', overflow: 'hidden' },
   settingIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: '#E7F2F2' },
-  settingIconText: { color: '#3D7F91', fontSize: 21 },
+  settingIconText: { color: '#3D7F91', fontSize: 21, lineHeight: 21, textAlign: 'center', includeFontPadding: false },
   settingCopy: { flex: 1, minWidth: 0, marginLeft: 11, paddingRight: 5 },
   settingTitle: { color: '#233540', fontFamily: FONTS.extraBold, fontSize: 14, fontWeight: '800' },
   settingSubtitle: { marginTop: 2, color: '#667A81', fontFamily: FONTS.medium, fontSize: 10.5 },
