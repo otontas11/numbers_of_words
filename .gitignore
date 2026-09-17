@@ -38,6 +38,9 @@ yarn-error.*
 
 example
 
+# Local git worktrees are not part of app build archives
+.worktrees/
+
 # generated native folders
 /ios
 /android
