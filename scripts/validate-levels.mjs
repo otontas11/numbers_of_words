@@ -53,15 +53,16 @@ if (
 ) {
   throw new Error('Adaptif zorluk performans kuralları hatalı.');
 }
+const bandCountryLevel = 5 * COUNTRY_LEVEL_COUNT + 1;
 if (
   getLevelNumberDifficulty(1, 1) !== 0 ||
-  getLevelNumberDifficulty(126, -1) !== 1 ||
-  getLevelNumberDifficulty(126, 1) !== 3 ||
+  getLevelNumberDifficulty(bandCountryLevel, -1) !== 1 ||
+  getLevelNumberDifficulty(bandCountryLevel, 1) !== 3 ||
   getLevelNumberDifficulty(TOTAL_WORLD_LEVELS + 1, -1) !== 4
 ) {
   throw new Error('Rota ve oyuncu performansı sayı zorluğuna doğru uygulanmıyor.');
 }
-for (const sampleLevel of [126, 500, 1_000, TOTAL_WORLD_LEVELS + 1]) {
+for (const sampleLevel of [bandCountryLevel, 500, 1_000, TOTAL_WORLD_LEVELS + 1]) {
   generateLevelData(sampleLevel, [], -1);
   generateLevelData(sampleLevel, [], 1);
 }
@@ -87,8 +88,8 @@ for (const [steps, normalReward, challengeReward] of [
   }
 }
 
-// İlk Yunanistan destinasyonu Atina, Türkiye'nin 22 puzzle'ından sonra başlar.
-// İlk altı puzzle şehri bitiremez; yalnız 7/7 olan puzzle Atina'yı tamamlar.
+// İlk Yunanistan destinasyonu Atina, Türkiye'nin 16 puzzle'ından sonra başlar.
+// İlk dört puzzle şehri bitiremez; yalnız 5/5 olan puzzle Atina'yı tamamlar.
 const firstGreeceLevel = COUNTRY_LEVEL_COUNT + 1;
 for (
   let level = firstGreeceLevel;
@@ -96,12 +97,12 @@ for (
   level += 1
 ) {
   if (getTravelLevelCompletion(level).locationCompleted) {
-    throw new Error(`Seviye ${level}: Atina 7/7 olmadan tamamlandı sayıldı.`);
+    throw new Error(`Seviye ${level}: Atina 5/5 olmadan tamamlandı sayıldı.`);
   }
 }
 const firstGreeceCompletionLevel = firstGreeceLevel + DESTINATION_LEVEL_COUNT - 1;
 if (!getTravelLevelCompletion(firstGreeceCompletionLevel).locationCompleted) {
-  throw new Error(`Seviye ${firstGreeceCompletionLevel}: Atina 7/7 tamamlanmadı sayıldı.`);
+  throw new Error(`Seviye ${firstGreeceCompletionLevel}: Atina 5/5 tamamlanmadı sayıldı.`);
 }
 
 const subtraction = computeResult([8, 3], '-');

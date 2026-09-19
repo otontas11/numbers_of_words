@@ -23,7 +23,7 @@ import {
 } from '@/game/travel';
 
 const STORAGE_KEY = '@number-of-wonders/progress-v2';
-const STORAGE_VERSION = 5;
+const STORAGE_VERSION = 6;
 /** İlk açılış / kayıtta alan yokken BGM slider. Kayıtlı musicVolume ezilmez. */
 export const DEFAULT_MUSIC_VOLUME = 0.1;
 const LEGACY_TRAVEL_STORAGE_VERSION = 2;
@@ -33,6 +33,9 @@ const LEGACY_WORLD_LEVEL_COUNT = TOTAL_COUNTRY_STAGES * LEGACY_COUNTRY_LEVEL_COU
 const LEGACY_25_STORAGE_VERSION = 4;
 const LEGACY_25_COUNTRY_LEVEL_COUNT = 25;
 const LEGACY_25_WORLD_LEVEL_COUNT = TOTAL_COUNTRY_STAGES * LEGACY_25_COUNTRY_LEVEL_COUNT;
+const LEGACY_22_STORAGE_VERSION = 5;
+const LEGACY_22_COUNTRY_LEVEL_COUNT = 22;
+const LEGACY_22_WORLD_LEVEL_COUNT = TOTAL_COUNTRY_STAGES * LEGACY_22_COUNTRY_LEVEL_COUNT;
 
 export type StoredGameProgress = {
   version: typeof STORAGE_VERSION;
@@ -62,27 +65,46 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Eski 22 ızgarasını (7+7+7+Challenge) 16 bandına taşır: destinasyonu koru,
+ *  destinasyon içi pozisyonu 5'lik banda sıkıştır.
+ *  1–5→1–5, 6–7→5, 8–12→6–10, 13–14→10, 15–19→11–15, 20–21→15, 22→16. */
+function migrate22CountryLevel(countryLevel: number) {
+  return countryLevel <= 5
+    ? countryLevel
+    : countryLevel <= 7
+      ? 5
+      : countryLevel <= 12
+        ? countryLevel - 2
+        : countryLevel <= 14
+          ? 10
+          : countryLevel <= 19
+            ? countryLevel - 4
+            : countryLevel <= 21
+              ? 15
+              : COUNTRY_LEVEL_COUNT;
+}
+
 function migrateLegacyLevel(level: number) {
   const masterTour = Math.floor((level - 1) / LEGACY_WORLD_LEVEL_COUNT);
   const cycleLevel = ((level - 1) % LEGACY_WORLD_LEVEL_COUNT) + 1;
   const countryIndex = Math.floor((cycleLevel - 1) / LEGACY_COUNTRY_LEVEL_COUNT);
   const legacyCountryLevel = ((cycleLevel - 1) % LEGACY_COUNTRY_LEVEL_COUNT) + 1;
 
-  // Eski 7+7+5+Challenge konumunu yeni 7+7+7+Challenge yapısında aynı
-  // destinasyon ve destinasyon içi puzzle sırasına taşır.
-  const countryLevel =
+  // Eski 7+7+5+Challenge konumunu donmuş 22 ızgarasında (7+7+7+Challenge)
+  // aynı destinasyona taşır; ardından 16 bandına sıkıştırılır.
+  const countryLevel22 =
     legacyCountryLevel <= 7
       ? legacyCountryLevel
       : legacyCountryLevel <= 14
         ? legacyCountryLevel + 1
         : legacyCountryLevel <= 19
           ? legacyCountryLevel + 2
-          : COUNTRY_LEVEL_COUNT;
+          : LEGACY_22_COUNTRY_LEVEL_COUNT;
 
   return (
     masterTour * TOTAL_WORLD_LEVELS +
     countryIndex * COUNTRY_LEVEL_COUNT +
-    countryLevel
+    migrate22CountryLevel(countryLevel22)
   );
 }
 
@@ -91,10 +113,10 @@ function migrate25Level(level: number) {
   const cycleLevel = ((level - 1) % LEGACY_25_WORLD_LEVEL_COUNT) + 1;
   const countryIndex = Math.floor((cycleLevel - 1) / LEGACY_25_COUNTRY_LEVEL_COUNT);
   const oldCountryLevel = ((cycleLevel - 1) % LEGACY_25_COUNTRY_LEVEL_COUNT) + 1;
-  // Eski yapı 8+8+8+Challenge idi. Şehir tamamlanma sınırlarını korurken
-  // her destinasyonun son puzzle'ını yeni 7'lik sınırına sıkıştırıyoruz:
-  // 1–7→1–7, 8→7, 9–15→8–14, 16→14, 17–23→15–21, 24→21, 25→22.
-  const countryLevel =
+  // Eski yapı 8+8+8+Challenge idi. Önce donmuş 22 ızgarasına taşınır:
+  // 1–7→1–7, 8→7, 9–15→8–14, 16→14, 17–23→15–21, 24→21, 25→22;
+  // sonra migrate22CountryLevel ile 16 bandına sıkıştırılır.
+  const countryLevel22 =
     oldCountryLevel <= 7
       ? oldCountryLevel
       : oldCountryLevel <= 8
@@ -107,8 +129,24 @@ function migrate25Level(level: number) {
               ? oldCountryLevel - 2
               : oldCountryLevel <= 24
                 ? 21
-                : COUNTRY_LEVEL_COUNT;
-  return masterTour * TOTAL_WORLD_LEVELS + countryIndex * COUNTRY_LEVEL_COUNT + countryLevel;
+                : LEGACY_22_COUNTRY_LEVEL_COUNT;
+  return (
+    masterTour * TOTAL_WORLD_LEVELS +
+    countryIndex * COUNTRY_LEVEL_COUNT +
+    migrate22CountryLevel(countryLevel22)
+  );
+}
+
+function migrate22Level(level: number) {
+  const masterTour = Math.floor((level - 1) / LEGACY_22_WORLD_LEVEL_COUNT);
+  const cycleLevel = ((level - 1) % LEGACY_22_WORLD_LEVEL_COUNT) + 1;
+  const countryIndex = Math.floor((cycleLevel - 1) / LEGACY_22_COUNTRY_LEVEL_COUNT);
+  const countryLevel22 = ((cycleLevel - 1) % LEGACY_22_COUNTRY_LEVEL_COUNT) + 1;
+  return (
+    masterTour * TOTAL_WORLD_LEVELS +
+    countryIndex * COUNTRY_LEVEL_COUNT +
+    migrate22CountryLevel(countryLevel22)
+  );
 }
 
 function isValidLevelData(value: unknown, expectedLevel: number): value is LegacyLevelData {
@@ -189,6 +227,7 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
       !isRecord(value) ||
       ![
         STORAGE_VERSION,
+        LEGACY_22_STORAGE_VERSION,
         LEGACY_25_STORAGE_VERSION,
         LEGACY_STORAGE_VERSION,
         LEGACY_TRAVEL_STORAGE_VERSION,
@@ -203,7 +242,9 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
         ? migrateLegacyLevel(storedLevel)
         : value.version === LEGACY_25_STORAGE_VERSION
           ? migrate25Level(storedLevel)
-          : storedLevel;
+          : value.version === LEGACY_22_STORAGE_VERSION
+            ? migrate22Level(storedLevel)
+            : storedLevel;
     const levelData = value.levelData;
     if (!isValidLevelData(levelData, storedLevel)) return null;
     if (
@@ -249,7 +290,8 @@ function parseProgress(raw: string | null): StoredGameProgress | null {
     try {
       normalizedLevelData = normalizeLevelData(
         value.version === LEGACY_TRAVEL_STORAGE_VERSION ||
-        value.version === LEGACY_25_STORAGE_VERSION
+        value.version === LEGACY_25_STORAGE_VERSION ||
+        value.version === LEGACY_22_STORAGE_VERSION
           ? { ...levelData, level }
           : levelData,
       );

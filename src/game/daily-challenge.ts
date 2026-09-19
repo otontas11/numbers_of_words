@@ -479,7 +479,7 @@ function planDailyPuzzles(
       tier,
       miniChallenge: index >= 6,
       sourceCountryLevel:
-        index >= 6 ? COUNTRY_LEVEL_COUNT : index >= 3 ? 12 + (index - 3) * 3 : 4 + index * 4,
+        index >= 6 ? COUNTRY_LEVEL_COUNT : index >= 3 ? 11 + (index - 3) : 3 + index * 3,
     };
   });
 }

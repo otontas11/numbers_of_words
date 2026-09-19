@@ -842,7 +842,7 @@ function JourneyStrip({
   const operation = OPERATION_DETAILS[levelData.op];
   const countryProgress = country ? getCountryProgress(level, country.id) : 0;
   const countryLevelCount = country?.levelCount ?? COUNTRY_LEVEL_COUNT;
-  const challengeProgress = Math.max(0, Math.min(1, countryProgress - 19));
+  const challengeProgress = Math.max(0, Math.min(1, countryProgress - (COUNTRY_LEVEL_COUNT - 3)));
   const [challengePulse] = useState(() => new Animated.Value(0));
   const [operationHint] = useState(() => new Animated.Value(0));
   // Kullanıcının kayıtlı yolculuğu ilk seviyeden başlamayabilir; eğitim

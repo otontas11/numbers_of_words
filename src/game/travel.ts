@@ -3,9 +3,9 @@ import {
   routeContentImageUrl,
 } from '../constants/content-images.ts';
 
-export const DESTINATION_LEVEL_COUNT = 7;
-export const COUNTRY_CHALLENGE_LEVEL = 22;
-export const COUNTRY_LEVEL_COUNT = 22;
+export const DESTINATION_LEVEL_COUNT = 5;
+export const COUNTRY_CHALLENGE_LEVEL = 16;
+export const COUNTRY_LEVEL_COUNT = 16;
 
 export type TravelLocation = {
   id: string;
@@ -585,7 +585,11 @@ function makeLocations(
   background: string,
 ): TravelLocation[] {
   const counts = [DESTINATION_LEVEL_COUNT, DESTINATION_LEVEL_COUNT, DESTINATION_LEVEL_COUNT] as const;
-  const starts = [1, 8, 15] as const;
+  const starts = [
+    1,
+    1 + DESTINATION_LEVEL_COUNT,
+    1 + 2 * DESTINATION_LEVEL_COUNT,
+  ] as const;
   return names.map((name, index) => ({
     id: `${countryId}-${slugify(name)}`,
     name,
@@ -866,11 +870,11 @@ export function assertTravelCatalog() {
     const counts = country.locations.map((location) => location.levelCount).join(',');
     const starts = country.locations.map((location) => location.startLevel).join(',');
     if (
-      counts !== '7,7,7' ||
-      starts !== '1,8,15' ||
+      counts !== '5,5,5' ||
+      starts !== '1,6,11' ||
       country.challenge.startLevel !== COUNTRY_CHALLENGE_LEVEL
     ) {
-      throw new Error(`${country.country}: beklenen 7+7+7+Challenge progression yapısına uymuyor.`);
+      throw new Error(`${country.country}: beklenen 5+5+5+Challenge progression yapısına uymuyor.`);
     }
   });
 }
