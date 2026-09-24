@@ -73,7 +73,7 @@ const PRACTICE_LESSONS: readonly PracticeLesson[] = [
     solution: [4, 1],
     target: '5',
     eyebrow: 'TOPLAMA',
-    instruction: '2 ile 3’ü bağla',
+    instruction: '2 sayı bağla: 2 ile 3’ü birleştir',
     equation: '2 + 3 = 5',
   },
   {
@@ -83,7 +83,7 @@ const PRACTICE_LESSONS: readonly PracticeLesson[] = [
     solution: [0, 2],
     target: '5',
     eyebrow: 'ÇIKARMA',
-    instruction: '8’den 3’e sürükle',
+    instruction: '2 sayı bağla: 8’den 3’e sürükle',
     equation: '8 − 3 = 5',
   },
   {
@@ -93,7 +93,7 @@ const PRACTICE_LESSONS: readonly PracticeLesson[] = [
     solution: [3, 0],
     target: '12',
     eyebrow: 'ÇARPMA',
-    instruction: '3 ile 4’ü bağla',
+    instruction: '2 sayı bağla: 3 ile 4’ü çarp',
     equation: '3 × 4 = 12',
   },
   {
@@ -103,7 +103,7 @@ const PRACTICE_LESSONS: readonly PracticeLesson[] = [
     solution: [4, 0, 1],
     target: '9',
     eyebrow: '3 ADIM BONİSİ',
-    instruction: '2, 3 ve 4’ü bağla',
+    instruction: 'Bu kez 3 sayı bağla: 2, 3 ve 4’ü birleştir',
     equation: '2 + 3 + 4 = 9',
     isBonus: true,
   },
@@ -114,7 +114,7 @@ const PRACTICE_LESSONS: readonly PracticeLesson[] = [
     solution: [0, 1],
     target: '4',
     eyebrow: 'BÖLME',
-    instruction: '8’i 2’ye böl',
+    instruction: '2 sayı bağla: 8’i 2’ye böl',
     equation: '8 ÷ 2 = 4',
   },
 ] as const;
@@ -1262,7 +1262,9 @@ export function FreshGameTutorialModal({
                       <Text style={styles.equationText}>{lesson.equation}</Text>
                     </View>
                     <View style={styles.stepMeter}>
-                      <Text style={styles.stepMeterLabel}>Adım Sayısı</Text>
+                      <Text style={styles.stepMeterLabel}>
+                        Adım Sayısı {selection.length}/{lesson.solution.length}
+                      </Text>
                       <View style={styles.stepDots}>
                         {lesson.solution.map((_, dotIndex) => (
                           <View
@@ -1349,7 +1351,9 @@ export function FreshGameTutorialModal({
                 ) : (
                   <View style={styles.demoFooter}>
                     <View style={styles.demoDot} />
-                    <Text style={styles.demoFooterText}>Bağlantı gösteriliyor</Text>
+                    <Text style={styles.demoFooterText}>
+                      Bağladığın her sayı bir adımdır — 2 sayı = 2 adım
+                    </Text>
                   </View>
                 )}
               </>
