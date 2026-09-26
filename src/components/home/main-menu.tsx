@@ -34,6 +34,7 @@ import {
 
 const HOME_BACKGROUND = require('../../../assets/images/img/bg.png');
 const HOME_LOGO = require('../../../assets/images/img/number_of_wonders.png');
+const COVER_IMAGE = require('../../../assets/images/cover_1.png');
 
 type MainMenuProps = {
   active: boolean;
@@ -486,117 +487,137 @@ export function ProfileScreen({
         ? t('profile.difficultyEasier')
         : t('profile.difficultySame');
 
+  const progressPct = Math.round((countryProgress / COUNTRY_LEVEL_COUNT) * 100);
+
   return (
-    <LinearGradient colors={['#EAF5F5', '#F7EEDC', '#E6D0A9']} style={styles.profileScreen}>
-      <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
-        <View style={styles.profileHeader}>
-          <Text style={styles.profileHeaderTitle}>{t('profile.title')}</Text>
+    <LinearGradient colors={['#F5EFE0', '#EDE4D0', '#E2D5BC']} style={pStyles.screen}>
+      <ScrollView
+        bounces={false}
+        contentContainerStyle={pStyles.scrollContent}
+        showsVerticalScrollIndicator={false}>
+
+        {/* ── Cover Banner ── */}
+        <View style={pStyles.coverWrapper}>
+          <Image
+            cachePolicy="memory-disk"
+            contentFit="cover"
+            source={COVER_IMAGE}
+            style={StyleSheet.absoluteFill}
+          />
+          <LinearGradient
+            colors={['rgba(60,107,88,0.35)', 'rgba(30,50,40,0.72)']}
+            style={StyleSheet.absoluteFill}
+          />
+          <SafeAreaView edges={['top']} style={pStyles.coverSafe}>
+            <Text style={pStyles.coverTitle}>{t('profile.title')}</Text>
+          </SafeAreaView>
         </View>
 
-        <ScrollView
-          bounces={false}
-          contentContainerStyle={[styles.profileScroll, styles.profileScrollWithFooter]}
-          showsVerticalScrollIndicator={false}>
-          <View style={styles.profileHero}>
-            <Image
-              cachePolicy="memory-disk"
-              contentFit="cover"
-              source={{ uri: levelData.background }}
-              style={StyleSheet.absoluteFill}
-            />
-            <LinearGradient
-              colors={['rgba(14,34,45,0.20)', 'rgba(14,34,45,0.92)']}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.avatar}><Text style={styles.avatarText}>{levelData.flag}</Text></View>
-            <Text style={styles.explorerName}>{t('profile.explorer')}</Text>
-            <Text style={styles.explorerLocation}>
+        {/* ── Identity Card ── */}
+        <View style={pStyles.identityCard}>
+          <View style={pStyles.avatarRing}>
+            <Text style={pStyles.avatarEmoji}>{levelData.flag}</Text>
+          </View>
+          <View style={pStyles.identityInfo}>
+            <Text style={pStyles.identityName}>{t('profile.explorer')}</Text>
+            <Text style={pStyles.identityLocation}>
               {t('profile.location', { level: playerLevel, country: countryName, city: levelData.city })}
             </Text>
           </View>
+          <View style={pStyles.lvlBadge}>
+            <Text style={pStyles.lvlBadgeLabel}>LVL</Text>
+            <Text style={pStyles.lvlBadgeValue}>{playerLevel}</Text>
+          </View>
+        </View>
 
-          <View style={styles.profileLanguageCard}>
-            <Text style={styles.profileLanguageTitle}>🌐  {t('settings.language')}</Text>
-            <View style={styles.profileLanguageOptions}>
-              {SUPPORTED_LANGUAGES.map((option) => (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: language === option }}
-                  key={option}
-                  onPress={() => setLanguage(option)}
-                  style={({ pressed }) => [
-                    styles.profileLanguageButton,
-                    language === option && styles.profileLanguageButtonActive,
-                    pressed && styles.pressed,
+        {/* ── Stats Row ── */}
+        <View style={pStyles.statsRow}>
+          {([
+            ['#E8B84A', '★', score.toLocaleString(locale), t('common.score')],
+            ['#5BA88C', '✓', `${completedLevels}`, t('profile.completedPuzzles')],
+            ['#4A90B8', '🌍', `${completedCountries}/${TOTAL_COUNTRIES}`, t('profile.country')],
+            ['#9B6CC4', '💎', `${gemCount}`, t('profile.gem')],
+          ] as const).map(([color, icon, value, label]) => (
+            <View key={label} style={pStyles.statPill}>
+              <View style={[pStyles.statIconCircle, { backgroundColor: color + '22' }]}>
+                <Text style={[pStyles.statIcon, { color }]}>{icon}</Text>
+              </View>
+              <Text style={pStyles.statValue}>{value}</Text>
+              <Text style={pStyles.statLabel}>{label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* ── Journey Tracker ── */}
+        <View style={pStyles.journeyCard}>
+          <View style={pStyles.journeyHeader}>
+            <Text style={pStyles.journeyEyebrow}>{t('profile.currentJourney')}</Text>
+            <Text style={pStyles.journeyPct}>{progressPct}%</Text>
+          </View>
+          <View style={pStyles.journeyCountryRow}>
+            <Text style={pStyles.journeyFlag}>{levelData.flag}</Text>
+            <Text style={pStyles.journeyCountryName}>{countryName}</Text>
+            <Text style={pStyles.journeyCount}>{countryProgress}/{COUNTRY_LEVEL_COUNT}</Text>
+          </View>
+          <View style={pStyles.progressTrack}>
+            <LinearGradient
+              colors={['#C4882A', '#E8B84A']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={[
+                pStyles.progressFill,
+                { width: `${progressPct}%` as `${number}%` },
+              ]}
+            />
+          </View>
+          <View style={pStyles.journeyMeta}>
+            <Text style={pStyles.journeyMetaText}>{t('profile.worldTour', { done: completedLevels, total: TOTAL_WORLD_LEVELS })}</Text>
+            <Text style={pStyles.journeyMetaText}>{t('profile.bonuses', { count: bonusCount })}</Text>
+          </View>
+        </View>
+
+        {/* ── Language Card ── */}
+        <View style={pStyles.langCard}>
+          <Text style={pStyles.langTitle}>🌐  {t('settings.language')}</Text>
+          <View style={pStyles.langOptions}>
+            {SUPPORTED_LANGUAGES.map((option) => (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: language === option }}
+                key={option}
+                onPress={() => setLanguage(option)}
+                style={({ pressed }) => [
+                  pStyles.langPill,
+                  language === option && pStyles.langPillActive,
+                  pressed && styles.pressed,
+                ]}>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    pStyles.langPillText,
+                    language === option && pStyles.langPillTextActive,
                   ]}>
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.profileLanguageButtonText,
-                      language === option && styles.profileLanguageButtonTextActive,
-                    ]}>
-                    {t(`language.${option}`)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.difficultyCard}>
-            <View style={styles.difficultyHeader}>
-              <View style={styles.difficultyIcon}><Text style={styles.difficultyIconText}>⚙</Text></View>
-              <View style={styles.difficultyCopy}>
-                <Text style={styles.difficultyEyebrow}>{t('profile.difficultyEyebrow')}</Text>
-                <Text style={styles.difficultyTitle}>{t('home.learningLevel', { level: learningLevel })} · {difficultyLabel}</Text>
-              </View>
-            </View>
-            <Text style={styles.difficultyDescription}>{difficultyDescription}</Text>
-            <Text style={styles.difficultyMeta}>{t('profile.difficultyMeta', { count: performanceHistory.length })}</Text>
-          </View>
-
-          <View style={styles.statsGrid}>
-            {[
-              ['★', score.toLocaleString(locale), t('common.score')],
-              ['✓', `${completedLevels}`, t('profile.completedPuzzles')],
-              ['🌍', `${completedCountries}/${TOTAL_COUNTRIES}`, t('profile.country')],
-              ['💎', `${gemCount}`, t('profile.gem')],
-            ].map(([icon, value, label]) => (
-              <View key={label} style={styles.statCard}>
-                <Text style={styles.statIcon}>{icon}</Text>
-                <Text style={styles.statValue}>{value}</Text>
-                <Text style={styles.statLabel}>{label}</Text>
-              </View>
+                  {t(`language.${option}`)}
+                </Text>
+              </Pressable>
             ))}
           </View>
+        </View>
 
-          <View style={styles.profileProgressCard}>
-            <View style={styles.profileProgressHeader}>
-              <View>
-                <Text style={styles.profileProgressEyebrow}>{t('profile.currentJourney')}</Text>
-                <Text style={styles.profileProgressTitle}>{levelData.flag} {countryName}</Text>
-              </View>
-              <Text style={styles.profileProgressCount}>
-                {countryProgress}/{COUNTRY_LEVEL_COUNT}
-              </Text>
+        {/* ── Difficulty Card ── */}
+        <View style={pStyles.diffCard}>
+          <View style={pStyles.diffHeader}>
+            <View style={pStyles.diffIcon}><Text style={pStyles.diffIconText}>⚙</Text></View>
+            <View style={pStyles.diffCopy}>
+              <Text style={pStyles.diffEyebrow}>{t('profile.difficultyEyebrow')}</Text>
+              <Text style={pStyles.diffTitle}>{t('home.learningLevel', { level: learningLevel })} · {difficultyLabel}</Text>
             </View>
-            <View style={styles.profileProgressTrack}>
-              <LinearGradient
-                colors={['#3D7F91', '#8AD1D6']}
-                style={[
-                  styles.profileProgressFill,
-                  {
-                    width: `${(countryProgress / COUNTRY_LEVEL_COUNT) * 100}%` as `${number}%`,
-                  },
-                ]}
-              />
-            </View>
-            <Text style={styles.worldProgress}>{t('profile.worldTour', { done: completedLevels, total: TOTAL_WORLD_LEVELS })}</Text>
-            <Text style={styles.worldProgress}>{t('profile.playerLevel', { level: playerLevel })}</Text>
-            <Text style={styles.worldProgress}>{t('profile.bonuses', { count: bonusCount })}</Text>
           </View>
+          <Text style={pStyles.diffDesc}>{difficultyDescription}</Text>
+          <Text style={pStyles.diffMeta}>{t('profile.difficultyMeta', { count: performanceHistory.length })}</Text>
+        </View>
 
-        </ScrollView>
-      </SafeAreaView>
+      </ScrollView>
       <AppFooter
         activeItem="tasks"
         onCollection={onOpenPassport}
@@ -825,52 +846,67 @@ const styles = StyleSheet.create({
   countryImageFrameCompact: { width: 92, height: 92, borderRadius: 46 },
   countryImage: { borderRadius: 999 },
   pressed: { opacity: 0.78, transform: [{ scale: 0.95 }] },
+});
 
-  profileScreen: { flex: 1 },
-  profileHeader: { height: 58, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center' },
-  profileHeaderTitle: { color: '#253947', fontFamily: FONTS.extraBold, fontSize: 16, letterSpacing: 1.7, fontWeight: '800' },
-  profileScroll: { width: '100%', maxWidth: 512, alignSelf: 'center', paddingHorizontal: 16, paddingBottom: 26 },
-  profileScrollWithFooter: { paddingBottom: 122 },
-  profileHero: { height: 226, marginTop: 8, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden', borderRadius: 26, paddingBottom: 22, shadowColor: '#2D2219', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.24, shadowRadius: 10, elevation: 7 },
-  profileLanguageCard: { marginTop: 10, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: '#D6E5E4', backgroundColor: '#FFFFFF' },
-  profileLanguageTitle: { color: '#233540', fontFamily: FONTS.extraBold, fontSize: 13, fontWeight: '800' },
-  profileLanguageOptions: { marginTop: 8, flexDirection: 'row', gap: 6 },
-  profileLanguageButton: { flex: 1, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#E7F2F2' },
-  profileLanguageButtonActive: { backgroundColor: '#3D7F91' },
-  profileLanguageButtonText: { color: '#3D5A63', fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700' },
-  profileLanguageButtonTextActive: { color: '#FFFFFF' },
-  avatar: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center', borderRadius: 38, borderWidth: 4, borderColor: '#F5D779', backgroundColor: '#FFF8E8' },
-  avatarText: { fontSize: 37 },
-  explorerName: { marginTop: 9, color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 20, fontWeight: '800' },
-  explorerLocation: { marginTop: 3, color: '#D7E6E7', fontFamily: FONTS.semibold, fontSize: 11, fontWeight: '600' },
-  statsGrid: { marginTop: 13, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
-  statCard: { width: '48.5%', minHeight: 105, alignItems: 'center', justifyContent: 'center', borderRadius: 20, borderWidth: 1, borderColor: '#E3D2B4', backgroundColor: '#FFFCF7' },
-  statIcon: { color: '#C28B24', fontSize: 20 },
-  statValue: { marginTop: 3, color: '#263C48', fontFamily: FONTS.extraBold, fontSize: 19, fontWeight: '800' },
-  statLabel: { marginTop: 3, color: '#857665', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.7, fontWeight: '700', textAlign: 'center' },
-  profileProgressCard: { marginTop: 12, padding: 15, borderRadius: 21, borderWidth: 1, borderColor: '#D3E3E2', backgroundColor: '#F7FCFB' },
-  profileProgressHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  profileProgressEyebrow: { color: '#6D868A', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1, fontWeight: '700' },
-  profileProgressTitle: { marginTop: 3, color: '#273F4B', fontFamily: FONTS.extraBold, fontSize: 15, fontWeight: '800' },
-  profileProgressCount: { color: '#3D7F91', fontFamily: FONTS.extraBold, fontSize: 15, fontWeight: '800' },
-  profileProgressTrack: { height: 8, marginTop: 12, overflow: 'hidden', borderRadius: 5, backgroundColor: '#CFDFDF' },
-  profileProgressFill: { height: '100%', borderRadius: 5 },
-  difficultyCard: { marginTop: 12, padding: 15, borderRadius: 21, borderWidth: 1, borderColor: '#D9C99F', backgroundColor: '#FFF9EA' },
-  difficultyHeader: { flexDirection: 'row', alignItems: 'center' },
-  difficultyIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: '#F1D58A' },
-  difficultyIconText: { color: '#76551B', fontSize: 20, lineHeight: 20, textAlign: 'center', includeFontPadding: false },
-  difficultyCopy: { flex: 1, marginLeft: 10 },
-  difficultyEyebrow: { color: '#9B7A35', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1, fontWeight: '700' },
-  difficultyTitle: { marginTop: 3, color: '#49382E', fontFamily: FONTS.extraBold, fontSize: 14, fontWeight: '800' },
-  difficultyDescription: { marginTop: 11, color: '#6D5B43', fontFamily: FONTS.medium, fontSize: 11, lineHeight: 17 },
-  difficultyMeta: { marginTop: 8, color: '#9A896C', fontFamily: FONTS.medium, fontSize: 9, lineHeight: 13 },
-  worldProgress: { marginTop: 7, color: '#708286', fontFamily: FONTS.semibold, fontSize: 9.5, fontWeight: '600', textAlign: 'right' },
-  profileAction: { minHeight: 70, marginTop: 12, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', borderRadius: 20, borderWidth: 1, borderColor: '#DFC88F', backgroundColor: '#FFF9EA' },
-  profileActionIcon: { fontSize: 28 },
-  profileActionCopy: { flex: 1, paddingHorizontal: 11 },
-  profileActionTitle: { color: '#3D362C', fontFamily: FONTS.extraBold, fontSize: 13, fontWeight: '800' },
-  profileActionSubtitle: { marginTop: 3, color: '#877A66', fontFamily: FONTS.medium, fontSize: 10 },
-  profileActionArrow: { color: '#B68122', fontFamily: FONTS.bold, fontSize: 31, lineHeight: 31, textAlign: 'center', includeFontPadding: false },
-  profilePlayButton: { height: 52, marginTop: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: '#346B7B', shadowColor: '#24434B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 7, elevation: 4 },
-  profilePlayText: { color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 12, letterSpacing: 0.9, fontWeight: '800' },
+const pStyles = StyleSheet.create({
+  screen: { flex: 1 },
+  scrollContent: { paddingBottom: 100 },
+
+  /* Cover Banner */
+  coverWrapper: { width: '100%', height: 240, overflow: 'hidden' },
+  coverSafe: { paddingHorizontal: 18, paddingTop: 8 },
+  coverTitle: { color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 14, letterSpacing: 2.2, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+
+  /* Identity Card */
+  identityCard: { marginTop: -44, marginHorizontal: 16, flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 22, backgroundColor: '#FFFDF6', shadowColor: '#3C2A10', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 10, elevation: 5 },
+  avatarRing: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center', borderRadius: 32, borderWidth: 3, borderColor: '#E8B84A', backgroundColor: '#FFF8E8' },
+  avatarEmoji: { fontSize: 30 },
+  identityInfo: { flex: 1, marginLeft: 12 },
+  identityName: { color: '#2D3B2E', fontFamily: FONTS.extraBold, fontSize: 17, fontWeight: '800' },
+  identityLocation: { marginTop: 3, color: '#7A8A6E', fontFamily: FONTS.semibold, fontSize: 10.5, fontWeight: '600' },
+  lvlBadge: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#3C6B58' },
+  lvlBadgeLabel: { color: '#A8D4BF', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1, fontWeight: '700' },
+  lvlBadgeValue: { color: '#FFFFFF', fontFamily: FONTS.extraBold, fontSize: 18, fontWeight: '800', marginTop: -2 },
+
+  /* Stats Row */
+  statsRow: { marginTop: 16, marginHorizontal: 16, flexDirection: 'row', gap: 8 },
+  statPill: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: '#FFFDF6', borderWidth: 1, borderColor: '#E8DCC8' },
+  statIconCircle: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
+  statIcon: { fontSize: 15 },
+  statValue: { marginTop: 6, color: '#2D3B2E', fontFamily: FONTS.extraBold, fontSize: 14, fontWeight: '800' },
+  statLabel: { marginTop: 2, color: '#8A7E6A', fontFamily: FONTS.bold, fontSize: 7.5, letterSpacing: 0.4, fontWeight: '700', textAlign: 'center' },
+
+  /* Journey Tracker */
+  journeyCard: { marginTop: 14, marginHorizontal: 16, padding: 16, borderRadius: 20, backgroundColor: '#FFFDF6', borderWidth: 1, borderColor: '#E8DCC8' },
+  journeyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  journeyEyebrow: { color: '#8A7E6A', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.2, fontWeight: '700' },
+  journeyPct: { color: '#C4882A', fontFamily: FONTS.extraBold, fontSize: 13, fontWeight: '800' },
+  journeyCountryRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center' },
+  journeyFlag: { fontSize: 22 },
+  journeyCountryName: { flex: 1, marginLeft: 8, color: '#2D3B2E', fontFamily: FONTS.extraBold, fontSize: 15, fontWeight: '800' },
+  journeyCount: { color: '#3C6B58', fontFamily: FONTS.extraBold, fontSize: 13, fontWeight: '800' },
+  progressTrack: { height: 10, marginTop: 12, overflow: 'hidden', borderRadius: 5, backgroundColor: '#E8DCC8' },
+  progressFill: { height: '100%', borderRadius: 5 },
+  journeyMeta: { marginTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
+  journeyMetaText: { color: '#8A7E6A', fontFamily: FONTS.semibold, fontSize: 9, fontWeight: '600' },
+
+  /* Language Card */
+  langCard: { marginTop: 14, marginHorizontal: 16, padding: 14, borderRadius: 20, backgroundColor: '#FFFDF6', borderWidth: 1, borderColor: '#E8DCC8' },
+  langTitle: { color: '#2D3B2E', fontFamily: FONTS.extraBold, fontSize: 13, fontWeight: '800' },
+  langOptions: { marginTop: 10, flexDirection: 'row', gap: 6 },
+  langPill: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#EDE4D0' },
+  langPillActive: { backgroundColor: '#3C6B58' },
+  langPillText: { color: '#5A4E3C', fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700' },
+  langPillTextActive: { color: '#FFFFFF' },
+
+  /* Difficulty Card */
+  diffCard: { marginTop: 14, marginHorizontal: 16, padding: 16, borderRadius: 20, backgroundColor: '#FFFDF6', borderWidth: 1, borderColor: '#E8DCC8' },
+  diffHeader: { flexDirection: 'row', alignItems: 'center' },
+  diffIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: '#E8B84A33' },
+  diffIconText: { color: '#C4882A', fontSize: 20, lineHeight: 20, textAlign: 'center', includeFontPadding: false },
+  diffCopy: { flex: 1, marginLeft: 12 },
+  diffEyebrow: { color: '#8A7E6A', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1, fontWeight: '700' },
+  diffTitle: { marginTop: 3, color: '#2D3B2E', fontFamily: FONTS.extraBold, fontSize: 14, fontWeight: '800' },
+  diffDesc: { marginTop: 12, color: '#5A4E3C', fontFamily: FONTS.medium, fontSize: 11, lineHeight: 17 },
+  diffMeta: { marginTop: 8, color: '#8A7E6A', fontFamily: FONTS.medium, fontSize: 9, lineHeight: 13 },
 });
