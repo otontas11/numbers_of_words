@@ -111,6 +111,7 @@ import {
   isPassportEarned,
   resolveTravelLevel,
 } from '@/game/travel';
+import { maybeRequestReview } from '@/game/in-app-review';
 import { useBackgroundMusic } from '@/hooks/use-background-music';
 import {
   useContentImageBootstrap,
@@ -1906,6 +1907,11 @@ export default function HomeScreen() {
             (levelData.countryChallenge &&
               levelData.countryLevel === levelData.countryLevelCount);
           const nextDestination = travelCompletion.nextDestination;
+
+          if (completedLocation && levelData.locationIndex === 2) {
+            void maybeRequestReview();
+          }
+
           const completedCountryRecord = COUNTRY_BY_ID.get(levelData.countryId);
           const passportReward =
             completedCountryRecord &&
