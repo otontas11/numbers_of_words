@@ -1822,10 +1822,12 @@ export default function HomeScreen() {
       const nextDestination = resolveTravelLevel(nextLevel);
       const from = {
         countryIndex: levelData.countryIndex,
+        countryChallenge: levelData.countryChallenge,
         locationId: levelData.locationId,
       };
       const to = {
         countryIndex: nextDestination.countryIndex,
+        countryChallenge: nextDestination.countryChallenge,
         locationId: nextDestination.location.id,
       };
 
