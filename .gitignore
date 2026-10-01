@@ -44,3 +44,9 @@ example
 # generated native folders
 /ios
 /android
+
+# python tooling cache
+tools/__pycache__/
+
+# scratch copy of assets/sounds/bgm-loop.mp3
+assets/sounds/xyz.mp3
