@@ -42,6 +42,7 @@
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
+    "react-native-webview": "13.16.1",
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
@@ -63,6 +64,7 @@
     "build:stores": "npm run build:android:aab && npm run build:ios:ipa",
     "devices": "node ./scripts/run-real-devices.mjs",
     "sounds:generate": "./scripts/generate-sounds.sh",
+    "rescue:sync": "node ./scripts/sync-rescue-scene.mjs",
     "cloudflare:types-assets": "wrangler types cloudflare/assets-worker/worker-configuration.d.ts --config cloudflare/assets-worker/wrangler.jsonc",
     "cloudflare:deploy-assets": "wrangler deploy --config cloudflare/assets-worker/wrangler.jsonc",
     "validate:levels": "node --experimental-strip-types ./scripts/validate-levels.mjs",
