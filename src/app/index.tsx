@@ -20,7 +20,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { logDailyStart, logTutorialComplete } from '@/analytics/app-analytics';
-import { BridgeRescueOverlay } from '@/components/bridge/bridge-rescue-overlay';
 import { FreshGameTutorialModal } from '@/components/game/fresh-game-tutorial-modal';
 import { CountryCompletionModal } from '@/components/game/game-modals';
 import { DailyChallengeScreen } from '@/components/daily/daily-challenge-screen';
@@ -101,16 +100,6 @@ import {
   skillFromDailyChallengeProgress,
 } from '@/game/daily-challenge';
 import { loadDailyChallengeProgress } from '@/game/daily-challenge-storage';
-import {
-  EMPTY_BRIDGE_CYCLE,
-  appendBridgeEvent,
-  isBridgeCycleComplete,
-  loadBridgeCycle,
-  saveBridgeCycle,
-  startNextBridgeCycle,
-  type BridgeCycle,
-  type BridgeEvent,
-} from '@/game/bridge-rescue';
 import {
   COUNTRY_LEVEL_COUNT,
   COUNTRY_BY_ID,
@@ -1118,11 +1107,6 @@ export default function HomeScreen() {
   const [selectionCount, setSelectionCount] = useState(0);
   const [landedTarget, setLandedTarget] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  // Köprü kurtarma: doğru cevaplar WebView sahnesindeki köprüyü kurar, 9'uncuda
-  // ödül ekranı açılır. Döngü dolduğunda günlük donar (yeni olay kabul edilmez),
-  // bu yüzden ekranın görünürlüğü ayrı bir state değil, döngüden türetilir.
-  const [bridgeCycle, setBridgeCycle] = useState<BridgeCycle>(EMPTY_BRIDGE_CYCLE);
-  const [bridgeHydrated, setBridgeHydrated] = useState(false);
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [operationGuideVisible, setOperationGuideVisible] = useState(false);
   const [operationGuideSymbol, setOperationGuideSymbol] = useState<string | undefined>();
@@ -1184,14 +1168,10 @@ export default function HomeScreen() {
   const layout = getGameLayout(width, height);
   const { compact, compactHeader, wheelSize } = layout;
   const playSound = useGameSounds(effectsEnabled);
-  // Döngü dolduğunda ödül ekranı açılır; kapanışta döngü sıfırlanıp gizlenir.
-  const bridgeRescueVisible = bridgeHydrated && isBridgeCycleComplete(bridgeCycle);
   const musicDucked =
     celebrating ||
     (activeScreen === 'game' && countryCompletionLevel !== null) ||
-    destinationTransition !== null ||
-    // kurtarma sahnesinin kendi sesleri var; müzik onun üstüne binmesin
-    bridgeRescueVisible;
+    destinationTransition !== null;
   useBackgroundMusic(hydrated && musicEnabled, musicVolume, musicDucked);
   const grantHintAdGems = useCallback(() => {
     setGemCount((count) => count + HINT_AD_GEM_REWARD);
@@ -1211,7 +1191,6 @@ export default function HomeScreen() {
     !settingsVisible &&
     countryCompletionLevel === null &&
     destinationTransition === null &&
-    !bridgeRescueVisible &&
     !celebrating;
 
   const pausePuzzleActivity = useCallback(() => {
@@ -1417,35 +1396,6 @@ export default function HomeScreen() {
     cityDifficultyLocationId,
     consecutiveStruggles,
   ]);
-
-  // Köprü döngüsü kendi anahtarında saklanır: oyun kaydının sürümlü şemasına
-  // dokunmadan yüklenir, kaydedilir ve dolduğunda ödül ekranını açar.
-  useEffect(() => {
-    let active = true;
-    void loadBridgeCycle().then((cycle) => {
-      if (!active) return;
-      setBridgeCycle(cycle);
-      setBridgeHydrated(true);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!bridgeHydrated) return;
-    void saveBridgeCycle(bridgeCycle);
-  }, [bridgeCycle, bridgeHydrated]);
-
-  const recordBridgeEvent = useCallback((event: BridgeEvent) => {
-    setBridgeCycle((current) => appendBridgeEvent(current, event));
-  }, []);
-
-  // Ödül ekranı kapanınca köprü sıfırdan kurulmaya başlar. Oyuncu sahneyi erken
-  // kapatsa da döngü tamamlanmış sayılır: 9 doğru cevap zaten verilmişti.
-  const closeBridgeRescue = useCallback(() => {
-    setBridgeCycle((current) => startNextBridgeCycle(current));
-  }, []);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -1914,7 +1864,6 @@ export default function HomeScreen() {
       const calculation = computeResult(values, levelData.op);
       if (!calculation) {
         puzzleActivityRef.current.wrongAttempts += 1;
-        recordBridgeEvent('wrong');
         showTimedFeedback({ text: t('feedback.invalid'), tone: 'info' });
         return 'invalid';
       }
@@ -1943,8 +1892,6 @@ export default function HomeScreen() {
         levelScorePending.current += earnedPoints;
         targetScoreAwardsRef.current.set(targetIndex, earnedPoints);
         triggerEffect('success');
-        // köprüye bir tahta: 9'uncu doğruda ödül ekranı kurtarmayı oynatır
-        recordBridgeEvent('correct');
         void launchResultFlight(calculation.result, targetIndex, resultOrigin);
 
         if (hasCompletedRequiredTargets(nextSolved.size, levelData)) {
@@ -2146,7 +2093,6 @@ export default function HomeScreen() {
         return 'bonus';
       } else {
         puzzleActivityRef.current.wrongAttempts += 1;
-        recordBridgeEvent('wrong');
         showTimedFeedback({ text: t('feedback.alreadyFound'), tone: 'info' });
         return 'invalid';
       }
@@ -2158,7 +2104,6 @@ export default function HomeScreen() {
       levelData,
       markPuzzleActivity,
       recordCompletedPuzzlePerformance,
-      recordBridgeEvent,
       showTimedFeedback,
       solvedTargets,
       startLevelAfterWheelOutro,
@@ -2198,7 +2143,6 @@ export default function HomeScreen() {
     hintActiveRef.current = true;
     setGemCount((count) => count - HINT_GEM_COST);
     puzzleActivityRef.current.hintsUsed += 1;
-    recordBridgeEvent('hint');
     setHintIndices(solution);
     setHintedTarget(targetIndex);
     showTimedFeedback({ text: t('feedback.followGlow'), tone: 'bonus' }, 1700);
@@ -2213,7 +2157,6 @@ export default function HomeScreen() {
     levelData,
     markPuzzleActivity,
     offerHintAd,
-    recordBridgeEvent,
     requestRewardedHintAd,
     showTimedFeedback,
     solvedTargets,
@@ -2426,13 +2369,6 @@ export default function HomeScreen() {
         onDone={handleTutorialDone}
         onEffect={handleTutorialEffect}
       />
-      {bridgeRescueVisible ? (
-        <BridgeRescueOverlay
-          events={bridgeCycle.events}
-          muted={!effectsEnabled}
-          onClose={closeBridgeRescue}
-        />
-      ) : null}
     </>
   );
 
