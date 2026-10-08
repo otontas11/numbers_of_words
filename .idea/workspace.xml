@@ -5,11 +5,39 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1f1286ff-0618-41fb-995e-c5757f0c5d40" name="Changes" comment="ver-1">
-      <change beforePath="$PROJECT_DIR$/metro.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/metro.config.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/index.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/index.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/i18n/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/i18n/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/.editorconfig" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/.gitattributes" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/.prettierrc.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/.vscode/extensions.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/eslint.config.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/index.html" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/jsconfig.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/package-lock.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/package.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/public/favicon.ico" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/App.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/assets/base.css" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/assets/logo.svg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/assets/main.css" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/components/HelloWorld.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/components/TheWelcome.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/components/WelcomeItem.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/components/__tests__/HelloWorld.spec.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/components/icons/IconCommunity.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/components/icons/IconDocumentation.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/components/icons/IconEcosystem.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/components/icons/IconSupport.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/components/icons/IconTooling.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/main.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/router/index.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/stores/counter.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/views/AboutView.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/src/views/HomeView.vue" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/vite.config.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../emlak-crm-system/vitest.config.js" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -17,7 +45,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="24223" />
+    <option name="cachedIndexableFilesCount" value="24218" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -38,6 +66,65 @@
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
+  </component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.6306860372701342" />
+      <entry key="MS500" value="2.52616377478504" />
+      <entry key="S2" value="3.24718982777991" />
+      <entry key="S5" value="4.936938923027206" />
+      <entry key="S10" value="6.42910056944526" />
+      <entry key="S30" value="7.983207068676366" />
+      <entry key="S60" value="8.468449245564091" />
+      <entry key="M2" value="8.72816673569734" />
+      <entry key="M5" value="8.889776882645055" />
+      <entry key="M10" value="8.944637083756472" />
+      <entry key="M15" value="8.963035303327388" />
+      <entry key="M30" value="8.981489551370657" />
+      <entry key="H1" value="8.990737739834309" />
+      <entry key="H2" value="8.995367109605368" />
+      <entry key="H4" value="8.997683114555995" />
+      <entry key="D1" value="8.999613791266299" />
+      <entry key="W1" value="8.999944825825782" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="0.0" />
+      <entry key="M5" value="0.0" />
+      <entry key="M10" value="0.0" />
+      <entry key="M15" value="0.0" />
+      <entry key="M30" value="0.0" />
+      <entry key="H1" value="0.0" />
+      <entry key="H2" value="0.0" />
+      <entry key="H4" value="0.0" />
+      <entry key="D1" value="0.0" />
+      <entry key="W1" value="0.0" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="1.5728661383576088" />
+      <entry key="MS500" value="2.4994312061704984" />
+      <entry key="S2" value="3.238051153439339" />
+      <entry key="S5" value="4.931781711264162" />
+      <entry key="S10" value="6.425885733945012" />
+      <entry key="S30" value="7.9819168846671396" />
+      <entry key="S60" value="8.467770167803485" />
+      <entry key="M2" value="8.72781811175454" />
+      <entry key="M5" value="8.889635173074156" />
+      <entry key="M10" value="8.944565845489564" />
+      <entry key="M15" value="8.962987725419755" />
+      <entry key="M30" value="8.981465719423444" />
+      <entry key="H1" value="8.990725813088188" />
+      <entry key="H2" value="8.995361143536153" />
+      <entry key="H4" value="8.99768013084697" />
+      <entry key="D1" value="8.99961329388776" />
+      <entry key="W1" value="8.99994475476941" />
+    </decayedShown>
   </component>
   <component name="NoctuleProjectWorkspaceSettings">
     <option name="migratedAutodetectionSetting" value="true" />
@@ -68,6 +155,8 @@
     &quot;npm.build:ios:ipa.executor&quot;: &quot;Run&quot;,
     &quot;npm.devices:android.executor&quot;: &quot;Run&quot;,
     &quot;npm.ios.executor&quot;: &quot;Run&quot;,
+    &quot;npm.release:ios.executor&quot;: &quot;Run&quot;,
+    &quot;npm.start.executor&quot;: &quot;Run&quot;,
     &quot;npm.validate:levels.executor&quot;: &quot;Run&quot;,
     &quot;ts.external.directory.path&quot;: &quot;/Users/oktaytontas/Documents/android_apps/numbers_of_wonders/node_modules/typescript/lib&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
@@ -89,7 +178,7 @@
       <recent name="$PROJECT_DIR$/assets/images/countries/hidden-africa" />
     </key>
   </component>
-  <component name="RunManager" selected="npm.ios">
+  <component name="RunManager" selected="npm.start">
     <configuration name="android" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
       <package-json value="$PROJECT_DIR$/package.json" />
       <command value="run" />
@@ -110,16 +199,6 @@
       <envs />
       <method v="2" />
     </configuration>
-    <configuration name="devices:android" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
-      <package-json value="$PROJECT_DIR$/package.json" />
-      <command value="run" />
-      <scripts>
-        <script value="devices:android" />
-      </scripts>
-      <node-interpreter value="project" />
-      <envs />
-      <method v="2" />
-    </configuration>
     <configuration name="ios" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
       <package-json value="$PROJECT_DIR$/package.json" />
       <command value="run" />
@@ -130,11 +209,21 @@
       <envs />
       <method v="2" />
     </configuration>
-    <configuration name="validate:levels" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
+    <configuration name="release:ios" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
       <package-json value="$PROJECT_DIR$/package.json" />
       <command value="run" />
       <scripts>
-        <script value="validate:levels" />
+        <script value="release:ios" />
+      </scripts>
+      <node-interpreter value="project" />
+      <envs />
+      <method v="2" />
+    </configuration>
+    <configuration name="start" type="js.build_tools.npm" temporary="true" nameIsGenerated="true">
+      <package-json value="$PROJECT_DIR$/package.json" />
+      <command value="run" />
+      <scripts>
+        <script value="start" />
       </scripts>
       <node-interpreter value="project" />
       <envs />
@@ -142,11 +231,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="npm.start" />
+        <item itemvalue="npm.release:ios" />
         <item itemvalue="npm.ios" />
         <item itemvalue="npm.build:ios:ipa" />
         <item itemvalue="npm.android" />
-        <item itemvalue="npm.devices:android" />
-        <item itemvalue="npm.validate:levels" />
       </list>
     </recent_temporary>
   </component>
